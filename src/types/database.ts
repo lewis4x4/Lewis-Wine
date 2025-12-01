@@ -1126,3 +1126,38 @@ export type SharedTastingWithDetails = SharedTasting & {
   has_liked: boolean;
   comments?: (TastingComment & { user_profile: UserProfile | null })[];
 };
+
+// Receipt Scanning Types
+export type ExtractedWine = {
+  id: string;
+  name: string;
+  producer: string | null;
+  vintage: number | null;
+  wine_type: WineType | null;
+  quantity: number;
+  price_cents: number | null;
+  unit_price_cents: number | null;
+  confidence: number; // 0-100 confidence score
+  raw_text: string; // Original text from receipt
+  region: string | null;
+  country: string | null;
+};
+
+export type ReceiptScanResult = {
+  success: boolean;
+  vendor: string | null;
+  vendor_type: "winery" | "retailer" | "auction" | "private" | "other" | null;
+  purchase_date: string | null;
+  subtotal_cents: number | null;
+  tax_cents: number | null;
+  total_cents: number | null;
+  wines: ExtractedWine[];
+  raw_text: string;
+  errors?: string[];
+};
+
+export type ReceiptImportItem = ExtractedWine & {
+  selected: boolean;
+  matched_wine_reference_id: string | null;
+  matched_wine_reference: WineReference | null;
+};

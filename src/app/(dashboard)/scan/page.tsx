@@ -93,6 +93,36 @@ export default function ScanPage() {
         </Link>
       </div>
 
+      {/* Scan Options */}
+      {actualState === "scanning" && (
+        <div className="grid gap-4 md:grid-cols-2 mb-6">
+          <Card className="border-primary">
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="text-4xl">📷</div>
+              <div>
+                <h3 className="font-semibold">Scan Barcode</h3>
+                <p className="text-sm text-muted-foreground">
+                  Scan a single wine bottle barcode
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Link href="/scan/receipt">
+            <Card className="hover:border-primary transition-colors cursor-pointer h-full">
+              <CardContent className="flex items-center gap-4 p-6">
+                <div className="text-4xl">🧾</div>
+                <div>
+                  <h3 className="font-semibold">Scan Receipt</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Import multiple wines from a receipt
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      )}
+
       {actualState === "scanning" && (
         <BarcodeScanner onScan={handleScan} onError={handleScanError} />
       )}
