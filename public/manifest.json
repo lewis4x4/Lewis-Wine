@@ -1,0 +1,41 @@
+{
+  "name": "Pourfolio",
+  "short_name": "Pourfolio",
+  "description": "Your Wine Portfolio - Track, rate, and manage your wine collection",
+  "start_url": "/cellar",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#722F37",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["lifestyle", "food"],
+  "shortcuts": [
+    {
+      "name": "Scan Wine",
+      "short_name": "Scan",
+      "description": "Scan a wine barcode",
+      "url": "/scan",
+      "icons": [{ "src": "/icons/scan-icon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Add Wine",
+      "short_name": "Add",
+      "description": "Add a new wine to your cellar",
+      "url": "/cellar/add",
+      "icons": [{ "src": "/icons/add-icon.png", "sizes": "192x192" }]
+    }
+  ]
+}
