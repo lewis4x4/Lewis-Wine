@@ -64,11 +64,21 @@ export function Header() {
             >
               Analytics
             </Link>
+            <Link
+              href="/recommendations"
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              For You
+            </Link>
             <DropdownMenu>
               <DropdownMenuTrigger className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
                 Discover
               </DropdownMenuTrigger>
               <DropdownMenuContent>
+                <DropdownMenuItem asChild>
+                  <Link href="/recommendations">AI Recommendations</Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/wishlist">Wishlist</Link>
                 </DropdownMenuItem>

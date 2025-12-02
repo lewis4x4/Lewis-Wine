@@ -12,6 +12,7 @@ import { useUpdateLowStockSettings } from "@/lib/hooks/use-low-stock-alerts";
 import { LocationSelector } from "@/components/cellar/location-selector";
 import { EnhancedTastingForm, EnhancedTastingData } from "@/components/tasting";
 import { MarketValueEditor, PricePerGlass } from "@/components/financial";
+import { PhotoGallery } from "@/components/photos";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -451,6 +452,9 @@ export default function WineDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Photo Gallery */}
+      <PhotoGallery inventoryId={id} />
 
       {/* Low Stock Alert Settings */}
       <Card>

@@ -1161,3 +1161,52 @@ export type ReceiptImportItem = ExtractedWine & {
   matched_wine_reference_id: string | null;
   matched_wine_reference: WineReference | null;
 };
+
+// Photo Storage Types
+export type PhotoType = "label" | "bottle" | "cork" | "receipt" | "tasting" | "cellar" | "other";
+
+export type WinePhoto = {
+  id: string;
+  user_id: string;
+  inventory_id: string | null;
+  rating_id: string | null;
+  visit_id: string | null;
+  storage_path: string;
+  url: string;
+  thumbnail_url: string | null;
+  photo_type: PhotoType;
+  caption: string | null;
+  is_primary: boolean;
+  width: number | null;
+  height: number | null;
+  file_size_bytes: number | null;
+  mime_type: string | null;
+  taken_at: string | null;
+  created_at: string;
+};
+
+export type WinePhotoInsert = {
+  id?: string;
+  user_id: string;
+  inventory_id?: string | null;
+  rating_id?: string | null;
+  visit_id?: string | null;
+  storage_path: string;
+  url: string;
+  thumbnail_url?: string | null;
+  photo_type?: PhotoType;
+  caption?: string | null;
+  is_primary?: boolean;
+  width?: number | null;
+  height?: number | null;
+  file_size_bytes?: number | null;
+  mime_type?: string | null;
+  taken_at?: string | null;
+  created_at?: string;
+};
+
+export type WinePhotoUpdate = {
+  photo_type?: PhotoType;
+  caption?: string | null;
+  is_primary?: boolean;
+};
