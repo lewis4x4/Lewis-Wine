@@ -57,7 +57,7 @@ function LoginContent() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirect=${redirect}`,
+          redirectTo: `https://pourfolio.netlify.app/auth/callback?redirect=${redirect}`,
         },
       });
 

@@ -37,7 +37,7 @@ export default function SignupPage() {
           data: {
             full_name: fullName,
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: "https://pourfolio.netlify.app/auth/callback",
         },
       });
 
@@ -61,7 +61,7 @@ export default function SignupPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: "https://pourfolio.netlify.app/auth/callback",
         },
       });
 
