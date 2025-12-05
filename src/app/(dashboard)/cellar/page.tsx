@@ -63,8 +63,11 @@ export default function CellarPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Link href="/cellar/history">
+            <Button variant="ghost" size="sm">History</Button>
+          </Link>
           <Link href="/scan">
-            <Button variant="outline">📱 Scan</Button>
+            <Button variant="outline">Scan</Button>
           </Link>
           <Link href="/cellar/add">
             <Button>+ Add Wine</Button>

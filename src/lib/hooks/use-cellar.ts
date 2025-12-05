@@ -119,7 +119,63 @@ export function useConsumeWine() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cellar-inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["consumed-wines"] });
       queryClient.invalidateQueries({ queryKey: ["cellar"] });
+    },
+  });
+}
+
+export function useConsumedWines() {
+  const supabase = createClient();
+
+  return useQuery({
+    queryKey: ["consumed-wines"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("cellar_inventory")
+        .select(`
+          *,
+          wine_reference (*),
+          ratings (id, score, tasting_date, tasting_notes)
+        `)
+        .eq("status", "consumed")
+        .order("consumed_date", { ascending: false });
+
+      if (error) throw error;
+      return data as (CellarInventory & {
+        wine_reference: WineReference | null;
+        ratings: Rating[];
+      })[];
+    },
+  });
+}
+
+export function useRestoreWine() {
+  const queryClient = useQueryClient();
+  const supabase = createClient();
+
+  return useMutation({
+    mutationFn: async ({ id, quantity = 1 }: { id: string; quantity?: number }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("cellar_inventory")
+        .update({
+          status: "in_cellar",
+          consumed_date: null,
+          quantity,
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as CellarInventory;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cellar-inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["consumed-wines"] });
+      queryClient.invalidateQueries({ queryKey: ["cellar"] });
+      queryClient.invalidateQueries({ queryKey: ["wine-detail"] });
     },
   });
 }

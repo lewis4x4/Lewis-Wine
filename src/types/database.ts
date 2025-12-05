@@ -183,6 +183,8 @@ export type Database = {
           custom_name: string | null;
           custom_producer: string | null;
           custom_vintage: number | null;
+          custom_wine_type: "red" | "white" | "rose" | "sparkling" | "dessert" | "fortified" | null;
+          custom_region: string | null;
           vintage: number | null;
           quantity: number;
           bottle_size_ml: number;
@@ -218,6 +220,8 @@ export type Database = {
           custom_name?: string | null;
           custom_producer?: string | null;
           custom_vintage?: number | null;
+          custom_wine_type?: "red" | "white" | "rose" | "sparkling" | "dessert" | "fortified" | null;
+          custom_region?: string | null;
           vintage?: number | null;
           quantity?: number;
           bottle_size_ml?: number;
@@ -253,6 +257,8 @@ export type Database = {
           custom_name?: string | null;
           custom_producer?: string | null;
           custom_vintage?: number | null;
+          custom_wine_type?: "red" | "white" | "rose" | "sparkling" | "dessert" | "fortified" | null;
+          custom_region?: string | null;
           vintage?: number | null;
           quantity?: number;
           bottle_size_ml?: number;
@@ -1209,4 +1215,24 @@ export type WinePhotoUpdate = {
   photo_type?: PhotoType;
   caption?: string | null;
   is_primary?: boolean;
+};
+
+// Label Scanning Types
+export type LabelScanResult = {
+  success: boolean;
+  wine: {
+    name: string;
+    producer: string | null;
+    vintage: number | null;
+    wine_type: WineType | null;
+    region: string | null;
+    sub_region: string | null;
+    country: string | null;
+    appellation: string | null;
+    grape_varieties: string[] | null;
+    alcohol_percentage: number | null;
+    confidence: number; // 0-100 confidence score
+  } | null;
+  raw_text: string;
+  error?: string;
 };

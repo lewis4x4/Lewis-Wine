@@ -56,7 +56,7 @@ export default function ScanPage() {
 
       toast.success(`Added ${wine?.name || "wine"} to your cellar!`);
       router.push("/cellar");
-    } catch (error) {
+    } catch {
       toast.error("Failed to add wine to cellar");
       setScanState("found");
     }
@@ -85,7 +85,7 @@ export default function ScanPage() {
         <div>
           <h1 className="font-playfair text-3xl font-bold">Scan Wine</h1>
           <p className="text-muted-foreground">
-            Point your camera at a wine barcode
+            Choose a scan method below
           </p>
         </div>
         <Link href="/cellar/add">
@@ -95,18 +95,31 @@ export default function ScanPage() {
 
       {/* Scan Options */}
       {actualState === "scanning" && (
-        <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <div className="grid gap-4 md:grid-cols-3 mb-6">
           <Card className="border-primary">
             <CardContent className="flex items-center gap-4 p-6">
               <div className="text-4xl">📷</div>
               <div>
                 <h3 className="font-semibold">Scan Barcode</h3>
                 <p className="text-sm text-muted-foreground">
-                  Scan a single wine bottle barcode
+                  Scan a wine bottle barcode
                 </p>
               </div>
             </CardContent>
           </Card>
+          <Link href="/scan/label">
+            <Card className="hover:border-primary transition-colors cursor-pointer h-full">
+              <CardContent className="flex items-center gap-4 p-6">
+                <div className="text-4xl">🏷️</div>
+                <div>
+                  <h3 className="font-semibold">Scan Label</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Photo the label to auto-fill details
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
           <Link href="/scan/receipt">
             <Card className="hover:border-primary transition-colors cursor-pointer h-full">
               <CardContent className="flex items-center gap-4 p-6">
@@ -114,7 +127,7 @@ export default function ScanPage() {
                 <div>
                   <h3 className="font-semibold">Scan Receipt</h3>
                   <p className="text-sm text-muted-foreground">
-                    Import multiple wines from a receipt
+                    Import multiple wines from receipt
                   </p>
                 </div>
               </CardContent>

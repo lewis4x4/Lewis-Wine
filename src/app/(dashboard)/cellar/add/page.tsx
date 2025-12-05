@@ -120,6 +120,8 @@ function AddWineContent() {
         custom_name: selectedWine ? null : wineName,
         custom_producer: selectedWine ? null : (producer || null),
         custom_vintage: vintage ? parseInt(vintage) : null,
+        custom_wine_type: selectedWine ? null : (wineType ? (wineType as "red" | "white" | "rose" | "sparkling" | "dessert" | "fortified") : null),
+        custom_region: selectedWine ? null : (region || null),
         vintage: vintage ? parseInt(vintage) : null,
         quantity,
         purchase_price_cents: purchasePrice ? Math.round(parseFloat(purchasePrice) * 100) : null,

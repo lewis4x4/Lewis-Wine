@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import { useConsumeWine, useCellar } from "@/lib/hooks/use-cellar";
+import { useConsumeWine, useRestoreWine, useCellar } from "@/lib/hooks/use-cellar";
 import { useAddRating, useRecentCompanions } from "@/lib/hooks/use-ratings";
 import { getLocationDisplayString } from "@/lib/hooks/use-cellar-locations";
 import { useUpdateLowStockSettings } from "@/lib/hooks/use-low-stock-alerts";
@@ -71,7 +71,10 @@ export default function WineDetailPage() {
 
   const { data: cellar } = useCellar();
   const consumeWine = useConsumeWine();
+  const restoreWine = useRestoreWine();
   const addRating = useAddRating();
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [restoreQuantity, setRestoreQuantity] = useState(1);
   const updateLowStockSettings = useUpdateLowStockSettings();
   const { data: recentCompanions = [] } = useRecentCompanions();
   const locationMode: LocationMode = (cellar?.location_mode as LocationMode) || "simple";
@@ -110,6 +113,19 @@ export default function WineDetailPage() {
       toast.error("Failed to mark wine as consumed");
     }
   };
+
+  const handleRestore = async () => {
+    try {
+      await restoreWine.mutateAsync({ id, quantity: restoreQuantity });
+      toast.success("Wine restored to cellar!");
+      setShowRestoreDialog(false);
+      refetchWine();
+    } catch {
+      toast.error("Failed to restore wine");
+    }
+  };
+
+  const isConsumed = wine?.status === "consumed";
 
   const handleAddRating = async (data: EnhancedTastingData) => {
     try {
@@ -263,14 +279,39 @@ export default function WineDetailPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+      {/* Consumed Banner */}
+      {isConsumed && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🍷</span>
+            <div>
+              <p className="font-medium text-amber-900">Wine Consumed</p>
+              <p className="text-sm text-amber-700">
+                {wine.consumed_date && `on ${formatDate(wine.consumed_date)}`}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setRestoreQuantity(1);
+              setShowRestoreDialog(true);
+            }}
+          >
+            Restore to Cellar
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <Link
-            href="/cellar"
+            href={isConsumed ? "/cellar/history" : "/cellar"}
             className="text-sm text-muted-foreground hover:text-foreground mb-2 inline-block"
           >
-            ← Back to Cellar
+            &larr; {isConsumed ? "Back to History" : "Back to Cellar"}
           </Link>
           <h1 className="font-playfair text-2xl font-bold">
             {vintage && `${vintage} `}{name}
@@ -329,23 +370,72 @@ export default function WineDetailPage() {
           </SheetContent>
         </Sheet>
 
-        <Dialog open={showConsumeDialog} onOpenChange={setShowConsumeDialog}>
-          <DialogTrigger asChild>
-            <Button variant="outline">Mark Consumed</Button>
-          </DialogTrigger>
+        {!isConsumed && (
+          <Dialog open={showConsumeDialog} onOpenChange={setShowConsumeDialog}>
+            <DialogTrigger asChild>
+              <Button variant="outline">Mark Consumed</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Mark as Consumed?</DialogTitle>
+                <DialogDescription>
+                  This will remove the wine from your active cellar inventory.
+                  You can still view it in your drinking history.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowConsumeDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleConsume} disabled={consumeWine.isPending}>
+                  {consumeWine.isPending ? "Updating..." : "Confirm"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Restore Dialog */}
+        <Dialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Mark as Consumed?</DialogTitle>
+              <DialogTitle>Restore Wine to Cellar</DialogTitle>
               <DialogDescription>
-                This will remove the wine from your active cellar inventory.
+                This will move the wine back to your active cellar inventory.
               </DialogDescription>
             </DialogHeader>
+            <div className="py-4">
+              <label className="text-sm font-medium">Quantity to restore</label>
+              <div className="flex items-center gap-2 mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRestoreQuantity(Math.max(1, restoreQuantity - 1))}
+                >
+                  -
+                </Button>
+                <Input
+                  type="number"
+                  min={1}
+                  value={restoreQuantity}
+                  onChange={(e) => setRestoreQuantity(parseInt(e.target.value) || 1)}
+                  className="text-center w-20"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRestoreQuantity(restoreQuantity + 1)}
+                >
+                  +
+                </Button>
+              </div>
+            </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowConsumeDialog(false)}>
+              <Button variant="outline" onClick={() => setShowRestoreDialog(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleConsume} disabled={consumeWine.isPending}>
-                {consumeWine.isPending ? "Updating..." : "Confirm"}
+              <Button onClick={handleRestore} disabled={restoreWine.isPending}>
+                {restoreWine.isPending ? "Restoring..." : "Restore to Cellar"}
               </Button>
             </DialogFooter>
           </DialogContent>

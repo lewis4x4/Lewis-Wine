@@ -111,17 +111,17 @@ export function useDrinkingStats() {
         }
       });
 
-      // Count by type
+      // Count by type (check wine_reference first, then custom_wine_type)
       const typeMap = new Map<string, number>();
       wines.forEach((w) => {
-        const type = w.wine_reference?.wine_type || "unknown";
+        const type = w.wine_reference?.wine_type || w.custom_wine_type || "unknown";
         typeMap.set(type, (typeMap.get(type) || 0) + 1);
       });
 
-      // Count by region
+      // Count by region (check wine_reference first, then custom_region)
       const regionMap = new Map<string, number>();
       wines.forEach((w) => {
-        const region = w.wine_reference?.region || "Unknown";
+        const region = w.wine_reference?.region || w.custom_region || "Unknown";
         regionMap.set(region, (regionMap.get(region) || 0) + 1);
       });
 
@@ -237,10 +237,10 @@ export function useSpendingStats() {
         }
       });
 
-      // By type
+      // By type (check wine_reference first, then custom_wine_type)
       const typeMap = new Map<string, { amount: number; bottles: number }>();
       wines.forEach((w) => {
-        const type = w.wine_reference?.wine_type || "unknown";
+        const type = w.wine_reference?.wine_type || w.custom_wine_type || "unknown";
         const current = typeMap.get(type) || { amount: 0, bottles: 0 };
         typeMap.set(type, {
           amount: current.amount + (w.purchase_price_cents || 0) * w.quantity,
@@ -248,10 +248,10 @@ export function useSpendingStats() {
         });
       });
 
-      // By region
+      // By region (check wine_reference first, then custom_region)
       const regionMap = new Map<string, { amount: number; bottles: number }>();
       wines.forEach((w) => {
-        const region = w.wine_reference?.region || "Unknown";
+        const region = w.wine_reference?.region || w.custom_region || "Unknown";
         const current = regionMap.get(region) || { amount: 0, bottles: 0 };
         regionMap.set(region, {
           amount: current.amount + (w.purchase_price_cents || 0) * w.quantity,
@@ -339,7 +339,8 @@ export function useVintageStats() {
 
       ratedWines.forEach((r) => {
         const vintage = r.inventory!.vintage!;
-        const region = r.inventory?.wine_reference?.region || "Unknown";
+        const inv = r.inventory as { wine_reference: WineReference | null; custom_region?: string | null } | null;
+        const region = inv?.wine_reference?.region || inv?.custom_region || "Unknown";
 
         if (!vintageMap.has(vintage)) {
           vintageMap.set(vintage, { ratings: [], regions: new Map() });
@@ -384,7 +385,8 @@ export function useVintageStats() {
 
       ratedWines.forEach((r) => {
         const vintage = r.inventory!.vintage!;
-        const region = r.inventory?.wine_reference?.region || "Unknown";
+        const inv = r.inventory as { wine_reference: WineReference | null; custom_region?: string | null } | null;
+        const region = inv?.wine_reference?.region || inv?.custom_region || "Unknown";
 
         if (!regionVintageMap.has(region)) {
           regionVintageMap.set(region, new Map());
@@ -465,26 +467,29 @@ export function useTasteProfile() {
         distribution.set(bucket, (distribution.get(bucket) || 0) + 1);
       });
 
-      // By type
+      // By type (check wine_reference first, then custom_wine_type)
       const typeMap = new Map<string, number[]>();
       allRatings.forEach((r) => {
-        const type = r.inventory?.wine_reference?.wine_type || "unknown";
+        const inv = r.inventory as { wine_reference: WineReference | null; custom_wine_type?: string | null; custom_region?: string | null; custom_producer?: string | null } | null;
+        const type = inv?.wine_reference?.wine_type || inv?.custom_wine_type || "unknown";
         if (!typeMap.has(type)) typeMap.set(type, []);
         typeMap.get(type)!.push(r.score);
       });
 
-      // By region
+      // By region (check wine_reference first, then custom_region)
       const regionMap = new Map<string, number[]>();
       allRatings.forEach((r) => {
-        const region = r.inventory?.wine_reference?.region || "Unknown";
+        const inv = r.inventory as { wine_reference: WineReference | null; custom_wine_type?: string | null; custom_region?: string | null; custom_producer?: string | null } | null;
+        const region = inv?.wine_reference?.region || inv?.custom_region || "Unknown";
         if (!regionMap.has(region)) regionMap.set(region, []);
         regionMap.get(region)!.push(r.score);
       });
 
-      // By producer
+      // By producer (check wine_reference first, then custom_producer)
       const producerMap = new Map<string, number[]>();
       allRatings.forEach((r) => {
-        const producer = r.inventory?.wine_reference?.producer;
+        const inv = r.inventory as { wine_reference: WineReference | null; custom_wine_type?: string | null; custom_region?: string | null; custom_producer?: string | null } | null;
+        const producer = inv?.wine_reference?.producer || inv?.custom_producer;
         if (producer) {
           if (!producerMap.has(producer)) producerMap.set(producer, []);
           producerMap.get(producer)!.push(r.score);
