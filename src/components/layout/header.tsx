@@ -33,7 +33,7 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link href="/cellar" className="flex items-center gap-2">
+          <Link href="/dashboard" className="flex items-center gap-2">
             <span className="text-xl">🍷</span>
             <span className="font-playfair text-xl font-bold text-primary">
               Pourfolio

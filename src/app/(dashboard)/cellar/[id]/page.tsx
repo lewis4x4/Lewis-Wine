@@ -13,8 +13,9 @@ import { LocationSelector } from "@/components/cellar/location-selector";
 import { EnhancedTastingForm, EnhancedTastingData } from "@/components/tasting";
 import { MarketValueEditor, PricePerGlass } from "@/components/financial";
 import { PhotoGallery } from "@/components/photos";
+import { QRCodeGenerator } from "@/components/wine/qr-generator";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -620,6 +621,17 @@ export default function WineDetailPage() {
           glassesPerBottle={wine.glasses_per_bottle ?? 5}
         />
       </div>
+
+      {/* Asset Tagging */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Asset Tag</CardTitle>
+          <CardDescription>Generated QR code for physical bottle tagging.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <QRCodeGenerator id={id} name={name} producer={producer || ""} />
+        </CardContent>
+      </Card>
 
       {/* Ratings History */}
       <Card>

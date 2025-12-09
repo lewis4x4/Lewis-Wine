@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import type { LocationMode } from "@/types/database";
+import { DataTools } from "@/components/settings/data-tools";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -228,6 +229,8 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      <DataTools />
 
       <Card>
         <CardHeader>

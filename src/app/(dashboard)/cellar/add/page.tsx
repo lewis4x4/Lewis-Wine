@@ -56,15 +56,16 @@ function AddWineContent() {
   const { data: searchResults, isLoading: isSearching } = useWineSearch(searchQuery);
 
   // Form state
-  const [wineName, setWineName] = useState("");
-  const [producer, setProducer] = useState("");
-  const [vintage, setVintage] = useState("");
-  const [wineType, setWineType] = useState("");
-  const [region, setRegion] = useState("");
+  // Pre-fill from URL params if available (from Label Scanner)
+  const [wineName, setWineName] = useState(searchParams.get("name") || "");
+  const [producer, setProducer] = useState(searchParams.get("producer") || "");
+  const [vintage, setVintage] = useState(searchParams.get("vintage") || "");
+  const [wineType, setWineType] = useState(searchParams.get("varietal") || ""); // Fallback mapping might be needed
+  const [region, setRegion] = useState(searchParams.get("region") || "");
   const [quantity, setQuantity] = useState(1);
   const [purchasePrice, setPurchasePrice] = useState("");
   const [purchaseLocation, setPurchaseLocation] = useState("");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(searchParams.get("description") || "");
   const [rating, setRating] = useState(85);
   const [includeRating, setIncludeRating] = useState(false);
 

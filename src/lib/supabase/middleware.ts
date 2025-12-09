@@ -15,23 +15,23 @@ export async function updateSession(request: NextRequest) {
   }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({
-            request,
-          });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
       },
-    }
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) =>
+          request.cookies.set(name, value)
+        );
+        supabaseResponse = NextResponse.next({
+          request,
+        });
+        cookiesToSet.forEach(({ name, value, options }) =>
+          supabaseResponse.cookies.set(name, value, options)
+        );
+      },
+    },
+  }
   );
 
   // Refreshing the auth token
@@ -40,7 +40,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Protected routes - redirect to login if not authenticated
-  const protectedPaths = ["/cellar", "/scan", "/ratings", "/analytics", "/settings", "/recommend"];
+  const protectedPaths = ["/dashboard", "/cellar", "/scan", "/ratings", "/analytics", "/settings", "/recommend"];
   const isProtectedPath = protectedPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path)
   );
@@ -52,15 +52,16 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirect authenticated users away from auth pages
+  // Redirect authenticated users away from auth pages AND root page
   const authPaths = ["/login", "/signup"];
   const isAuthPath = authPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path)
   );
+  const isRootPath = request.nextUrl.pathname === "/";
 
-  if (isAuthPath && user) {
+  if ((isAuthPath || isRootPath) && user) {
     const url = request.nextUrl.clone();
-    url.pathname = "/cellar";
+    url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 
