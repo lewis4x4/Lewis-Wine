@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useCellar, useAddToInventory } from "@/lib/hooks/use-cellar";
+import { useCellar, useAddToInventory, useCellarInventory } from "@/lib/hooks/use-cellar";
 import { useWineSearch } from "@/lib/hooks/use-wine-search";
 import { RatingInput } from "@/components/wine/rating-input";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { LocationSelector } from "@/components/cellar/location-selector";
+import { Celebration, checkMilestone, getMilestoneMessage } from "@/components/ui/celebration";
 import type { WineReference, LocationMode } from "@/types/database";
 
 const COMMON_REGIONS = [
@@ -47,7 +48,11 @@ function AddWineContent() {
   const barcodeFromUrl = searchParams.get("barcode");
 
   const { data: cellar } = useCellar();
+  const { data: inventory } = useCellarInventory();
   const addToInventory = useAddToInventory();
+
+  // Celebration state
+  const [showCelebration, setShowCelebration] = useState(false);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -115,6 +120,9 @@ function AddWineContent() {
     }
 
     try {
+      // Calculate current bottle count before adding
+      const currentBottleCount = inventory?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+
       await addToInventory.mutateAsync({
         cellar_id: cellar.id,
         wine_reference_id: selectedWine?.id || null,
@@ -133,26 +141,40 @@ function AddWineContent() {
         location_id: locationMode !== "simple" ? storageLocationId : null,
       });
 
-      toast.success(`Added ${wineName} to your cellar!`);
-      router.push("/cellar");
+      // Check for milestone
+      const newBottleCount = currentBottleCount + quantity;
+      const milestone = checkMilestone(newBottleCount, currentBottleCount);
+
+      if (milestone) {
+        const message = getMilestoneMessage(milestone);
+        setShowCelebration(true);
+        toast.success(message.title, { description: message.description, duration: 5000 });
+        // Delay navigation to show celebration
+        setTimeout(() => router.push("/cellar"), 3000);
+      } else {
+        toast.success(`Added ${wineName} to your cellar!`);
+        router.push("/cellar");
+      }
     } catch {
       toast.error("Failed to add wine");
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-playfair text-3xl font-bold">Add Wine</h1>
-          <p className="text-muted-foreground">
-            Add a new wine to your collection
-          </p>
+    <>
+      <Celebration show={showCelebration} />
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-playfair text-3xl font-bold">Add Wine</h1>
+            <p className="text-muted-foreground">
+              Add a new wine to your collection
+            </p>
+          </div>
+          <Link href="/scan">
+            <Button variant="outline">📱 Scan Instead</Button>
+          </Link>
         </div>
-        <Link href="/scan">
-          <Button variant="outline">📱 Scan Instead</Button>
-        </Link>
-      </div>
 
       {barcodeFromUrl && (
         <Card className="border-yellow-200 bg-yellow-50">
@@ -434,7 +456,8 @@ function AddWineContent() {
           </Button>
         </div>
       </form>
-    </div>
+      </div>
+    </>
   );
 }
 

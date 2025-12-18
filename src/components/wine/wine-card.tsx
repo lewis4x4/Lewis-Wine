@@ -4,7 +4,10 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Wine, MapPin } from "lucide-react";
 import { getLocationDisplayString } from "@/lib/hooks/use-cellar-locations";
+import { cn } from "@/lib/utils";
 import type { CellarInventory, WineReference, Rating, CellarLocation, LocationMode } from "@/types/database";
 
 interface WineCardProps {
@@ -16,13 +19,14 @@ interface WineCardProps {
   };
   locationMode?: LocationMode;
   onQuantityChange?: (id: string, delta: number) => void;
+  compact?: boolean;
 }
 
-export function WineCard({ wine, locationMode = "simple", onQuantityChange }: WineCardProps) {
+export function WineCard({ wine, locationMode = "simple", onQuantityChange, compact = false }: WineCardProps) {
   const name = wine.wine_reference?.name || wine.custom_name || "Unknown Wine";
   const producer = wine.wine_reference?.producer || wine.custom_producer || "";
   const vintage = wine.vintage || wine.custom_vintage;
-  const region = wine.wine_reference?.region;
+  const region = wine.wine_reference?.region || wine.custom_region;
   const wineType = wine.wine_reference?.wine_type;
   const locationDisplay = getLocationDisplayString(
     { simple_location: wine.simple_location, location: wine.location },
@@ -31,140 +35,200 @@ export function WineCard({ wine, locationMode = "simple", onQuantityChange }: Wi
 
   // User's ratings
   const ratings = wine.ratings || [];
-  const latestRating = ratings[0];
   const avgRating = ratings.length > 0
     ? Math.round(ratings.reduce((sum, r) => sum + r.score, 0) / ratings.length)
     : null;
 
   // Critic scores from wine reference (e.g., Vivino)
   const criticScores = wine.wine_reference?.critic_scores as { vivino?: number; ratingsCount?: number } | null;
+  const displayRating = avgRating || criticScores?.vivino;
+  const isUserRating = !!avgRating;
 
-  const getTypeColor = (type: string | null | undefined) => {
+  // Wine type colors for left border
+  const getTypeBorderColor = (type: string | null | undefined) => {
     switch (type) {
-      case "red":
-        return "bg-red-100 text-red-800";
-      case "white":
-        return "bg-yellow-100 text-yellow-800";
-      case "rose":
-        return "bg-pink-100 text-pink-800";
-      case "sparkling":
-        return "bg-amber-100 text-amber-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+      case "red": return "border-l-red-500";
+      case "white": return "border-l-amber-400";
+      case "rose": return "border-l-pink-400";
+      case "sparkling": return "border-l-yellow-400";
+      default: return "border-l-gray-300";
     }
   };
 
-  const getDrinkingStatus = () => {
+  const getTypeIconBg = (type: string | null | undefined) => {
+    switch (type) {
+      case "red": return "bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400";
+      case "white": return "bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400";
+      case "rose": return "bg-pink-100 text-pink-600 dark:bg-pink-950 dark:text-pink-400";
+      case "sparkling": return "bg-yellow-100 text-yellow-600 dark:bg-yellow-950 dark:text-yellow-400";
+      default: return "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
+    }
+  };
+
+  const getRatingColor = (score: number) => {
+    if (score >= 95) return "bg-purple-500 text-white";
+    if (score >= 90) return "bg-emerald-500 text-white";
+    if (score >= 85) return "bg-blue-500 text-white";
+    if (score >= 80) return "bg-amber-500 text-white";
+    return "bg-gray-400 text-white";
+  };
+
+  // Drinking window calculation
+  const getDrinkingWindow = () => {
     if (!wine.drink_after && !wine.drink_before) return null;
 
     const now = new Date();
-    const drinkAfter = wine.drink_after ? new Date(wine.drink_after) : null;
-    const drinkBefore = wine.drink_before ? new Date(wine.drink_before) : null;
+    const currentYear = now.getFullYear();
+    const drinkAfterYear = wine.drink_after ? parseInt(wine.drink_after) : currentYear;
+    const drinkBeforeYear = wine.drink_before ? parseInt(wine.drink_before) : currentYear + 20;
 
-    if (drinkAfter && now < drinkAfter) {
-      return { label: "Too Young", color: "bg-blue-100 text-blue-800" };
+    // Calculate progress through drinking window
+    const windowStart = drinkAfterYear;
+    const windowEnd = drinkBeforeYear;
+    const windowLength = windowEnd - windowStart;
+    const yearsIntoWindow = currentYear - windowStart;
+    const progress = windowLength > 0 ? Math.min(100, Math.max(0, (yearsIntoWindow / windowLength) * 100)) : 50;
+
+    let status: "early" | "ready" | "late";
+    let label: string;
+
+    if (currentYear < drinkAfterYear) {
+      status = "early";
+      label = `Ready ${drinkAfterYear}`;
+    } else if (currentYear > drinkBeforeYear) {
+      status = "late";
+      label = "Past peak";
+    } else {
+      status = "ready";
+      label = `${drinkAfterYear}-${drinkBeforeYear}`;
     }
-    if (drinkBefore && now > drinkBefore) {
-      return { label: "Past Peak", color: "bg-orange-100 text-orange-800" };
-    }
-    return { label: "Ready", color: "bg-green-100 text-green-800" };
+
+    return { progress, status, label, windowStart, windowEnd };
   };
 
-  const drinkingStatus = getDrinkingStatus();
+  const drinkingWindow = getDrinkingWindow();
 
   return (
-    <Card className="overflow-hidden transition-shadow hover:shadow-md">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <Link href={`/cellar/${wine.id}`} className="block">
-              <h3 className="font-semibold truncate hover:text-primary">
-                {vintage && `${vintage} `}
-                {name}
-              </h3>
+    <Card className={cn(
+      "overflow-hidden transition-all hover:shadow-lg border-l-4 group",
+      getTypeBorderColor(wineType)
+    )}>
+      <CardContent className="p-0">
+        {/* Main Content */}
+        <div className="p-4">
+          <div className="flex items-start gap-3">
+            {/* Wine Type Icon */}
+            <div className={cn(
+              "shrink-0 h-10 w-10 rounded-full flex items-center justify-center",
+              getTypeIconBg(wineType)
+            )}>
+              <Wine className="h-5 w-5" />
+            </div>
+
+            {/* Wine Info */}
+            <div className="flex-1 min-w-0">
+              <Link href={`/cellar/${wine.id}`} className="block group/link">
+                <h3 className="font-semibold leading-tight group-hover/link:text-primary transition-colors">
+                  {vintage && <span className="text-muted-foreground font-normal">{vintage} </span>}
+                  <span className="line-clamp-1">{name}</span>
+                </h3>
+              </Link>
               {producer && (
-                <p className="text-sm text-muted-foreground truncate">
+                <p className="text-sm text-muted-foreground truncate mt-0.5">
                   {producer}
                 </p>
               )}
               {region && (
-                <p className="text-xs text-muted-foreground">{region}</p>
-              )}
-            </Link>
-
-            <div className="mt-2 flex flex-wrap gap-1">
-              {wineType && (
-                <Badge variant="secondary" className={getTypeColor(wineType)}>
-                  {wineType}
-                </Badge>
-              )}
-              {drinkingStatus && (
-                <Badge variant="secondary" className={drinkingStatus.color}>
-                  {drinkingStatus.label}
-                </Badge>
-              )}
-              {locationDisplay && (
-                <Badge variant="outline" className="text-xs">
-                  <span className="mr-1">📍</span>
-                  {locationDisplay}
-                </Badge>
+                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                  <MapPin className="h-3 w-3" />
+                  {region}
+                </p>
               )}
             </div>
+
+            {/* Rating Badge */}
+            {displayRating && (
+              <div className="shrink-0">
+                <div className={cn(
+                  "h-12 w-12 rounded-lg flex flex-col items-center justify-center",
+                  getRatingColor(displayRating)
+                )}>
+                  <span className="text-lg font-bold leading-none">{displayRating}</span>
+                  <span className="text-[10px] opacity-80 leading-none mt-0.5">
+                    {isUserRating ? "You" : "Critic"}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="text-right shrink-0">
-            {/* User's rating */}
-            {avgRating && (
-              <div className="mb-2">
-                <span className="text-2xl font-bold text-primary">
-                  {avgRating}
+          {/* Drinking Window Progress */}
+          {drinkingWindow && (
+            <div className="mt-3 pt-3 border-t">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className={cn(
+                  "font-medium",
+                  drinkingWindow.status === "ready" && "text-emerald-600 dark:text-emerald-400",
+                  drinkingWindow.status === "early" && "text-blue-600 dark:text-blue-400",
+                  drinkingWindow.status === "late" && "text-orange-600 dark:text-orange-400"
+                )}>
+                  {drinkingWindow.status === "ready" ? "In drinking window" :
+                   drinkingWindow.status === "early" ? "Aging" : "Past peak"}
                 </span>
-                <span className="text-xs text-muted-foreground">/100</span>
-                {ratings.length > 1 && (
-                  <p className="text-xs text-muted-foreground">
-                    ({ratings.length} tastings)
-                  </p>
+                <span className="text-muted-foreground">{drinkingWindow.label}</span>
+              </div>
+              <Progress
+                value={drinkingWindow.progress}
+                className={cn(
+                  "h-1.5",
+                  drinkingWindow.status === "ready" && "[&>div]:bg-emerald-500",
+                  drinkingWindow.status === "early" && "[&>div]:bg-blue-500",
+                  drinkingWindow.status === "late" && "[&>div]:bg-orange-500"
                 )}
-              </div>
-            )}
+              />
+            </div>
+          )}
 
-            {/* Critic score (Vivino) - only show if no user rating */}
-            {!avgRating && criticScores?.vivino && (
-              <div className="mb-2">
-                <span className="text-lg font-semibold text-purple-600">
-                  {criticScores.vivino}
-                </span>
-                <span className="text-xs text-muted-foreground">/100</span>
-                <p className="text-xs text-muted-foreground">Vivino</p>
-              </div>
-            )}
-
-            {onQuantityChange && (
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 w-7 p-0"
-                  onClick={() => onQuantityChange(wine.id, -1)}
-                  disabled={wine.quantity <= 0}
-                >
-                  -
-                </Button>
-                <span className="w-8 text-center text-sm font-medium">
-                  {wine.quantity}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 w-7 p-0"
-                  onClick={() => onQuantityChange(wine.id, 1)}
-                >
-                  +
-                </Button>
-              </div>
-            )}
-          </div>
+          {/* Location Badge */}
+          {locationDisplay && (
+            <div className="mt-2">
+              <Badge variant="outline" className="text-xs font-normal">
+                📍 {locationDisplay}
+              </Badge>
+            </div>
+          )}
         </div>
+
+        {/* Quantity Controls Footer */}
+        {onQuantityChange && (
+          <div className="px-4 py-2 bg-muted/30 border-t flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              {wine.quantity} {wine.quantity === 1 ? "bottle" : "bottles"}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 hover:bg-background"
+                onClick={() => onQuantityChange(wine.id, -1)}
+                disabled={wine.quantity <= 0}
+              >
+                -
+              </Button>
+              <span className="w-6 text-center text-sm font-medium tabular-nums">
+                {wine.quantity}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 hover:bg-background"
+                onClick={() => onQuantityChange(wine.id, 1)}
+              >
+                +
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -1,20 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useCellar, useCellarInventory, useUpdateInventory } from "@/lib/hooks/use-cellar";
 import { useCellarValue } from "@/lib/hooks/use-portfolio-value";
 import { WineCard } from "@/components/wine/wine-card";
 import { AlertsDashboard } from "@/components/cellar/alerts-dashboard";
 import { PortfolioDashboard } from "@/components/financial";
+import { SearchFilter, filterAndSortWines, type FilterState, type SortState } from "@/components/cellar/search-filter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SkeletonWineCard } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { LocationMode } from "@/types/database";
 
 export default function CellarPage() {
   const [showPortfolio, setShowPortfolio] = useState(false);
+  const [filters, setFilters] = useState<FilterState>({
+    search: "",
+    regions: [],
+    vintageMin: null,
+    vintageMax: null,
+    priceMin: null,
+    priceMax: null,
+    ratingMin: null,
+  });
+  const [sort, setSort] = useState<SortState>({ field: "date", direction: "desc" });
+
   const { data: cellar, isLoading: cellarLoading } = useCellar();
   const { data: inventory, isLoading: inventoryLoading } = useCellarInventory();
   const { data: cellarValue } = useCellarValue();
@@ -30,6 +43,23 @@ export default function CellarPage() {
   };
 
   const isLoading = cellarLoading || inventoryLoading;
+
+  // Get unique regions for filter dropdown
+  const availableRegions = useMemo(() => {
+    if (!inventory) return [];
+    const regions = new Set<string>();
+    inventory.forEach((wine) => {
+      const region = wine.wine_reference?.region || wine.custom_region;
+      if (region) regions.add(region);
+    });
+    return Array.from(regions).sort();
+  }, [inventory]);
+
+  // Apply filters and sort
+  const filteredInventory = useMemo(() => {
+    if (!inventory) return [];
+    return filterAndSortWines(inventory as any, filters, sort);
+  }, [inventory, filters, sort]);
 
   const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -146,12 +176,31 @@ export default function CellarPage() {
       {/* Alerts Dashboard */}
       <AlertsDashboard />
 
+      {/* Search & Filter */}
+      {!isLoading && inventory && inventory.length > 0 && (
+        <SearchFilter
+          availableRegions={availableRegions}
+          filters={filters}
+          sort={sort}
+          onFiltersChange={setFilters}
+          onSortChange={setSort}
+          totalCount={inventory.length}
+          filteredCount={filteredInventory.length}
+        />
+      )}
+
       {/* Wine List */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="text-4xl animate-pulse">🍷</div>
-            <p className="mt-2 text-muted-foreground">Loading your cellar...</p>
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <div className="h-9 w-16 animate-pulse rounded-md bg-muted" />
+            <div className="h-9 w-14 animate-pulse rounded-md bg-muted" />
+            <div className="h-9 w-16 animate-pulse rounded-md bg-muted" />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonWineCard key={i} />
+            ))}
           </div>
         </div>
       ) : !inventory?.length ? (
@@ -175,28 +224,55 @@ export default function CellarPage() {
             </div>
           </CardContent>
         </Card>
+      ) : filteredInventory.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="text-6xl">🔍</div>
+            <h2 className="mt-4 font-playfair text-xl font-semibold">
+              No wines match your filters
+            </h2>
+            <p className="mt-2 text-muted-foreground text-center max-w-md">
+              Try adjusting your search or filter criteria.
+            </p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => setFilters({
+                search: "",
+                regions: [],
+                vintageMin: null,
+                vintageMax: null,
+                priceMin: null,
+                priceMax: null,
+                ratingMin: null,
+              })}
+            >
+              Clear Filters
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <Tabs defaultValue="all">
           <TabsList>
-            <TabsTrigger value="all">All ({inventory.length})</TabsTrigger>
+            <TabsTrigger value="all">All ({filteredInventory.length})</TabsTrigger>
             {winesByType?.red && (
-              <TabsTrigger value="red">Red ({winesByType.red.length})</TabsTrigger>
+              <TabsTrigger value="red">Red ({winesByType.red.filter(w => filteredInventory.some(f => f.id === w.id)).length})</TabsTrigger>
             )}
             {winesByType?.white && (
               <TabsTrigger value="white">
-                White ({winesByType.white.length})
+                White ({winesByType.white.filter(w => filteredInventory.some(f => f.id === w.id)).length})
               </TabsTrigger>
             )}
             {winesByType?.sparkling && (
               <TabsTrigger value="sparkling">
-                Sparkling ({winesByType.sparkling.length})
+                Sparkling ({winesByType.sparkling.filter(w => filteredInventory.some(f => f.id === w.id)).length})
               </TabsTrigger>
             )}
           </TabsList>
 
           <TabsContent value="all" className="mt-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {inventory.map((wine) => (
+              {filteredInventory.map((wine) => (
                 <WineCard
                   key={wine.id}
                   wine={wine as any}
@@ -210,7 +286,7 @@ export default function CellarPage() {
           {Object.entries(winesByType || {}).map(([type, wines]) => (
             <TabsContent key={type} value={type} className="mt-4">
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {wines?.map((wine) => (
+                {wines?.filter(w => filteredInventory.some(f => f.id === w.id)).map((wine) => (
                   <WineCard
                     key={wine.id}
                     wine={wine as any}

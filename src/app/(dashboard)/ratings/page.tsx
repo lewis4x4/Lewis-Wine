@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SkeletonRatingItem, SkeletonStatCard } from "@/components/ui/skeleton";
 import type { Rating } from "@/types/database";
 
 type RatingWithInventory = Rating & {
@@ -71,11 +72,24 @@ export default function RatingsPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="text-4xl animate-pulse">⭐</div>
-            <p className="mt-2 text-muted-foreground">Loading ratings...</p>
+        <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <SkeletonStatCard key={i} />
+            ))}
           </div>
+          <Card>
+            <CardHeader>
+              <div className="h-6 w-32 animate-pulse rounded bg-muted" />
+            </CardHeader>
+            <CardContent>
+              <div className="divide-y">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <SkeletonRatingItem key={i} />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       ) : !ratings?.length ? (
         <Card>

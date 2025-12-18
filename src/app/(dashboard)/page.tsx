@@ -5,6 +5,7 @@ import {
     Scan,
     Plus,
     TrendingUp,
+    TrendingDown,
     Activity,
     Calendar
 } from "lucide-react";
@@ -100,6 +101,23 @@ export default async function DashboardPage() {
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, 5);
 
+    // Calculate this month's additions for trend indicators
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    let addedThisMonth = 0;
+    let addedLastMonth = 0;
+
+    (inventory || []).forEach(item => {
+        const createdAt = new Date(item.created_at);
+        if (createdAt >= thisMonthStart) {
+            addedThisMonth += item.quantity;
+        } else if (createdAt >= lastMonthStart && createdAt < thisMonthStart) {
+            addedLastMonth += item.quantity;
+        }
+    });
+
     (inventory || []).forEach(item => {
         totalBottles += item.quantity;
 
@@ -165,6 +183,7 @@ export default async function DashboardPage() {
                     value={totalBottles.toString()}
                     change={`${inventory?.length || 0} unique labels`}
                     icon={<Wine className="h-4 w-4 text-violet-500" />}
+                    trend={addedThisMonth > 0 ? { value: addedThisMonth, label: `${addedThisMonth} this month` } : undefined}
                 />
                 <KPICard
                     title="Ready to Drink"
@@ -276,7 +295,13 @@ export default async function DashboardPage() {
 }
 
 // Sub-components
-function KPICard({ title, value, change, icon }: { title: string, value: string, change: string, icon: React.ReactNode }) {
+function KPICard({ title, value, change, icon, trend }: {
+    title: string,
+    value: string,
+    change: string,
+    icon: React.ReactNode,
+    trend?: { value: number, label: string }
+}) {
     return (
         <Card className="hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -287,9 +312,21 @@ function KPICard({ title, value, change, icon }: { title: string, value: string,
             </CardHeader>
             <CardContent>
                 <div className="text-2xl font-bold font-playfair tracking-tight">{value}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                    {change}
-                </p>
+                <div className="flex items-center gap-2 mt-1">
+                    {trend && trend.value !== 0 && (
+                        <span className={`flex items-center text-xs font-medium ${trend.value > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                            {trend.value > 0 ? (
+                                <TrendingUp className="h-3 w-3 mr-0.5" />
+                            ) : (
+                                <TrendingDown className="h-3 w-3 mr-0.5" />
+                            )}
+                            {trend.value > 0 ? '+' : ''}{trend.label}
+                        </span>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                        {change}
+                    </p>
+                </div>
             </CardContent>
         </Card>
     )
