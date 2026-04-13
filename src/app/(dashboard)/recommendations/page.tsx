@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, GlassWater, UtensilsCrossed, MoonStar, ChevronRight } from "lucide-react";
+import { Sparkles, GlassWater, UtensilsCrossed, MoonStar, ChevronRight, CheckCircle2 } from "lucide-react";
 import type { RecommendationsResponse, TonightContext, TonightRecommendation } from "@/app/api/recommendations/route";
 
 const mealOptions = [
@@ -60,8 +62,33 @@ export default function RecommendationsPage() {
     mood: "cozy",
     adventurous: "balanced",
   });
+  const [selectedTonightId, setSelectedTonightId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const supabase = createClient();
 
   const queryKey = useMemo(() => ["tonight-engine", context], [context]);
+
+  const markTonightBottle = useMutation({
+    mutationFn: async (recommendation: TonightRecommendation) => {
+      const existingNote = `Tonight Engine pick · ${new Date().toISOString()} · ${context.meal || "anything"} · ${context.occasion || "weeknight"} · ${context.mood || "cozy"} · ${context.adventurous || "balanced"}`;
+      const { error } = await supabase
+        .from("cellar_inventory")
+        .update({ notes: existingNote } as never)
+        .eq("id", recommendation.inventory_id);
+
+      if (error) throw error;
+      return recommendation.inventory_id;
+    },
+    onSuccess: (inventoryId) => {
+      setSelectedTonightId(inventoryId);
+      toast.success("Tonight's bottle locked in.");
+      queryClient.invalidateQueries({ queryKey: ["wine-detail", inventoryId] });
+      queryClient.invalidateQueries({ queryKey: ["cellar-inventory"] });
+    },
+    onError: () => {
+      toast.error("Could not save tonight's bottle.");
+    },
+  });
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey,
@@ -126,7 +153,14 @@ export default function RecommendationsPage() {
       </Card>
 
       {data.primary ? (
-        <TonightPrimaryCard recommendation={data.primary} />
+        <TonightPrimaryCard
+          recommendation={data.primary}
+          isSelected={selectedTonightId === data.primary.inventory_id}
+          isSaving={markTonightBottle.isPending}
+          onMarkTonight={() => {
+            if (data.primary) markTonightBottle.mutate(data.primary);
+          }}
+        />
       ) : (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
@@ -144,7 +178,13 @@ export default function RecommendationsPage() {
           <CardContent className="space-y-4">
             {data.alternates.length > 0 ? (
               data.alternates.map((recommendation) => (
-                <TonightAlternateCard key={recommendation.id} recommendation={recommendation} />
+                <TonightAlternateCard
+                  key={recommendation.id}
+                  recommendation={recommendation}
+                  isSelected={selectedTonightId === recommendation.inventory_id}
+                  isSaving={markTonightBottle.isPending}
+                  onMarkTonight={() => markTonightBottle.mutate(recommendation)}
+                />
               ))
             ) : (
               <p className="text-sm text-muted-foreground">No alternates yet. The cellar is thin, but the primary pick still stands.</p>
@@ -241,7 +281,17 @@ function TonightContextBar({
   );
 }
 
-function TonightPrimaryCard({ recommendation }: { recommendation: TonightRecommendation }) {
+function TonightPrimaryCard({
+  recommendation,
+  isSelected,
+  isSaving,
+  onMarkTonight,
+}: {
+  recommendation: TonightRecommendation;
+  isSelected: boolean;
+  isSaving: boolean;
+  onMarkTonight: () => void;
+}) {
   return (
     <Card className="border-primary/30 shadow-sm">
       <CardHeader>
@@ -275,14 +325,27 @@ function TonightPrimaryCard({ recommendation }: { recommendation: TonightRecomme
               Open Bottle Brain <ChevronRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
-          <Button variant="outline">Mark as tonight’s bottle</Button>
+          <Button variant={isSelected ? "secondary" : "outline"} onClick={onMarkTonight} disabled={isSaving}>
+            {isSelected ? <CheckCircle2 className="mr-2 h-4 w-4" /> : null}
+            {isSaving ? "Saving..." : isSelected ? "Tonight’s bottle selected" : "Mark as tonight’s bottle"}
+          </Button>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function TonightAlternateCard({ recommendation }: { recommendation: TonightRecommendation }) {
+function TonightAlternateCard({
+  recommendation,
+  isSelected,
+  isSaving,
+  onMarkTonight,
+}: {
+  recommendation: TonightRecommendation;
+  isSelected: boolean;
+  isSaving: boolean;
+  onMarkTonight: () => void;
+}) {
   return (
     <div className="rounded-xl border p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -298,9 +361,14 @@ function TonightAlternateCard({ recommendation }: { recommendation: TonightRecom
       <p className="mt-3 text-sm text-muted-foreground">{recommendation.reason}</p>
       <div className="mt-4 flex items-center justify-between gap-3">
         <div className="text-xs text-muted-foreground">{recommendation.caution}</div>
-        <Button asChild variant="ghost" size="sm">
-          <Link href={`/cellar/${recommendation.inventory_id}`}>View bottle</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant={isSelected ? "secondary" : "outline"} size="sm" onClick={onMarkTonight} disabled={isSaving}>
+            {isSelected ? "Selected" : "Pick this"}
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link href={`/cellar/${recommendation.inventory_id}`}>View bottle</Link>
+          </Button>
+        </div>
       </div>
     </div>
   );
