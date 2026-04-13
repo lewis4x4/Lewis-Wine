@@ -1,47 +1,89 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import type { WineRecommendation, RecommendationsResponse } from "@/app/api/recommendations/route";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sparkles, GlassWater, UtensilsCrossed, MoonStar, ChevronRight } from "lucide-react";
+import type { RecommendationsResponse, TonightContext, TonightRecommendation } from "@/app/api/recommendations/route";
 
-async function fetchRecommendations(): Promise<RecommendationsResponse> {
-  const response = await fetch("/api/recommendations");
-  if (!response.ok) {
-    throw new Error("Failed to fetch recommendations");
-  }
+const mealOptions = [
+  { value: "anything", label: "Anything" },
+  { value: "steak", label: "Steak or beef" },
+  { value: "bbq", label: "BBQ" },
+  { value: "seafood", label: "Seafood" },
+  { value: "chicken", label: "Chicken" },
+  { value: "salad", label: "Salad or lighter plate" },
+  { value: "dessert", label: "Dessert" },
+];
+
+const occasionOptions = [
+  { value: "weeknight", label: "Weeknight" },
+  { value: "date-night", label: "Date night" },
+  { value: "celebration", label: "Celebration" },
+  { value: "dinner-party", label: "Dinner party" },
+  { value: "solo-reset", label: "Solo reset" },
+];
+
+const moodOptions = [
+  { value: "cozy", label: "Cozy" },
+  { value: "bright", label: "Bright" },
+  { value: "impressive", label: "Impressive" },
+  { value: "easy", label: "Easygoing" },
+];
+
+const adventurousOptions = [
+  { value: "safe", label: "Play it safe" },
+  { value: "balanced", label: "Balanced" },
+  { value: "adventurous", label: "Surprise me" },
+];
+
+async function fetchRecommendations(context: TonightContext): Promise<RecommendationsResponse> {
+  const params = new URLSearchParams();
+  if (context.meal && context.meal !== "anything") params.set("meal", context.meal);
+  if (context.occasion) params.set("occasion", context.occasion);
+  if (context.mood) params.set("mood", context.mood);
+  if (context.adventurous) params.set("adventurous", context.adventurous);
+
+  const response = await fetch(`/api/recommendations?${params.toString()}`);
+  if (!response.ok) throw new Error("Failed to fetch tonight recommendations");
   return response.json();
 }
 
 export default function RecommendationsPage() {
-  const [selectedWine, setSelectedWine] = useState<WineRecommendation | null>(null);
+  const [context, setContext] = useState<TonightContext>({
+    meal: "anything",
+    occasion: "weeknight",
+    mood: "cozy",
+    adventurous: "balanced",
+  });
+
+  const queryKey = useMemo(() => ["tonight-engine", context], [context]);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ["recommendations"],
-    queryFn: fetchRecommendations,
-    staleTime: 1000 * 60 * 30, // Cache for 30 minutes
+    queryKey,
+    queryFn: () => fetchRecommendations(context),
+    staleTime: 1000 * 60 * 10,
     retry: 1,
   });
 
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="font-playfair text-3xl font-bold">Wine Recommendations</h1>
-          <p className="text-muted-foreground">
-            AI-powered suggestions based on your taste profile
-          </p>
-        </div>
-        <div className="flex flex-col items-center justify-center py-16">
-          <div className="text-6xl animate-pulse">🍷</div>
-          <p className="mt-4 text-lg font-medium">Analyzing your taste profile...</p>
-          <p className="text-muted-foreground">
-            Our sommelier AI is reviewing your ratings and cellar
-          </p>
-        </div>
+        <TonightEngineHeader />
+        <TonightContextBar context={context} onChange={setContext} />
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="rounded-full bg-primary/10 p-4 text-primary">
+              <Sparkles className="h-8 w-8 animate-pulse" />
+            </div>
+            <p className="mt-4 text-lg font-medium">Choosing tonight’s bottle...</p>
+            <p className="text-muted-foreground">Scanning your real cellar, not a generic wine list.</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -49,51 +91,16 @@ export default function RecommendationsPage() {
   if (error || !data?.success) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="font-playfair text-3xl font-bold">Wine Recommendations</h1>
-          <p className="text-muted-foreground">
-            AI-powered suggestions based on your taste profile
-          </p>
-        </div>
+        <TonightEngineHeader />
+        <TonightContextBar context={context} onChange={setContext} />
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <div className="text-6xl">😔</div>
-            <h2 className="mt-4 font-playfair text-xl font-semibold">
-              Unable to Generate Recommendations
-            </h2>
-            <p className="mt-2 text-muted-foreground text-center max-w-md">
-              {data?.error || "Please rate some wines first so we can understand your preferences."}
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="text-5xl">🍷</div>
+            <h2 className="mt-4 font-playfair text-xl font-semibold">Tonight Engine hit a snag</h2>
+            <p className="mt-2 max-w-md text-muted-foreground">
+              {data?.error || "We couldn’t score the cellar right now."}
             </p>
-            <Button onClick={() => refetch()} className="mt-4">
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const { recommendations, taste_summary } = data;
-
-  if (recommendations.length === 0) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="font-playfair text-3xl font-bold">Wine Recommendations</h1>
-          <p className="text-muted-foreground">
-            AI-powered suggestions based on your taste profile
-          </p>
-        </div>
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <div className="text-6xl">📝</div>
-            <h2 className="mt-4 font-playfair text-xl font-semibold">
-              Build Your Taste Profile
-            </h2>
-            <p className="mt-2 text-muted-foreground text-center max-w-md">
-              Rate some wines in your cellar and add items to your wishlist so our AI
-              sommelier can learn your preferences and make personalized recommendations.
-            </p>
+            <Button onClick={() => refetch()} className="mt-4">Try again</Button>
           </CardContent>
         </Card>
       </div>
@@ -102,248 +109,225 @@ export default function RecommendationsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="font-playfair text-3xl font-bold">Wine Recommendations</h1>
-          <p className="text-muted-foreground">
-            AI-powered suggestions based on your taste profile
-          </p>
-        </div>
-        <Button
-          onClick={() => refetch()}
-          variant="outline"
-          disabled={isFetching}
-        >
-          {isFetching ? "Refreshing..." : "Refresh"}
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <TonightEngineHeader />
+        <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
+          {isFetching ? "Refreshing..." : "Re-score tonight"}
         </Button>
       </div>
 
-      {/* Taste Summary */}
-      {taste_summary && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <span>🎯</span> Your Taste Profile
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-foreground">{taste_summary}</p>
+      <TonightContextBar context={context} onChange={setContext} />
+
+      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+        <CardHeader>
+          <CardTitle className="font-playfair text-2xl">{data.headline}</CardTitle>
+          <CardDescription className="text-base text-muted-foreground">{data.summary}</CardDescription>
+        </CardHeader>
+      </Card>
+
+      {data.primary ? (
+        <TonightPrimaryCard recommendation={data.primary} />
+      ) : (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Tonight Engine could not find a primary bottle yet.
           </CardContent>
         </Card>
       )}
 
-      {/* Recommendations Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {recommendations.map((wine) => (
-          <WineRecommendationCard
-            key={wine.id}
-            wine={wine}
-            onClick={() => setSelectedWine(wine)}
-          />
-        ))}
-      </div>
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Alternates</CardTitle>
+            <CardDescription>Two credible backups with different tradeoffs.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {data.alternates.length > 0 ? (
+              data.alternates.map((recommendation) => (
+                <TonightAlternateCard key={recommendation.id} recommendation={recommendation} />
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No alternates yet. The cellar is thin, but the primary pick still stands.</p>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Selected Wine Details Modal/Drawer */}
-      {selectedWine && (
-        <WineDetailSheet
-          wine={selectedWine}
-          onClose={() => setSelectedWine(null)}
-        />
-      )}
+        <Card>
+          <CardHeader>
+            <CardTitle>Why tonight’s picks work</CardTitle>
+            <CardDescription>Fast operator framing, not sommelier theater.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <WhyRow label="Safe choice" text="Leans toward bottles with either proven taste signals or low-regret cellar fit." />
+            <WhyRow label="Interesting choice" text="Rewards unknown or underused bottles when you ask for more adventure." />
+            <WhyRow label="Special bottle" text="Elevates higher-value or scarcer bottles when the moment looks worth it." />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
 
-function WineRecommendationCard({
-  wine,
-  onClick,
-}: {
-  wine: WineRecommendation;
-  onClick: () => void;
-}) {
-  const typeColors: Record<string, string> = {
-    red: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-    white: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-    rose: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300",
-    sparkling: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-    dessert: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
-    fortified: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-  };
-
+function TonightEngineHeader() {
   return (
-    <Card
-      className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
-      onClick={onClick}
-    >
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <Badge className={typeColors[wine.wine_type] || "bg-gray-100 text-gray-800"}>
-            {wine.wine_type}
-          </Badge>
-          <div className="flex items-center gap-1 text-sm">
-            <span className="text-muted-foreground">Match:</span>
-            <span className="font-semibold">{wine.confidence}%</span>
-          </div>
-        </div>
-        <CardTitle className="text-lg mt-2 line-clamp-2">{wine.name}</CardTitle>
-        <CardDescription className="line-clamp-1">{wine.producer}</CardDescription>
+    <div>
+      <h1 className="font-playfair text-3xl font-bold">Tonight Engine</h1>
+      <p className="text-muted-foreground">What should you open tonight, from the bottles you already own?</p>
+    </div>
+  );
+}
+
+function TonightContextBar({
+  context,
+  onChange,
+}: {
+  context: TonightContext;
+  onChange: (next: TonightContext) => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <MoonStar className="h-5 w-5 text-primary" /> Tonight’s context
+        </CardTitle>
+        <CardDescription>Give the engine just enough signal to make a smarter call.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>📍</span>
-          <span>{wine.region}, {wine.country}</span>
+      <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Select value={context.meal || "anything"} onValueChange={(meal) => onChange({ ...context, meal })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Meal" />
+          </SelectTrigger>
+          <SelectContent>
+            {mealOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={context.occasion || "weeknight"} onValueChange={(occasion) => onChange({ ...context, occasion })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Occasion" />
+          </SelectTrigger>
+          <SelectContent>
+            {occasionOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={context.mood || "cozy"} onValueChange={(mood) => onChange({ ...context, mood })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Mood" />
+          </SelectTrigger>
+          <SelectContent>
+            {moodOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={context.adventurous || "balanced"} onValueChange={(adventurous) => onChange({ ...context, adventurous: adventurous as TonightContext["adventurous"] })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Style" />
+          </SelectTrigger>
+          <SelectContent>
+            {adventurousOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TonightPrimaryCard({ recommendation }: { recommendation: TonightRecommendation }) {
+  return (
+    <Card className="border-primary/30 shadow-sm">
+      <CardHeader>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge className="bg-primary text-primary-foreground">Best bottle now</Badge>
+          <Badge variant="outline">Confidence {recommendation.confidence}%</Badge>
+          <Badge variant="outline">{formatWineType(recommendation.wine_type)}</Badge>
+        </div>
+        <CardTitle className="font-playfair text-3xl">
+          {recommendation.vintage_label !== "Vintage unknown" ? `${recommendation.vintage_label} ` : ""}
+          {recommendation.name}
+        </CardTitle>
+        <CardDescription className="text-base">{recommendation.producer} • {recommendation.region}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-3">
+          <SignalCard icon={<UtensilsCrossed className="h-4 w-4" />} label="Why this fits" value={recommendation.reason} />
+          <SignalCard icon={<Sparkles className="h-4 w-4" />} label="Best for" value={recommendation.best_for} />
+          <SignalCard icon={<GlassWater className="h-4 w-4" />} label="Watch out for" value={recommendation.caution} />
         </div>
 
-        {wine.grape_varieties.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {wine.grape_varieties.slice(0, 3).map((grape) => (
-              <Badge key={grape} variant="outline" className="text-xs">
-                {grape}
-              </Badge>
-            ))}
-            {wine.grape_varieties.length > 3 && (
-              <Badge variant="outline" className="text-xs">
-                +{wine.grape_varieties.length - 3}
-              </Badge>
-            )}
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+          <span>{recommendation.quantity} bottle{recommendation.quantity === 1 ? "" : "s"} left</span>
+          <span>•</span>
+          <span>{recommendation.price_context}</span>
+        </div>
 
-        <div className="flex items-center justify-between pt-2">
-          <span className="text-sm text-muted-foreground">{wine.vintage_suggestion}</span>
-          <span className="font-semibold text-primary">{wine.price_range}</span>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild>
+            <Link href={`/cellar/${recommendation.inventory_id}`}>
+              Open Bottle Brain <ChevronRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+          <Button variant="outline">Mark as tonight’s bottle</Button>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function WineDetailSheet({
-  wine,
-  onClose,
-}: {
-  wine: WineRecommendation;
-  onClose: () => void;
-}) {
-  const typeColors: Record<string, string> = {
-    red: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-    white: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-    rose: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300",
-    sparkling: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-    dessert: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
-    fortified: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-  };
-
+function TonightAlternateCard({ recommendation }: { recommendation: TonightRecommendation }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose}>
-      <div
-        className="fixed right-0 top-0 h-full w-full max-w-lg bg-background shadow-xl overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="sticky top-0 z-10 flex items-center justify-between p-4 border-b bg-background">
-          <h2 className="font-playfair text-xl font-bold">Wine Details</h2>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Close
-          </Button>
+    <div className="rounded-xl border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="font-medium">
+            {recommendation.vintage_label !== "Vintage unknown" ? `${recommendation.vintage_label} ` : ""}
+            {recommendation.name}
+          </h3>
+          <p className="text-sm text-muted-foreground">{recommendation.producer} • {recommendation.region}</p>
         </div>
-
-        <div className="p-6 space-y-6">
-          {/* Header */}
-          <div>
-            <Badge className={typeColors[wine.wine_type] || "bg-gray-100 text-gray-800"}>
-              {wine.wine_type}
-            </Badge>
-            <h3 className="font-playfair text-2xl font-bold mt-2">{wine.name}</h3>
-            <p className="text-lg text-muted-foreground">{wine.producer}</p>
-          </div>
-
-          {/* Match Score */}
-          <div className="flex items-center gap-4 p-4 bg-primary/5 rounded-lg">
-            <div className="text-4xl">🎯</div>
-            <div>
-              <div className="text-2xl font-bold">{wine.confidence}% Match</div>
-              <div className="text-sm text-muted-foreground">Based on your taste profile</div>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Why Recommended */}
-          <div>
-            <h4 className="font-semibold mb-2 flex items-center gap-2">
-              <span>💡</span> Why We Recommend This
-            </h4>
-            <p className="text-muted-foreground">{wine.why_recommended}</p>
-          </div>
-
-          <Separator />
-
-          {/* Details Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-sm text-muted-foreground">Region</div>
-              <div className="font-medium">{wine.region}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Country</div>
-              <div className="font-medium">{wine.country}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Vintage</div>
-              <div className="font-medium">{wine.vintage_suggestion}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Price Range</div>
-              <div className="font-medium text-primary">{wine.price_range}</div>
-            </div>
-          </div>
-
-          {/* Grape Varieties */}
-          {wine.grape_varieties.length > 0 && (
-            <div>
-              <h4 className="font-semibold mb-2">Grape Varieties</h4>
-              <div className="flex flex-wrap gap-2">
-                {wine.grape_varieties.map((grape) => (
-                  <Badge key={grape} variant="secondary">
-                    {grape}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Flavor Profile */}
-          {wine.flavor_profile.length > 0 && (
-            <div>
-              <h4 className="font-semibold mb-2">Flavor Profile</h4>
-              <div className="flex flex-wrap gap-2">
-                {wine.flavor_profile.map((flavor) => (
-                  <Badge key={flavor} variant="outline">
-                    {flavor}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Food Pairings */}
-          {wine.food_pairings.length > 0 && (
-            <div>
-              <h4 className="font-semibold mb-2 flex items-center gap-2">
-                <span>🍽️</span> Food Pairings
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {wine.food_pairings.map((food) => (
-                  <Badge key={food} variant="secondary">
-                    {food}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <Badge variant="outline">{recommendation.confidence}% fit</Badge>
+      </div>
+      <p className="mt-3 text-sm text-muted-foreground">{recommendation.reason}</p>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <div className="text-xs text-muted-foreground">{recommendation.caution}</div>
+        <Button asChild variant="ghost" size="sm">
+          <Link href={`/cellar/${recommendation.inventory_id}`}>View bottle</Link>
+        </Button>
       </div>
     </div>
   );
+}
+
+function SignalCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-xl border bg-muted/20 p-4">
+      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+        {icon}
+        {label}
+      </div>
+      <p className="text-sm text-muted-foreground">{value}</p>
+    </div>
+  );
+}
+
+function WhyRow({ label, text }: { label: string; text: string }) {
+  return (
+    <div>
+      <div className="font-medium text-foreground">{label}</div>
+      <div>{text}</div>
+    </div>
+  );
+}
+
+function formatWineType(value: TonightRecommendation["wine_type"]) {
+  if (value === "unknown") return "Unknown style";
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }

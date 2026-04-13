@@ -1,331 +1,286 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import Anthropic from "@anthropic-ai/sdk";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+export type TonightContext = {
+  meal?: string;
+  occasion?: string;
+  mood?: string;
+  adventurous?: "safe" | "balanced" | "adventurous";
+};
 
-export type WineRecommendation = {
+export type TonightRecommendation = {
   id: string;
+  inventory_id: string;
   name: string;
   producer: string;
   region: string;
   country: string;
-  wine_type: "red" | "white" | "rose" | "sparkling" | "dessert" | "fortified";
-  grape_varieties: string[];
-  vintage_suggestion: string;
-  price_range: string;
-  why_recommended: string;
-  flavor_profile: string[];
-  food_pairings: string[];
+  wine_type: "red" | "white" | "rose" | "sparkling" | "dessert" | "fortified" | "unknown";
+  vintage_label: string;
+  quantity: number;
+  price_context: string;
   confidence: number;
+  reason: string;
+  best_for: string;
+  caution: string;
+  recommendation_type: "best-now" | "alternate";
 };
 
 export type RecommendationsResponse = {
   success: boolean;
-  recommendations: WineRecommendation[];
-  taste_summary: string;
+  context: TonightContext;
+  headline: string;
+  summary: string;
+  primary: TonightRecommendation | null;
+  alternates: TonightRecommendation[];
   error?: string;
 };
 
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = await createClient();
+type InventoryRow = {
+  id: string;
+  quantity: number;
+  vintage: number | null;
+  custom_name: string | null;
+  custom_producer: string | null;
+  custom_region: string | null;
+  custom_wine_type: TonightRecommendation["wine_type"] | null;
+  purchase_price_cents: number | null;
+  current_market_value_cents: number | null;
+  wine_reference: {
+    name: string;
+    producer: string | null;
+    region: string | null;
+    country: string | null;
+    wine_type: TonightRecommendation["wine_type"] | null;
+  } | null;
+  ratings: { score: number; tasting_notes: string | null }[];
+};
 
-    // Get current user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+function normalizeType(item: InventoryRow): TonightRecommendation["wine_type"] {
+  return item.wine_reference?.wine_type || item.custom_wine_type || "unknown";
+}
+
+function formatPriceContext(item: InventoryRow): string {
+  const cents = item.current_market_value_cents ?? item.purchase_price_cents;
+  if (!cents) return "Value still unknown";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(cents / 100);
+}
+
+function averageRating(item: InventoryRow): number | null {
+  if (!item.ratings || item.ratings.length === 0) return null;
+  return item.ratings.reduce((sum, r) => sum + r.score, 0) / item.ratings.length;
+}
+
+function scoreBottle(item: InventoryRow, context: TonightContext): { score: number; reason: string; bestFor: string; caution: string } {
+  const wineType = normalizeType(item);
+  const avg = averageRating(item);
+  let score = 50;
+  const reasons: string[] = [];
+  const cautions: string[] = [];
+
+  if (avg != null) {
+    score += Math.round((avg - 80) * 1.5);
+    reasons.push(`You have rated similar moments around ${Math.round(avg)}/100.`);
+  } else {
+    reasons.push("This bottle gives you a chance to create a fresh taste memory.");
+  }
+
+  if (item.quantity === 1) {
+    score += 6;
+    reasons.push("It feels like a distinctive one-bottle decision, which suits a deliberate tonight pick.");
+  } else if (item.quantity > 3) {
+    score += 2;
+    reasons.push("You have enough of it to open without overthinking scarcity.");
+  }
+
+  const meal = (context.meal || "").toLowerCase();
+  if (meal.includes("steak") || meal.includes("beef") || meal.includes("bbq")) {
+    if (wineType === "red") {
+      score += 12;
+      reasons.push("The meal context leans red, and this bottle fits that lane.");
+    } else {
+      cautions.push("The current meal cue may favor a red over this style.");
+    }
+  }
+  if (meal.includes("seafood") || meal.includes("fish") || meal.includes("salad") || meal.includes("chicken")) {
+    if (wineType === "white" || wineType === "rose" || wineType === "sparkling") {
+      score += 12;
+      reasons.push("The meal context leans lighter and this bottle fits that profile.");
+    }
+  }
+  if (meal.includes("dessert") && wineType === "dessert") {
+    score += 12;
+    reasons.push("Dessert context makes this a natural fit.");
+  }
+
+  const occasion = (context.occasion || "").toLowerCase();
+  if (occasion.includes("celebr") || occasion.includes("anniversary") || occasion.includes("special")) {
+    if (item.current_market_value_cents || item.purchase_price_cents) score += 6;
+    reasons.push("The occasion suggests choosing something that feels a little elevated.");
+  }
+  if (occasion.includes("casual") || occasion.includes("weeknight")) {
+    score += 3;
+    reasons.push("The occasion points toward a bottle that is easy to enjoy without ceremony.");
+  }
+
+  const adventurous = context.adventurous || "balanced";
+  if (adventurous === "safe" && avg != null) score += 5;
+  if (adventurous === "adventurous" && avg == null) score += 7;
+
+  const mood = (context.mood || "").toLowerCase();
+  if (mood.includes("cozy") || mood.includes("comfort")) {
+    if (wineType === "red" || wineType === "dessert") score += 5;
+  }
+  if (mood.includes("fresh") || mood.includes("bright")) {
+    if (wineType === "white" || wineType === "rose" || wineType === "sparkling") score += 5;
+  }
+
+  if (!item.current_market_value_cents && !item.purchase_price_cents) {
+    cautions.push("Value is unknown, so this is a taste-led pick rather than a portfolio-led one.");
+  }
+  if (item.vintage != null && (item.vintage < 1000 || item.vintage > new Date().getFullYear() + 1)) {
+    cautions.push("Vintage data looks malformed, so age-based confidence is reduced.");
+    score -= 4;
+  }
+
+  return {
+    score,
+    reason: reasons[0] || "This bottle fits the current moment better than the rest of the visible cellar.",
+    bestFor: reasons[1] || "A confident tonight pick from your real cellar.",
+    caution: cautions[0] || "Low structural risk based on the current context.",
+  };
+}
+
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const context: TonightContext = {
+      meal: url.searchParams.get("meal") || undefined,
+      occasion: url.searchParams.get("occasion") || undefined,
+      mood: url.searchParams.get("mood") || undefined,
+      adventurous: (url.searchParams.get("adventurous") as TonightContext["adventurous"]) || "balanced",
+    };
+
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized", recommendations: [] },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, error: "Unauthorized", headline: "Tonight Engine", summary: "", primary: null, alternates: [] }, { status: 401 });
     }
 
-    // Fetch user's ratings with wine details
-    const { data: ratings, error: ratingsError } = await supabase
-      .from("ratings")
-      .select(`
-        id,
-        score,
-        tasting_notes,
-        nose_notes,
-        palate_notes,
-        body,
-        tannins,
-        acidity,
-        sweetness,
-        finish,
-        food_pairing,
-        inventory:cellar_inventory (
-          custom_name,
-          custom_producer,
-          vintage,
-          wine_reference (
-            name,
-            producer,
-            region,
-            country,
-            wine_type,
-            grape_varieties
-          )
-        )
-      `)
-      .eq("user_id", user.id)
-      .order("score", { ascending: false })
-      .limit(20);
+    const { data: cellarRow } = await supabase
+      .from("cellars")
+      .select("id")
+      .eq("owner_id", user.id)
+      .single();
 
-    if (ratingsError) {
-      console.error("Ratings fetch error:", ratingsError);
+    const cellar = cellarRow as { id: string } | null;
+
+    if (!cellar) {
+      return NextResponse.json({
+        success: true,
+        context,
+        headline: "Tonight Engine",
+        summary: "No cellar found yet. Create your cellar first, then Tonight Engine can start making real decisions.",
+        primary: null,
+        alternates: [],
+      });
     }
 
-    // Fetch user's cellar inventory
-    const { data: inventory, error: inventoryError } = await supabase
+    const { data: inventory, error } = await supabase
       .from("cellar_inventory")
       .select(`
+        id,
+        quantity,
+        vintage,
         custom_name,
         custom_producer,
-        vintage,
+        custom_region,
+        custom_wine_type,
+        purchase_price_cents,
+        current_market_value_cents,
         wine_reference (
           name,
           producer,
           region,
           country,
-          wine_type,
-          grape_varieties
+          wine_type
+        ),
+        ratings (
+          score,
+          tasting_notes
         )
       `)
+      .eq("cellar_id", cellar.id)
       .eq("status", "in_cellar")
+      .gt("quantity", 0)
       .limit(30);
 
-    if (inventoryError) {
-      console.error("Inventory fetch error:", inventoryError);
-    }
+    if (error) throw error;
 
-    // Fetch user's wishlist
-    const { data: wishlist, error: wishlistError } = await supabase
-      .from("wishlist")
-      .select(`
-        custom_name,
-        custom_producer,
-        custom_region,
-        custom_wine_type,
-        wine_reference (
-          name,
-          producer,
-          region,
-          wine_type
-        )
-      `)
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .limit(10);
-
-    if (wishlistError) {
-      console.error("Wishlist fetch error:", wishlistError);
-    }
-
-    // Define types for the query results
-    type RatingWithInventory = {
-      id: string;
-      score: number | null;
-      tasting_notes: string | null;
-      nose_notes: string | null;
-      palate_notes: string | null;
-      body: string | null;
-      tannins: string | null;
-      acidity: string | null;
-      sweetness: string | null;
-      finish: string | null;
-      food_pairing: string | null;
-      inventory: {
-        custom_name: string | null;
-        custom_producer: string | null;
-        vintage: number | null;
-        wine_reference: {
-          name: string;
-          producer: string | null;
-          region: string | null;
-          country: string | null;
-          wine_type: string | null;
-          grape_varieties: string[] | null;
-        } | null;
-      } | null;
-    };
-
-    // Build taste profile summary for Claude
-    const ratingsSummary = ((ratings || []) as RatingWithInventory[]).map((r) => {
-      const inv = r.inventory;
-      const wine = inv?.wine_reference;
-      return {
-        wine_name: wine?.name || inv?.custom_name || "Unknown",
-        producer: wine?.producer || inv?.custom_producer,
-        region: wine?.region,
-        country: wine?.country,
-        type: wine?.wine_type,
-        grapes: wine?.grape_varieties,
-        score: r.score,
-        notes: r.tasting_notes,
-        body: r.body,
-        tannins: r.tannins,
-        acidity: r.acidity,
-        sweetness: r.sweetness,
-      };
-    });
-
-    type InventoryItem = {
-      custom_name: string | null;
-      custom_producer: string | null;
-      vintage: number | null;
-      wine_reference: {
-        name: string;
-        producer: string | null;
-        region: string | null;
-        country: string | null;
-        wine_type: string | null;
-        grape_varieties: string[] | null;
-      } | null;
-    };
-
-    const cellarSummary = ((inventory || []) as InventoryItem[]).map((inv) => {
-      const wine = inv.wine_reference;
-      return {
-        wine_name: wine?.name || inv.custom_name || "Unknown",
-        producer: wine?.producer || inv.custom_producer,
-        region: wine?.region,
-        country: wine?.country,
-        type: wine?.wine_type,
-        grapes: wine?.grape_varieties,
-      };
-    });
-
-    type WishlistItem = {
-      custom_name: string | null;
-      custom_producer: string | null;
-      custom_region: string | null;
-      custom_wine_type: string | null;
-      wine_reference: {
-        name: string;
-        producer: string | null;
-        region: string | null;
-        wine_type: string | null;
-      } | null;
-    };
-
-    const wishlistSummary = ((wishlist || []) as WishlistItem[]).map((w) => {
-      const wine = w.wine_reference;
-      return {
-        wine_name: wine?.name || w.custom_name || "Unknown",
-        producer: wine?.producer || w.custom_producer,
-        region: wine?.region || w.custom_region,
-        type: wine?.wine_type || w.custom_wine_type,
-      };
-    });
-
-    // Call Claude for recommendations
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      messages: [
-        {
-          role: "user",
-          content: `You are a master sommelier providing personalized wine recommendations. Based on the user's taste profile below, suggest 6 wines they would likely enjoy.
-
-USER'S TASTE PROFILE:
-
-Top Rated Wines (what they love):
-${JSON.stringify(ratingsSummary.slice(0, 10), null, 2)}
-
-Current Cellar (what they own):
-${JSON.stringify(cellarSummary.slice(0, 15), null, 2)}
-
-Wishlist (what they want):
-${JSON.stringify(wishlistSummary, null, 2)}
-
-Based on this profile, provide recommendations in ONLY valid JSON format (no markdown, no code blocks):
-
-{
-  "taste_summary": "A 2-3 sentence summary of their taste preferences",
-  "recommendations": [
-    {
-      "id": "rec-1",
-      "name": "Full wine name",
-      "producer": "Winery/Producer name",
-      "region": "Wine region (e.g., Napa Valley, Burgundy)",
-      "country": "Country",
-      "wine_type": "red" | "white" | "rose" | "sparkling" | "dessert" | "fortified",
-      "grape_varieties": ["Grape1", "Grape2"],
-      "vintage_suggestion": "2019-2021 recommended" or "NV" for non-vintage,
-      "price_range": "$20-30" or "$50-75" etc,
-      "why_recommended": "2-3 sentences explaining why this matches their taste",
-      "flavor_profile": ["cherry", "oak", "vanilla", "tobacco"],
-      "food_pairings": ["grilled steak", "aged cheese"],
-      "confidence": 85
-    }
-  ]
-}
-
-Guidelines:
-- Recommend wines they DON'T already have in their cellar
-- Match their preferred styles, regions, and grape varieties
-- Include a mix of: similar wines they'll love + some discoveries to expand their palate
-- Be specific with producer names (real wines they can actually buy)
-- Confidence score (0-100) reflects how well it matches their taste
-- Include a variety of price points
-- Consider their body, tannin, and acidity preferences from ratings`,
-        },
-      ],
-    });
-
-    // Extract the text content
-    const textContent = response.content.find((block) => block.type === "text");
-    if (!textContent || textContent.type !== "text") {
-      throw new Error("No text response from Claude");
-    }
-
-    // Parse the JSON response
-    let parsedResult: { taste_summary: string; recommendations: WineRecommendation[] };
-    try {
-      let jsonText = textContent.text.trim();
-      if (jsonText.startsWith("```json")) {
-        jsonText = jsonText.slice(7);
-      }
-      if (jsonText.startsWith("```")) {
-        jsonText = jsonText.slice(3);
-      }
-      if (jsonText.endsWith("```")) {
-        jsonText = jsonText.slice(0, -3);
-      }
-      parsedResult = JSON.parse(jsonText.trim());
-    } catch {
-      console.error("Failed to parse Claude response:", textContent.text);
+    const rows = (inventory || []) as InventoryRow[];
+    if (rows.length === 0) {
       return NextResponse.json({
-        success: false,
-        error: "Failed to generate recommendations",
-        recommendations: [],
-        taste_summary: "",
+        success: true,
+        context,
+        headline: "Tonight Engine",
+        summary: "Your active cellar is empty right now, so there is nothing to recommend for tonight yet.",
+        primary: null,
+        alternates: [],
       });
     }
 
+    const ranked = rows
+      .map((item) => {
+        const scored = scoreBottle(item, context);
+        return {
+          id: item.id,
+          inventory_id: item.id,
+          name: item.wine_reference?.name || item.custom_name || "Unknown bottle",
+          producer: item.wine_reference?.producer || item.custom_producer || "Unknown producer",
+          region: item.wine_reference?.region || item.custom_region || "Region unknown",
+          country: item.wine_reference?.country || "Country unknown",
+          wine_type: normalizeType(item),
+          vintage_label: item.vintage ? String(item.vintage) : "Vintage unknown",
+          quantity: item.quantity,
+          price_context: formatPriceContext(item),
+          confidence: Math.max(55, Math.min(96, scored.score)),
+          reason: scored.reason,
+          best_for: scored.bestFor,
+          caution: scored.caution,
+          recommendation_type: "alternate" as const,
+          sortScore: scored.score,
+        };
+      })
+      .sort((a, b) => b.sortScore - a.sortScore);
+
+    const [first, ...rest] = ranked;
+    const primary: TonightRecommendation | null = first
+      ? { ...first, recommendation_type: "best-now" }
+      : null;
+    const alternates: TonightRecommendation[] = rest.slice(0, 2).map((item) => ({ ...item, recommendation_type: "alternate" }));
+
+    const headline = primary
+      ? `Tonight, open ${primary.vintage_label !== "Vintage unknown" ? `${primary.vintage_label} ` : ""}${primary.name}.`
+      : "Tonight Engine";
+    const summary = primary
+      ? `This recommendation is based on your real cellar, your current context, and the strongest available fit for tonight rather than a generic wine list.`
+      : "Tonight Engine could not find a strong primary bottle.";
+
     return NextResponse.json({
       success: true,
-      recommendations: parsedResult.recommendations,
-      taste_summary: parsedResult.taste_summary,
+      context,
+      headline,
+      summary,
+      primary,
+      alternates,
     });
   } catch (error) {
-    console.error("Recommendations error:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Failed to generate recommendations",
-        recommendations: [],
-        taste_summary: "",
-      },
-      { status: 500 }
-    );
+    console.error("Tonight Engine error:", error);
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Failed to generate tonight recommendations", headline: "Tonight Engine", summary: "", primary: null, alternates: [] }, { status: 500 });
   }
 }
