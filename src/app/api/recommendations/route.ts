@@ -31,6 +31,8 @@ export type RecommendationsResponse = {
   context: TonightContext;
   headline: string;
   summary: string;
+  confidence_note: string;
+  fallback_prompt: string | null;
   primary: TonightRecommendation | null;
   alternates: TonightRecommendation[];
   error?: string;
@@ -169,7 +171,7 @@ export async function GET(request: Request) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ success: false, error: "Unauthorized", headline: "Tonight Engine", summary: "", primary: null, alternates: [] }, { status: 401 });
+      return NextResponse.json({ success: false, error: "Unauthorized", headline: "Tonight Engine", summary: "", confidence_note: "", fallback_prompt: null, primary: null, alternates: [] }, { status: 401 });
     }
 
     const { data: cellarRow } = await supabase
@@ -186,6 +188,8 @@ export async function GET(request: Request) {
         context,
         headline: "Tonight Engine",
         summary: "No cellar found yet. Create your cellar first, then Tonight Engine can start making real decisions.",
+        confidence_note: "No cellar means no recommendation confidence yet.",
+        fallback_prompt: "Add your first bottle so Tonight Engine can begin learning your real cellar.",
         primary: null,
         alternates: [],
       });
@@ -229,6 +233,8 @@ export async function GET(request: Request) {
         context,
         headline: "Tonight Engine",
         summary: "Your active cellar is empty right now, so there is nothing to recommend for tonight yet.",
+        confidence_note: "No inventory means no recommendation confidence yet.",
+        fallback_prompt: "Restock the cellar or restore a consumed bottle to give Tonight Engine something real to choose from.",
         primary: null,
         alternates: [],
       });
@@ -264,23 +270,38 @@ export async function GET(request: Request) {
       : null;
     const alternates: TonightRecommendation[] = rest.slice(0, 2).map((item) => ({ ...item, recommendation_type: "alternate" }));
 
+    const sparseData = rows.filter((item) => {
+      const hasReference = !!item.wine_reference;
+      const hasRatings = item.ratings.length > 0;
+      const hasValue = item.current_market_value_cents != null || item.purchase_price_cents != null;
+      return !hasReference || !hasRatings || !hasValue;
+    }).length;
+
     const headline = primary
       ? `Tonight, open ${primary.vintage_label !== "Vintage unknown" ? `${primary.vintage_label} ` : ""}${primary.name}.`
       : "Tonight Engine";
     const summary = primary
       ? `This recommendation is based on your real cellar, your current context, and the strongest available fit for tonight rather than a generic wine list.`
       : "Tonight Engine could not find a strong primary bottle.";
+    const confidence_note = sparseData >= Math.max(1, Math.ceil(rows.length * 0.6))
+      ? "Confidence is directionally strong, but the cellar data is still sparse enough that a few better notes or value signals would sharpen future picks."
+      : "Confidence is supported by enough live cellar detail to make this feel like a grounded tonight decision.";
+    const fallbackPrompt = sparseData >= Math.max(1, Math.ceil(rows.length * 0.6))
+      ? "Best next upgrade: add one tasting note or one missing value signal to improve the next recommendation cycle."
+      : null;
 
     return NextResponse.json({
       success: true,
       context,
       headline,
       summary,
+      confidence_note,
+      fallback_prompt: fallbackPrompt,
       primary,
       alternates,
     });
   } catch (error) {
     console.error("Tonight Engine error:", error);
-    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Failed to generate tonight recommendations", headline: "Tonight Engine", summary: "", primary: null, alternates: [] }, { status: 500 });
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Failed to generate tonight recommendations", headline: "Tonight Engine", summary: "", confidence_note: "", fallback_prompt: null, primary: null, alternates: [] }, { status: 500 });
   }
 }

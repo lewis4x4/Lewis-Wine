@@ -309,6 +309,7 @@ export default function WineDetailPage() {
   const latestRating = wine.ratings.length > 0
     ? [...wine.ratings].sort((a, b) => new Date(b.tasting_date).getTime() - new Date(a.tasting_date).getTime())[0]
     : null;
+  const tonightEngineSelected = typeof wine.notes === 'string' && wine.notes.includes('Tonight Engine pick');
   const latestMemory = latestRating?.tasting_notes || latestRating?.nose_notes || latestRating?.palate_notes || null;
   const memoryHeadline = latestRating
     ? `${latestRating.score}/100` 
@@ -491,6 +492,21 @@ export default function WineDetailPage() {
           </div>
         </div>
       </div>
+
+      {tonightEngineSelected && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex items-start gap-3 p-4">
+            <div className="rounded-xl bg-background/80 p-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Tonight Engine</p>
+              <p className="mt-2 font-medium text-foreground">This bottle has been selected for tonight.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Bottle Brain and Tonight Engine are now aligned on this record, so this is your active decision bottle.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Operator brief */}
       <div className="grid gap-4 md:grid-cols-3">

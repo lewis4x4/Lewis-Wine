@@ -150,6 +150,16 @@ export default function RecommendationsPage() {
           <CardTitle className="font-playfair text-2xl">{data.headline}</CardTitle>
           <CardDescription className="text-base text-muted-foreground">{data.summary}</CardDescription>
         </CardHeader>
+        <CardContent className="space-y-3 pt-0">
+          <div className="rounded-xl border bg-background/80 p-3 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">Confidence note:</span> {data.confidence_note}
+          </div>
+          {data.fallback_prompt && (
+            <div className="rounded-xl border border-dashed bg-muted/20 p-3 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Best next upgrade:</span> {data.fallback_prompt}
+            </div>
+          )}
+        </CardContent>
       </Card>
 
       {data.primary ? (
@@ -164,7 +174,8 @@ export default function RecommendationsPage() {
       ) : (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            Tonight Engine could not find a primary bottle yet.
+            <p>Tonight Engine could not find a primary bottle yet.</p>
+            {data.fallback_prompt && <p className="mt-3 text-sm">{data.fallback_prompt}</p>}
           </CardContent>
         </Card>
       )}
