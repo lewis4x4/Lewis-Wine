@@ -80,73 +80,78 @@ export default function CellarPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-playfair text-3xl font-bold">Cellar</h1>
-          <p className="text-muted-foreground">
-            {cellar?.total_bottles || 0} bottles
-            {cellar?.total_value_cents
-              ? ` • ${formatCurrency(cellar.total_value_cents)}`
-              : ""}
-          </p>
+      <section className="rounded-[28px] border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 px-8 py-8 shadow-[0_20px_60px_-40px_rgba(120,24,40,0.35)]">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl space-y-4">
+            <div className="inline-flex items-center rounded-full border border-border/60 bg-background/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+              Private collection
+            </div>
+            <div className="space-y-2">
+              <h1 className="font-playfair text-5xl font-semibold tracking-tight text-foreground">Cellar</h1>
+              <p className="max-w-2xl text-lg text-muted-foreground">
+                {inventory?.length
+                  ? `A live view of ${cellar?.total_bottles || 0} bottles, ${formatCurrency(cellar?.total_value_cents || 0)} in cellar value, and the next decisions worth making.`
+                  : "Your private collection starts here, with clean bottle records and better decisions over time."}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/cellar/history">
+              <Button variant="ghost" size="sm" className="h-11 rounded-full px-5 text-sm">History</Button>
+            </Link>
+            <Link href="/scan">
+              <Button variant="outline" className="h-11 rounded-full px-5">Scan</Button>
+            </Link>
+            <Link href="/cellar/add">
+              <Button className="h-11 rounded-full px-6">Add bottle</Button>
+            </Link>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Link href="/cellar/history">
-            <Button variant="ghost" size="sm">History</Button>
-          </Link>
-          <Link href="/scan">
-            <Button variant="outline">Scan</Button>
-          </Link>
-          <Link href="/cellar/add">
-            <Button>+ Add Wine</Button>
-          </Link>
-        </div>
-      </div>
 
-      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
-        <CardHeader>
-          <CardTitle className="font-playfair text-2xl">Cellar operating view</CardTitle>
-          <CardTitle className="sr-only">Cellar operating view</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-xl border bg-background/80 p-4">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
-            <p className="mt-2 text-sm text-foreground">
+        <div className="mt-8 grid gap-4 lg:grid-cols-[1.4fr_1fr_1fr]">
+          <div className="rounded-3xl border border-border/60 bg-background/88 p-6 shadow-sm">
+            <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Collection brief</div>
+            <p className="mt-4 text-2xl font-medium leading-tight text-foreground">
               {inventory?.length
-                ? `${filteredInventory.length} bottle${filteredInventory.length === 1 ? "" : "s"} are in your current working view.`
-                : "The cellar is still empty, so the next useful move is adding live bottles."}
+                ? `${filteredInventory.length} bottles are in your current working set.`
+                : "The collection is empty, so the first move is getting real bottles into the system."}
             </p>
-          </div>
-          <div className="rounded-xl border bg-background/80 p-4">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
-            <p className="mt-2 text-sm text-foreground">
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
               {inventory?.some((w) => !w.ratings?.length)
-                ? "Open the bottles with thin memory and start capturing tasting signal."
-                : "Use filters to narrow by region, value, or readiness before deciding what matters tonight."}
+                ? "The biggest gap is thin memory. The best upgrade now is capturing tasting signal on bottles that already matter."
+                : "The cellar has enough structure now that tonight's decision quality can become the focus."}
             </p>
           </div>
-          <div className="rounded-xl border bg-background/80 p-4">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Operator shortcut</div>
-            <div className="mt-3 flex flex-wrap gap-2">
+          <div className="rounded-3xl border border-border/60 bg-background/88 p-6 shadow-sm">
+            <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Best next move</div>
+            <p className="mt-4 text-lg font-medium leading-8 text-foreground">
+              {inventory?.some((w) => !w.ratings?.length)
+                ? "Open the bottles with thin memory and capture the first real note."
+                : "Use filters, value, and readiness to narrow the field before tonight's pick."}
+            </p>
+          </div>
+          <div className="rounded-3xl border border-border/60 bg-background/88 p-6 shadow-sm">
+            <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Shortcut</div>
+            <div className="mt-4 flex flex-col gap-3">
               <Link href="/recommendations">
-                <Button size="sm">Tonight Engine</Button>
+                <Button className="h-11 w-full rounded-full">Open Tonight Engine</Button>
               </Link>
               <Link href="/cellar/add">
-                <Button size="sm" variant="outline">Add bottle</Button>
+                <Button variant="outline" className="h-11 w-full rounded-full">Add bottle</Button>
               </Link>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* Stats Cards with Financial Summary */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Total Bottles"
+          label="Total bottles"
           value={cellar?.total_bottles?.toString() || "0"}
-          icon="🍾"
+          tone="primary"
         />
         <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setShowPortfolio(!showPortfolio)}>
           <CardContent className="flex items-center gap-4 p-4">
@@ -177,7 +182,7 @@ export default function CellarPage() {
           </CardContent>
         </Card>
         <StatCard
-          label="Ready to Drink"
+          label="Ready now"
           value={inventory?.filter((w) => {
             if (!w.drink_after && !w.drink_before) return true;
             const now = new Date();
@@ -185,21 +190,21 @@ export default function CellarPage() {
             const before = w.drink_before ? new Date(w.drink_before) : null;
             return (!after || now >= after) && (!before || now <= before);
           }).length.toString() || "0"}
-          icon="✅"
+          tone="success"
         />
         <StatCard
-          label="Wines Rated"
+          label="Rated bottles"
           value={inventory?.filter((w) => w.ratings?.length > 0).length.toString() || "0"}
-          icon="⭐"
+          tone="muted"
         />
       </div>
 
       {/* Portfolio Dashboard (collapsible) */}
       {showPortfolio && (
-        <Card>
+        <Card className="rounded-[28px] border border-border/60 bg-background/96 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Portfolio Analytics</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => setShowPortfolio(false)}>
+            <CardTitle className="tracking-tight">Portfolio analytics</CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => setShowPortfolio(false)} className="rounded-full px-4">
               Close
             </Button>
           </CardHeader>
@@ -210,7 +215,9 @@ export default function CellarPage() {
       )}
 
       {/* Alerts Dashboard */}
-      <AlertsDashboard />
+      <div className="rounded-[28px] border border-border/60 bg-background/96 p-1 shadow-sm">
+        <AlertsDashboard />
+      </div>
 
       {/* Search & Filter */}
       {!isLoading && inventory && inventory.length > 0 && (
@@ -240,39 +247,42 @@ export default function CellarPage() {
           </div>
         </div>
       ) : !inventory?.length ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <div className="text-6xl">🍷</div>
-            <h2 className="mt-4 font-playfair text-xl font-semibold">
+        <Card className="rounded-[28px] border border-border/60 bg-background/96 shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center py-14 text-center">
+            <div className="rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-xs font-medium uppercase tracking-[0.2em] text-primary">
+              Collection start
+            </div>
+            <h2 className="mt-5 font-playfair text-3xl font-semibold tracking-tight">
               Your cellar is empty
             </h2>
-            <p className="mt-2 text-muted-foreground text-center max-w-md">
-              Start building your collection by scanning a wine barcode or adding
-              one manually.
+            <p className="mt-3 max-w-md text-muted-foreground">
+              Start with a clean first bottle record, then let the system build memory and better decisions around it.
             </p>
-            <div className="mt-6 flex gap-2">
+            <div className="mt-7 flex gap-3">
               <Link href="/scan">
-                <Button variant="outline">📱 Scan Wine</Button>
+                <Button variant="outline" className="rounded-full px-5">Scan bottle</Button>
               </Link>
               <Link href="/cellar/add">
-                <Button>+ Add Manually</Button>
+                <Button className="rounded-full px-5">Add bottle</Button>
               </Link>
             </div>
           </CardContent>
         </Card>
       ) : filteredInventory.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <div className="text-6xl">🔍</div>
-            <h2 className="mt-4 font-playfair text-xl font-semibold">
-              No wines match your filters
+        <Card className="rounded-[28px] border border-border/60 bg-background/96 shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center py-14 text-center">
+            <div className="rounded-full border border-border/60 bg-background px-4 py-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+              Filter reset
+            </div>
+            <h2 className="mt-5 font-playfair text-3xl font-semibold tracking-tight">
+              No bottles match this view
             </h2>
-            <p className="mt-2 text-muted-foreground text-center max-w-md">
-              Try adjusting your search or filter criteria.
+            <p className="mt-3 max-w-md text-muted-foreground">
+              Widen the search or clear filters to get back to a useful collection slice.
             </p>
             <Button
               variant="outline"
-              className="mt-4"
+              className="mt-6 rounded-full px-5"
               onClick={() => setFilters({
                 search: "",
                 regions: [],
@@ -342,20 +352,24 @@ export default function CellarPage() {
 function StatCard({
   label,
   value,
-  icon,
+  tone = "muted",
 }: {
   label: string;
   value: string;
-  icon: string;
+  tone?: "primary" | "success" | "muted";
 }) {
+  const toneClass = tone === "primary"
+    ? "bg-primary/10 text-primary"
+    : tone === "success"
+      ? "bg-emerald-500/10 text-emerald-600"
+      : "bg-muted text-muted-foreground";
+
   return (
-    <Card>
-      <CardContent className="flex items-center gap-4 p-4">
-        <div className="text-3xl">{icon}</div>
-        <div>
-          <p className="text-2xl font-bold">{value}</p>
-          <p className="text-sm text-muted-foreground">{label}</p>
-        </div>
+    <Card className="overflow-hidden rounded-3xl border border-border/60 shadow-sm">
+      <CardContent className="p-6">
+        <div className={cn("mb-5 h-2 w-16 rounded-full", toneClass)} />
+        <p className="text-4xl font-semibold tracking-tight text-foreground">{value}</p>
+        <p className="mt-2 text-sm uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
       </CardContent>
     </Card>
   );

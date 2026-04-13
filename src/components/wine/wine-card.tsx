@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Wine, MapPin, Sparkles, AlertTriangle, ArrowRight } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { getLocationDisplayString } from "@/lib/hooks/use-cellar-locations";
 import { cn } from "@/lib/utils";
 import type { CellarInventory, WineReference, Rating, CellarLocation, LocationMode } from "@/types/database";
@@ -110,74 +110,61 @@ export function WineCard({ wine, locationMode = "simple", onQuantityChange, comp
   const hasNotes = ratings.length > 0;
   const hasValue = wine.current_market_value_cents != null || wine.purchase_price_cents != null;
   const whatMattersNow = drinkingWindow?.status === "ready"
-    ? "In drinking window now."
+    ? "In drinking window now"
     : drinkingWindow?.status === "late"
-      ? "Past peak, decide soon."
+      ? "Past peak, decide soon"
       : hasNotes
-        ? "Memory exists, but timing still matters."
-        : "Still missing first memory.";
+        ? "Memory exists, timing still matters"
+        : "Still missing first memory";
   const nextMove = !hasNotes
-    ? "Add first tasting"
+    ? "Add first tasting note"
     : !hasValue
       ? "Add value signal"
       : drinkingWindow?.status === "ready"
         ? "Consider for tonight"
-        : "Review bottle";
-  const riskLabel = !hasNotes
-    ? "Without a note, this stays anonymous in the rack."
-    : !locationDisplay
-      ? "Without location clarity, it becomes friction when needed."
-      : drinkingWindow?.status === "late"
-        ? "Waiting longer may cost the best drinking moment."
-        : "Low immediate risk, but still needs an intentional decision.";
+        : "Review bottle details";
 
   return (
     <Card className={cn(
-      "overflow-hidden transition-all hover:shadow-lg border-l-4 group",
+      "group overflow-hidden rounded-[28px] border border-border/60 bg-background/96 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_45px_-30px_rgba(15,23,42,0.28)]",
       getTypeBorderColor(wineType)
     )}>
       <CardContent className="p-0">
         {/* Main Content */}
-        <div className="p-4">
-          <div className="flex items-start gap-3">
-            {/* Wine Type Icon */}
+        <div className="p-5">
+          <div className="flex items-start gap-4">
             <div className={cn(
-              "shrink-0 h-10 w-10 rounded-full flex items-center justify-center",
-              getTypeIconBg(wineType)
-            )}>
-              <Wine className="h-5 w-5" />
-            </div>
+              "mt-1 h-12 w-1.5 shrink-0 rounded-full",
+              wineType === "red" ? "bg-red-500" : wineType === "white" ? "bg-amber-400" : wineType === "rose" ? "bg-pink-400" : wineType === "sparkling" ? "bg-yellow-400" : "bg-border"
+            )} />
 
-            {/* Wine Info */}
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <Link href={`/cellar/${wine.id}`} className="block group/link">
-                <h3 className="font-semibold leading-tight group-hover/link:text-primary transition-colors">
-                  {vintage && <span className="text-muted-foreground font-normal">{vintage} </span>}
-                  <span className="line-clamp-1">{name}</span>
+                <h3 className="text-[28px] font-semibold leading-[1.05] tracking-tight text-foreground transition-colors group-hover/link:text-primary sm:text-[30px]">
+                  <span className="line-clamp-2">{name}</span>
                 </h3>
               </Link>
-              {producer && (
-                <p className="text-sm text-muted-foreground truncate mt-0.5">
-                  {producer}
-                </p>
-              )}
-              {region && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                  <MapPin className="h-3 w-3" />
-                  {region}
-                </p>
-              )}
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                {vintage && <span>{vintage}</span>}
+                {producer && <span className="font-medium text-foreground/80">{producer}</span>}
+                {region && (
+                  <span className="flex items-center gap-1">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {region}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Rating Badge */}
             {displayRating && (
               <div className="shrink-0">
                 <div className={cn(
-                  "h-12 w-12 rounded-lg flex flex-col items-center justify-center",
+                  "flex h-14 min-w-[56px] flex-col items-center justify-center rounded-2xl px-3",
                   getRatingColor(displayRating)
                 )}>
-                  <span className="text-lg font-bold leading-none">{displayRating}</span>
-                  <span className="text-[10px] opacity-80 leading-none mt-0.5">
+                  <span className="text-xl font-bold leading-none">{displayRating}</span>
+                  <span className="mt-1 text-[10px] uppercase tracking-[0.14em] opacity-80 leading-none">
                     {isUserRating ? "You" : "Critic"}
                   </span>
                 </div>
@@ -185,33 +172,20 @@ export function WineCard({ wine, locationMode = "simple", onQuantityChange, comp
             )}
           </div>
 
-          <div className="mt-3 grid gap-2 rounded-xl border bg-muted/20 p-3 text-xs">
-            <div className="flex items-start gap-2">
-              <Sparkles className="mt-0.5 h-3.5 w-3.5 text-primary" />
-              <div>
-                <div className="font-medium text-foreground">What matters now</div>
-                <div className="text-muted-foreground">{whatMattersNow}</div>
-              </div>
+          <div className="mt-5 grid gap-3 rounded-3xl border border-border/60 bg-muted/20 p-4 text-sm">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">What matters now</div>
+              <div className="mt-1 font-medium text-foreground">{whatMattersNow}</div>
             </div>
-            <div className="flex items-start gap-2">
-              <ArrowRight className="mt-0.5 h-3.5 w-3.5 text-primary" />
-              <div>
-                <div className="font-medium text-foreground">Best next move</div>
-                <div className="text-muted-foreground">{nextMove}</div>
-              </div>
-            </div>
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-primary" />
-              <div>
-                <div className="font-medium text-foreground">Risk if ignored</div>
-                <div className="text-muted-foreground">{riskLabel}</div>
-              </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Best next move</div>
+              <div className="mt-1 font-medium text-foreground">{nextMove}</div>
             </div>
           </div>
 
           {/* Drinking Window Progress */}
           {drinkingWindow && (
-            <div className="mt-3 pt-3 border-t">
+            <div className="mt-4 border-t border-border/60 pt-4">
               <div className="flex items-center justify-between text-xs mb-1.5">
                 <span className={cn(
                   "font-medium",
@@ -237,18 +211,23 @@ export function WineCard({ wine, locationMode = "simple", onQuantityChange, comp
           )}
 
           {/* Location Badge */}
-          {locationDisplay && (
-            <div className="mt-2">
-              <Badge variant="outline" className="text-xs font-normal">
-                📍 {locationDisplay}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {locationDisplay && (
+              <Badge variant="outline" className="rounded-full px-3 py-1 text-xs font-normal">
+                {locationDisplay}
               </Badge>
-            </div>
-          )}
+            )}
+            {hasValue && (
+              <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-normal">
+                {wine.current_market_value_cents != null ? 'Market value tracked' : 'Purchase value tracked'}
+              </Badge>
+            )}
+          </div>
         </div>
 
         {/* Quantity Controls Footer */}
         {onQuantityChange && (
-          <div className="px-4 py-2 bg-muted/30 border-t flex items-center justify-between">
+          <div className="flex items-center justify-between border-t border-border/60 bg-muted/20 px-5 py-3">
             <span className="text-xs text-muted-foreground">
               {wine.quantity} {wine.quantity === 1 ? "bottle" : "bottles"}
             </span>

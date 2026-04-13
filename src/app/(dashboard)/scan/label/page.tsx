@@ -14,6 +14,7 @@ export default function LabelScanPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Fallback camera handling for browsers that support it
@@ -22,6 +23,7 @@ export default function LabelScanPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setSelectedFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setSelectedImage(reader.result as string);
@@ -31,37 +33,42 @@ export default function LabelScanPage() {
   };
 
   const handleAnalyze = async () => {
-    if (!selectedImage) return;
+    if (!selectedFile) return;
 
     setIsAnalyzing(true);
     try {
-      // Create a form data object to send the file
-      // Convert base64 to blob? Or just send as JSON
-      const response = await fetch("/api/ai/scan-label", {
+      const formData = new FormData();
+      formData.append("label", selectedFile);
+
+      const response = await fetch("/api/label/scan", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: selectedImage }),
+        body: formData,
       });
 
-      if (!response.ok) throw new Error("Analysis failed");
-
       const data = await response.json();
+      if (!response.ok || !data.success || !data.wine) {
+        throw new Error(data.error || "Analysis failed");
+      }
 
-      // Navigate to Add Wine page with pre-filled data
       const queryParams = new URLSearchParams({
-        name: data.name,
-        producer: data.producer,
-        vintage: data.vintage,
-        region: data.region,
-        varietal: data.varietal,
-        description: data.description, // Pass the back-label story
+        name: data.wine.name || "",
+        producer: data.wine.producer || "",
+        vintage: data.wine.vintage ? String(data.wine.vintage) : "",
+        region: data.wine.region || "",
+        country: data.wine.country || "",
+        wine_type: data.wine.wine_type || "",
+        appellation: data.wine.appellation || "",
+        sub_region: data.wine.sub_region || "",
+        grape_varieties: data.wine.grape_varieties?.join(", ") || "",
+        alcohol_percentage: data.wine.alcohol_percentage ? String(data.wine.alcohol_percentage) : "",
+        notes: data.raw_text || "",
       }).toString();
 
       router.push(`/cellar/add?${queryParams}`);
       toast.success("Label analyzed successfully!");
     } catch (error) {
       console.error(error);
-      toast.error("Could not analyze label. Please try again or add manually.");
+      toast.error(error instanceof Error ? error.message : "Could not analyze label. Please try again or add manually.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -109,7 +116,10 @@ export default function LabelScanPage() {
               variant="secondary"
               size="icon"
               className="absolute top-2 right-2 rounded-full"
-              onClick={() => setSelectedImage(null)}
+              onClick={() => {
+                setSelectedImage(null);
+                setSelectedFile(null);
+              }}
             >
               <X className="h-4 w-4" />
             </Button>

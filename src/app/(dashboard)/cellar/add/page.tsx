@@ -65,12 +65,12 @@ function AddWineContent() {
   const [wineName, setWineName] = useState(searchParams.get("name") || "");
   const [producer, setProducer] = useState(searchParams.get("producer") || "");
   const [vintage, setVintage] = useState(searchParams.get("vintage") || "");
-  const [wineType, setWineType] = useState(searchParams.get("varietal") || ""); // Fallback mapping might be needed
-  const [region, setRegion] = useState(searchParams.get("region") || "");
+  const [wineType, setWineType] = useState(searchParams.get("wine_type") || searchParams.get("varietal") || "");
+  const [region, setRegion] = useState(searchParams.get("region") || searchParams.get("sub_region") || searchParams.get("appellation") || "");
   const [quantity, setQuantity] = useState(1);
   const [purchasePrice, setPurchasePrice] = useState("");
   const [purchaseLocation, setPurchaseLocation] = useState("");
-  const [notes, setNotes] = useState(searchParams.get("description") || "");
+  const [notes, setNotes] = useState(searchParams.get("notes") || searchParams.get("description") || "");
   const [rating, setRating] = useState(85);
   const [includeRating, setIncludeRating] = useState(false);
 

@@ -147,92 +147,94 @@ export default async function DashboardPage() {
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Header Section */}
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h2 className="text-3xl font-bold tracking-tight font-playfair">Command Center</h2>
-                    <p className="text-muted-foreground">
-                        One calm surface for what to open, what to watch, and what deserves attention.
-                    </p>
+            <section className="rounded-[28px] border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 px-8 py-8 shadow-[0_20px_60px_-40px_rgba(120,24,40,0.35)]">
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="max-w-3xl space-y-4">
+                        <div className="inline-flex items-center rounded-full border border-border/60 bg-background/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                            Collection command layer
+                        </div>
+                        <div className="space-y-2">
+                            <h1 className="font-playfair text-5xl font-semibold tracking-tight text-foreground">Command Center</h1>
+                            <p className="max-w-2xl text-lg text-muted-foreground">
+                                One calm surface for what to open, what to watch, and what deserves attention next.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                        <Link href="/scan">
+                            <Button className="h-11 gap-2 rounded-full px-5">
+                                <Scan className="h-4 w-4" />
+                                Scan bottle
+                            </Button>
+                        </Link>
+                        <Link href="/cellar/add">
+                            <Button variant="outline" className="h-11 gap-2 rounded-full px-5">
+                                <Plus className="h-4 w-4" />
+                                Add bottle
+                            </Button>
+                        </Link>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Link href="/scan">
-                        <Button className="gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all">
-                            <Scan className="h-4 w-4" />
-                            Scan Bottle
-                        </Button>
-                    </Link>
-                    <Link href="/cellar/add">
-                        <Button variant="outline" className="gap-2">
-                            <Plus className="h-4 w-4" />
-                            Add Manually
-                        </Button>
-                    </Link>
-                </div>
-            </div>
 
-            <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
-                <CardHeader>
-                    <CardTitle className="font-playfair text-2xl">What matters now</CardTitle>
-                    <CardDescription>
-                        {readyToDrinkCount > 0
-                            ? `${readyToDrinkCount} bottle${readyToDrinkCount === 1 ? " is" : "s are"} in the peak window, with ${totalBottles} total bottle${totalBottles === 1 ? "" : "s"} in the cellar.`
-                            : `Your cellar holds ${totalBottles} bottle${totalBottles === 1 ? "" : "s"}, but nothing is clearly in a defined peak window yet.`}
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-3">
-                    <div className="rounded-xl border bg-background/80 p-4">
-                        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
-                        <p className="mt-2 text-sm text-foreground">
+                <div className="mt-8 grid gap-4 lg:grid-cols-[1.45fr_1fr_1fr]">
+                    <div className="rounded-3xl border border-border/60 bg-background/88 p-6 shadow-sm">
+                        <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Collection brief</div>
+                        <p className="mt-4 text-2xl font-medium leading-tight text-foreground">
+                            {readyToDrinkCount > 0
+                                ? `${readyToDrinkCount} bottles are ready now, with ${totalBottles} total bottles in the cellar.`
+                                : `The cellar holds ${totalBottles} bottles, but nothing is clearly in a defined peak window yet.`}
+                        </p>
+                        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                            {readyToDrinkCount > 0
+                                ? "The system now has enough signal to turn inventory into a real tonight decision."
+                                : "The next upgrade is better readiness and tasting memory so the collection becomes more decisive."}
+                        </p>
+                    </div>
+                    <div className="rounded-3xl border border-border/60 bg-background/88 p-6 shadow-sm">
+                        <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Best next move</div>
+                        <p className="mt-4 text-lg font-medium leading-8 text-foreground">
                             {readyToDrinkCount > 0
                                 ? "Use Tonight Engine to choose confidently from bottles that are ready now."
-                                : "Tighten drink windows and tasting memory so the cellar becomes more decisive."}
+                                : "Tighten drink windows and tasting memory so the cellar feels sharper."}
                         </p>
                     </div>
-                    <div className="rounded-xl border bg-background/80 p-4">
-                        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
-                        <p className="mt-2 text-sm text-foreground">
-                            {readyToDrinkCount > 0
-                                ? "Ready bottles become background inventory if no decision layer turns them into tonight plans."
-                                : "Without readiness and memory signals, the collection looks bigger than it feels useful."}
-                        </p>
-                    </div>
-                    <div className="rounded-xl border bg-background/80 p-4">
-                        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Operator shortcut</div>
-                        <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="rounded-3xl border border-border/60 bg-background/88 p-6 shadow-sm">
+                        <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Shortcut</div>
+                        <div className="mt-4 flex flex-col gap-3">
                             <Link href="/recommendations">
-                                <Button size="sm">Open Tonight Engine</Button>
+                                <Button className="h-11 w-full rounded-full">Open Tonight Engine</Button>
                             </Link>
                             <Link href="/cellar">
-                                <Button size="sm" variant="outline">Review Cellar</Button>
+                                <Button variant="outline" className="h-11 w-full rounded-full">Review Cellar</Button>
                             </Link>
                         </div>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </section>
 
             {/* KPI Cards */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <KPICard
-                    title="Total Value"
+                    title="Collection value"
                     value={totalValue}
-                    change="Portfolio Value"
+                    change="Portfolio value"
                     icon={<TrendingUp className="h-4 w-4 text-emerald-500" />}
                 />
                 <KPICard
-                    title="Total Bottles"
+                    title="Total bottles"
                     value={totalBottles.toString()}
                     change={`${inventory?.length || 0} unique labels`}
                     icon={<Wine className="h-4 w-4 text-violet-500" />}
                     trend={addedThisMonth > 0 ? { value: addedThisMonth, label: `${addedThisMonth} this month` } : undefined}
                 />
                 <KPICard
-                    title="Ready to Drink"
+                    title="Ready now"
                     value={readyToDrinkCount.toString()}
                     change="Bottles in peak window"
                     icon={<Calendar className="h-4 w-4 text-amber-500" />}
                 />
                 <KPICard
-                    title="Avg. Bottle Price"
+                    title="Average bottle"
                     value={avgPrice}
                     change="Per bottle average"
                     icon={<Activity className="h-4 w-4 text-blue-500" />}
@@ -243,7 +245,7 @@ export default async function DashboardPage() {
             <div className="grid gap-8 lg:grid-cols-7">
 
                 {/* Left Column: Recent Activity & Quick Stats */}
-                <Card className="col-span-full lg:col-span-4 border-none shadow-md bg-gradient-to-br from-card to-secondary/10">
+                <Card className="col-span-full rounded-[28px] border border-border/60 bg-background/96 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.24)] lg:col-span-4">
                     <CardHeader>
                         <CardTitle>Recent movement</CardTitle>
                         <CardDescription>
@@ -258,10 +260,10 @@ export default async function DashboardPage() {
                                 </div>
                             ) : (
                                 recentActivity.map((item) => (
-                                    <div key={item.id} className="flex items-center justify-between group">
+                                    <div key={item.id} className="group flex items-center justify-between rounded-2xl border border-transparent px-2 py-2 transition-colors hover:border-border/60 hover:bg-muted/10">
                                         <div className="flex items-center gap-4">
-                                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:scale-110 transition-transform">
-                                                <Wine className="h-5 w-5 text-primary" />
+                                            <div className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary/5 transition-transform group-hover:scale-105">
+                                                <Wine className="h-4.5 w-4.5 text-primary" />
                                             </div>
                                             <div className="space-y-1">
                                                 <p className="font-medium leading-none">
@@ -289,37 +291,37 @@ export default async function DashboardPage() {
                 </Card>
 
                 {/* Right Column: Sommelier & Storage */}
-                <div className="col-span-full lg:col-span-3 space-y-6">
+                <div className="col-span-full space-y-6 lg:col-span-3">
 
-                    {/* Sommelier Recommendations - Placeholder until AI is ready */}
-                    <Card className="border-primary/20 bg-primary/5 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-4 opacity-10">
-                            <Wine className="w-24 h-24" />
+                    <Card className="relative overflow-hidden rounded-[28px] border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 shadow-[0_20px_45px_-30px_rgba(120,24,40,0.24)]">
+                        <div className="absolute right-0 top-0 p-5 opacity-8">
+                            <Wine className="h-24 w-24" />
                         </div>
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-primary">
-                                <Wine className="h-5 w-5" />
-                                Sommelier Picks
+                            <CardTitle className="font-playfair text-2xl tracking-tight text-foreground">
+                                Tonight outlook
                             </CardTitle>
                             <CardDescription>
-                                Top rated wines from your collection to enjoy.
+                                A fast read on whether the cellar is ready to make a strong tonight decision.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent>
-                            <div className="space-y-3">
+                        <CardContent className="space-y-4">
+                            <div className="rounded-2xl border border-border/60 bg-background/88 p-4 text-sm text-muted-foreground">
                                 {readyToDrinkCount > 0 ? (
-                                    <p className="text-sm text-muted-foreground">You have {readyToDrinkCount} bottles currently in their drinking window!</p>
+                                    <span><span className="font-medium text-foreground">{readyToDrinkCount} bottles are ready now.</span> Tonight Engine should already have enough signal to help you choose well.</span>
                                 ) : (
-                                    <p className="text-sm text-muted-foreground">Add more wines with drinking windows to get recommendations.</p>
+                                    <span><span className="font-medium text-foreground">Readiness is still thin.</span> Add or tighten drink windows so the system can become more decisive.</span>
                                 )}
                             </div>
+                            <Link href="/recommendations">
+                                <Button className="h-11 w-full rounded-full">Open Tonight Engine</Button>
+                            </Link>
                         </CardContent>
                     </Card>
 
-                    {/* Storage Snapshot */}
-                    <Card>
+                    <Card className="rounded-[28px] border border-border/60 bg-background/96 shadow-sm">
                         <CardHeader>
-                            <CardTitle>Storage Status</CardTitle>
+                            <CardTitle className="tracking-tight">Storage status</CardTitle>
                             <CardDescription>
                                 Capacity usage
                             </CardDescription>
@@ -343,16 +345,16 @@ function KPICard({ title, value, change, icon, trend }: {
     trend?: { value: number, label: string }
 }) {
     return (
-        <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+        <Card className="rounded-3xl border border-border/60 bg-background/96 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-32px_rgba(15,23,42,0.24)]">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
+                <CardTitle className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                     {title}
                 </CardTitle>
                 {icon}
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold font-playfair tracking-tight">{value}</div>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="text-4xl font-semibold font-playfair tracking-tight">{value}</div>
+                <div className="mt-2 flex items-center gap-2">
                     {trend && trend.value !== 0 && (
                         <span className={`flex items-center text-xs font-medium ${trend.value > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                             {trend.value > 0 ? (

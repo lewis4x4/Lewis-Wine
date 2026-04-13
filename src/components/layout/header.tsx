@@ -30,21 +30,28 @@ export function Header() {
   const initials = user?.email?.substring(0, 2).toUpperCase() || "??";
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 items-center justify-between">
-        <div className="flex items-center gap-6">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <span className="text-xl">🍷</span>
-            <span className="font-playfair text-xl font-bold text-primary">
-              Pourfolio
-            </span>
+    <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/92 backdrop-blur-xl supports-[backdrop-filter]:bg-background/78">
+      <div className="container flex h-16 items-center justify-between">
+        <div className="flex items-center gap-8">
+          <Link href="/dashboard" className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/20 bg-primary/5 text-base text-primary shadow-sm">
+              🍷
+            </div>
+            <div className="flex flex-col leading-none">
+              <span className="font-playfair text-xl font-semibold tracking-tight text-foreground">
+                Pourfolio
+              </span>
+              <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                Collector OS
+              </span>
+            </div>
           </Link>
-          <nav className="hidden md:flex items-center gap-4">
+          <nav className="hidden md:flex items-center gap-5">
             <Link
               href="/cellar"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              My Cellar
+              Cellar
             </Link>
             <Link
               href="/scan"
@@ -83,10 +90,10 @@ export function Header() {
                   <Link href="/wishlist">Wishlist</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/shopping">Shopping List</Link>
+                  <Link href="/shopping">Shopping</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/visits">Winery Visits</Link>
+                  <Link href="/visits">Visits</Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -101,8 +108,8 @@ export function Header() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-              <Avatar className="h-8 w-8">
+            <Button variant="ghost" className="relative h-10 w-10 rounded-full border border-border/60 bg-background/80 shadow-sm">
+              <Avatar className="h-9 w-9">
                 <AvatarFallback className="bg-primary text-primary-foreground">
                   {initials}
                 </AvatarFallback>

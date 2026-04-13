@@ -106,9 +106,10 @@ export function SearchFilter({
   );
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* Search Bar Row */}
-      <div className="flex gap-2">
+      <div className="rounded-[24px] border border-border/60 bg-background/88 p-3 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -117,7 +118,7 @@ export function SearchFilter({
             onChange={(e) =>
               onFiltersChange({ ...filters, search: e.target.value })
             }
-            className="pl-9"
+            className="h-12 rounded-full border-border/60 bg-background pl-10 text-base shadow-none"
           />
           {filters.search && (
             <button
@@ -134,7 +135,7 @@ export function SearchFilter({
           variant={showFilters ? "secondary" : "outline"}
           size="icon"
           onClick={() => setShowFilters(!showFilters)}
-          className="relative"
+          className="relative h-12 w-12 rounded-full border-border/60"
         >
           <SlidersHorizontal className="h-4 w-4" />
           {activeFilterCount > 0 && (
@@ -152,7 +153,7 @@ export function SearchFilter({
             onSortChange({ field, direction });
           }}
         >
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="h-12 w-full rounded-full border-border/60 lg:w-[190px]">
             <ArrowUpDown className="h-4 w-4 mr-2" />
             <SelectValue />
           </SelectTrigger>
@@ -167,11 +168,12 @@ export function SearchFilter({
             <SelectItem value="vintage-asc">Oldest Vintage</SelectItem>
           </SelectContent>
         </Select>
+        </div>
       </div>
 
       {/* Filter Panel */}
       {showFilters && (
-        <div className="rounded-lg border bg-card p-4 space-y-4 animate-in slide-in-from-top-2 duration-200">
+        <div className="animate-in slide-in-from-top-2 space-y-4 rounded-[24px] border border-border/60 bg-background/88 p-5 shadow-sm duration-200">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Filters</span>
             {hasActiveFilters && (
@@ -309,9 +311,9 @@ export function SearchFilter({
 
       {/* Active Filters Pills */}
       {hasActiveFilters && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-full border border-border/60 bg-background/88 px-4 py-3 shadow-sm">
           <span className="text-sm text-muted-foreground">
-            {filteredCount} of {totalCount} wines
+            {filteredCount} of {totalCount} bottles
           </span>
           {filters.regions.map((region) => (
             <Badge key={region} variant="secondary" className="gap-1">
