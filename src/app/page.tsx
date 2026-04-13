@@ -28,13 +28,11 @@ export default function HomePage() {
       <main className="container mx-auto px-4 py-20">
         <div className="mx-auto max-w-3xl text-center">
           <h1 className="font-playfair text-5xl font-bold tracking-tight text-foreground md:text-6xl lg:text-7xl">
-            Your Wine
-            <span className="text-primary"> Portfolio</span>
+            The operating system
+            <span className="text-primary"> for your wine life</span>
           </h1>
           <p className="mt-6 text-xl text-muted-foreground">
-            Track every bottle, rate every pour, and never miss the perfect
-            drinking window. Pourfolio is your personal sommelier in your
-            pocket.
+            Pourfolio turns bottles, purchases, visits, ratings, and memory into one calm, premium decision surface.
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link href="/signup">
@@ -54,35 +52,35 @@ export default function HomePage() {
         <div className="mt-32 grid gap-8 md:grid-cols-3">
           <FeatureCard
             icon="📱"
-            title="Scan & Add"
-            description="Scan any wine barcode to instantly add it to your cellar with all the details."
+            title="Fast intake"
+            description="Capture bottles, labels, and receipts quickly so the cellar stays accurate without feeling like admin work."
           />
           <FeatureCard
-            icon="⭐"
-            title="Rate & Track"
-            description="Use the 100-point scale to rate wines and track how your palate evolves over time."
+            icon="🧠"
+            title="Better decisions"
+            description="Use Bottle Brain, Tonight Engine, and history to decide what to drink, buy again, or hold."
           />
           <FeatureCard
-            icon="🍾"
-            title="Perfect Timing"
-            description="Know exactly when each bottle is at its peak with drinking window alerts."
+            icon="🍷"
+            title="Real memory"
+            description="Keep ratings, visits, and social signal tied to actual bottles so your taste gets sharper over time."
           />
         </div>
 
         {/* Stats Preview */}
         <div className="mt-32 rounded-2xl bg-card p-8 shadow-lg">
           <div className="grid gap-8 text-center md:grid-cols-4">
-            <StatCard value="200K+" label="Wines in Database" />
-            <StatCard value="100pt" label="Rating Scale" />
-            <StatCard value="∞" label="Bottles to Track" />
-            <StatCard value="Free" label="To Get Started" />
+            <StatCard value="200K+" label="Reference Wines" />
+            <StatCard value="100pt" label="Taste Scale" />
+            <StatCard value="∞" label="Cellar Memory" />
+            <StatCard value="1" label="Operating Surface" />
           </div>
         </div>
       </main>
 
       {/* Footer */}
       <footer className="container mx-auto px-4 py-8 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} Pourfolio. Your wine, your way.</p>
+        <p>&copy; {new Date().getFullYear()} Pourfolio. Calm, premium control for the modern cellar.</p>
       </footer>
     </div>
   );

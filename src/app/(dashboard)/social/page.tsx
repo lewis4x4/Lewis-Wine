@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -206,9 +206,9 @@ export default function SocialPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold font-playfair">Social Feed</h1>
+          <h1 className="text-3xl font-bold font-playfair">Social</h1>
           <p className="text-muted-foreground">
-            See what your friends are drinking
+            Shared taste, trusted people, and the bottles worth talking about.
           </p>
         </div>
         <div className="flex gap-2">
@@ -227,6 +227,28 @@ export default function SocialPage() {
           </Button>
         </div>
       </div>
+
+      {stats && (
+        <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+          <CardHeader>
+            <CardTitle className="font-playfair text-2xl">Social operating view</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-xl border bg-background/80 p-4">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
+              <p className="mt-2 text-sm text-foreground">{stats.friendsCount} friends and {stats.sharedTastingsCount} shared tastings are shaping the social layer of the cellar.</p>
+            </div>
+            <div className="rounded-xl border bg-background/80 p-4">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+              <p className="mt-2 text-sm text-foreground">Keep the feed centered on useful tasting memory and trusted people, not generic posting behavior.</p>
+            </div>
+            <div className="rounded-xl border bg-background/80 p-4">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
+              <p className="mt-2 text-sm text-foreground">Without curation and intent, social becomes noise instead of a meaningful taste network.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Cards */}
       {stats && (

@@ -11,11 +11,32 @@ export default function AnalyticsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="font-playfair text-3xl font-bold">Analytics & Insights</h1>
+        <h1 className="font-playfair text-3xl font-bold">Analytics</h1>
         <p className="text-muted-foreground">
-          Discover patterns in your wine journey
+          See where your cellar, taste, and spend are actually moving.
         </p>
       </div>
+
+      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+        <CardHeader>
+          <CardTitle className="font-playfair text-2xl">Analytics operating view</CardTitle>
+          <CardDescription>Use this page to see the shape of the collection, not just charts for their own sake.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
+            <p className="mt-2 text-sm text-foreground">This is where portfolio truth, drinking behavior, and taste formation should converge into one readable operating layer.</p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+            <p className="mt-2 text-sm text-foreground">Compare drinking, spending, vintages, and taste together to spot where the cellar is becoming smarter versus simply bigger.</p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
+            <p className="mt-2 text-sm text-foreground">Without a coherent read layer, good data becomes decoration instead of decision support.</p>
+          </div>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="drinking" className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">

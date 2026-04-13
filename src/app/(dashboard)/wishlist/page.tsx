@@ -116,6 +116,32 @@ export default function WishlistPage() {
         </Link>
       </div>
 
+      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+        <CardHeader>
+          <CardTitle className="font-playfair text-2xl">Acquisition operating view</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
+            <p className="mt-2 text-sm text-foreground">
+              {stats?.active || 0} bottles are still aspirational, and {(stats?.byPriority["must-have"] || 0)} of them are true must-have targets.
+            </p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+            <p className="mt-2 text-sm text-foreground">
+              Tighten the list around bottles that truly shape the cellar rather than letting the wishlist become a parking lot.
+            </p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
+            <p className="mt-2 text-sm text-foreground">
+              A bloated wishlist creates false ambition without helping you actually buy the right wine at the right moment.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard

@@ -68,15 +68,15 @@ export function Header() {
               href="/recommendations"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              For You
+              Tonight Engine
             </Link>
             <DropdownMenu>
               <DropdownMenuTrigger className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-                Discover
+                Explore
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuItem asChild>
-                  <Link href="/recommendations">AI Recommendations</Link>
+                  <Link href="/recommendations">Tonight Engine</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>

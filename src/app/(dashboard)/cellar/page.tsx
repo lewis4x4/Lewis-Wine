@@ -84,7 +84,7 @@ export default function CellarPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-playfair text-3xl font-bold">My Cellar</h1>
+          <h1 className="font-playfair text-3xl font-bold">Cellar</h1>
           <p className="text-muted-foreground">
             {cellar?.total_bottles || 0} bottles
             {cellar?.total_value_cents
@@ -104,6 +104,42 @@ export default function CellarPage() {
           </Link>
         </div>
       </div>
+
+      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+        <CardHeader>
+          <CardTitle className="font-playfair text-2xl">Cellar operating view</CardTitle>
+          <CardTitle className="sr-only">Cellar operating view</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
+            <p className="mt-2 text-sm text-foreground">
+              {inventory?.length
+                ? `${filteredInventory.length} bottle${filteredInventory.length === 1 ? "" : "s"} are in your current working view.`
+                : "The cellar is still empty, so the next useful move is adding live bottles."}
+            </p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+            <p className="mt-2 text-sm text-foreground">
+              {inventory?.some((w) => !w.ratings?.length)
+                ? "Open the bottles with thin memory and start capturing tasting signal."
+                : "Use filters to narrow by region, value, or readiness before deciding what matters tonight."}
+            </p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Operator shortcut</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link href="/recommendations">
+                <Button size="sm">Tonight Engine</Button>
+              </Link>
+              <Link href="/cellar/add">
+                <Button size="sm" variant="outline">Add bottle</Button>
+              </Link>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Cards with Financial Summary */}
       <div className="grid gap-4 md:grid-cols-4">

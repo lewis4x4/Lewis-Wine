@@ -134,10 +134,31 @@ export default function BlindTastingPage() {
         <div className="max-w-md mx-auto space-y-8 pb-20">
             <div className="text-center space-y-2">
                 <h1 className="text-4xl font-playfair font-bold flex items-center justify-center gap-3">
-                    <EyeOff className="h-8 w-8" /> Blind Tasting
+                    <EyeOff className="h-8 w-8" /> Blind tasting
                 </h1>
-                <p className="text-muted-foreground">Challenge your palate with your own collection.</p>
+                <p className="text-muted-foreground">Train your palate against your own cellar, not theory.</p>
             </div>
+
+            <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+                <CardHeader>
+                    <CardTitle className="font-playfair text-2xl">Palate training view</CardTitle>
+                    <CardDescription>Blind tasting should feel like a premium practice loop, not a novelty game.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-xl border bg-background/80 p-4 text-left">
+                        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
+                        <p className="mt-2 text-sm text-foreground">This mode turns your actual bottles into training reps for varietal, region, vintage, and value judgment.</p>
+                    </div>
+                    <div className="rounded-xl border bg-background/80 p-4 text-left">
+                        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+                        <p className="mt-2 text-sm text-foreground">Pick realistic constraints, decant honestly, and let repeated reps sharpen your pattern recognition.</p>
+                    </div>
+                    <div className="rounded-xl border bg-background/80 p-4 text-left">
+                        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
+                        <p className="mt-2 text-sm text-foreground">If this feels gimmicky instead of disciplined, the feature becomes cute but not valuable.</p>
+                    </div>
+                </CardContent>
+            </Card>
 
             {stage === "setup" && (
                 <Card>

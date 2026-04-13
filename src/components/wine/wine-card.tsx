@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Wine, MapPin } from "lucide-react";
+import { Wine, MapPin, Sparkles, AlertTriangle, ArrowRight } from "lucide-react";
 import { getLocationDisplayString } from "@/lib/hooks/use-cellar-locations";
 import { cn } from "@/lib/utils";
 import type { CellarInventory, WineReference, Rating, CellarLocation, LocationMode } from "@/types/database";
@@ -107,6 +107,29 @@ export function WineCard({ wine, locationMode = "simple", onQuantityChange, comp
   };
 
   const drinkingWindow = getDrinkingWindow();
+  const hasNotes = ratings.length > 0;
+  const hasValue = wine.current_market_value_cents != null || wine.purchase_price_cents != null;
+  const whatMattersNow = drinkingWindow?.status === "ready"
+    ? "In drinking window now."
+    : drinkingWindow?.status === "late"
+      ? "Past peak, decide soon."
+      : hasNotes
+        ? "Memory exists, but timing still matters."
+        : "Still missing first memory.";
+  const nextMove = !hasNotes
+    ? "Add first tasting"
+    : !hasValue
+      ? "Add value signal"
+      : drinkingWindow?.status === "ready"
+        ? "Consider for tonight"
+        : "Review bottle";
+  const riskLabel = !hasNotes
+    ? "Without a note, this stays anonymous in the rack."
+    : !locationDisplay
+      ? "Without location clarity, it becomes friction when needed."
+      : drinkingWindow?.status === "late"
+        ? "Waiting longer may cost the best drinking moment."
+        : "Low immediate risk, but still needs an intentional decision.";
 
   return (
     <Card className={cn(
@@ -160,6 +183,30 @@ export function WineCard({ wine, locationMode = "simple", onQuantityChange, comp
                 </div>
               </div>
             )}
+          </div>
+
+          <div className="mt-3 grid gap-2 rounded-xl border bg-muted/20 p-3 text-xs">
+            <div className="flex items-start gap-2">
+              <Sparkles className="mt-0.5 h-3.5 w-3.5 text-primary" />
+              <div>
+                <div className="font-medium text-foreground">What matters now</div>
+                <div className="text-muted-foreground">{whatMattersNow}</div>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <ArrowRight className="mt-0.5 h-3.5 w-3.5 text-primary" />
+              <div>
+                <div className="font-medium text-foreground">Best next move</div>
+                <div className="text-muted-foreground">{nextMove}</div>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-primary" />
+              <div>
+                <div className="font-medium text-foreground">Risk if ignored</div>
+                <div className="text-muted-foreground">{riskLabel}</div>
+              </div>
+            </div>
           </div>
 
           {/* Drinking Window Progress */}

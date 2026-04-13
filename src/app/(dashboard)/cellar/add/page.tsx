@@ -166,15 +166,35 @@ function AddWineContent() {
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-playfair text-3xl font-bold">Add Wine</h1>
+            <h1 className="font-playfair text-3xl font-bold">Add bottle</h1>
             <p className="text-muted-foreground">
-              Add a new wine to your collection
+              Create a clean, high-confidence record for the cellar.
             </p>
           </div>
           <Link href="/scan">
             <Button variant="outline">📱 Scan Instead</Button>
           </Link>
         </div>
+
+      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+        <CardHeader>
+          <CardTitle className="font-playfair text-2xl">Bottle intake view</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
+            <p className="mt-2 text-sm text-foreground">Each new bottle should enter the system with enough clarity to support memory, value, and action later.</p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+            <p className="mt-2 text-sm text-foreground">Match against known wine data when possible, then fill only the fields that improve future decisions.</p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
+            <p className="mt-2 text-sm text-foreground">Messy intake creates downstream noise across Bottle Brain, cellar search, and Tonight Engine.</p>
+          </div>
+        </CardContent>
+      </Card>
 
       {barcodeFromUrl && (
         <Card className="border-yellow-200 bg-yellow-50">

@@ -122,12 +122,32 @@ export default function HistoryPage() {
           >
             &larr; Back to Cellar
           </Link>
-          <h1 className="font-playfair text-3xl font-bold">Drinking History</h1>
+          <h1 className="font-playfair text-3xl font-bold">History</h1>
           <p className="text-muted-foreground">
             {consumedWines?.length || 0} wines consumed
           </p>
         </div>
       </div>
+
+      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+        <CardHeader>
+          <CardTitle className="font-playfair text-2xl">Consumption memory view</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
+            <p className="mt-2 text-sm text-foreground">History is where consumed bottles become usable memory instead of disappearing from the cellar.</p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+            <p className="mt-2 text-sm text-foreground">Use this record to spot what you truly drink, what earns repeat buys, and what your ratings actually support.</p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
+            <p className="mt-2 text-sm text-foreground">Without a strong history surface, hard-earned tasting truth turns into lost anecdote.</p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Search */}
       <div className="relative">

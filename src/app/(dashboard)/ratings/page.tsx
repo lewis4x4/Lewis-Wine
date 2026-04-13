@@ -65,9 +65,9 @@ export default function RatingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-playfair text-3xl font-bold">My Ratings</h1>
+        <h1 className="font-playfair text-3xl font-bold">Ratings</h1>
         <p className="text-muted-foreground">
-          Track your wine tasting journey
+          Your taste memory, not just a score log.
         </p>
       </div>
 
@@ -106,6 +106,32 @@ export default function RatingsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
+          <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+            <CardHeader>
+              <CardTitle className="font-playfair text-2xl">Taste operating view</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-xl border bg-background/80 p-4">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
+                <p className="mt-2 text-sm text-foreground">
+                  {ratings.length} rating{ratings.length === 1 ? "" : "s"} now shape your taste memory, with {ratings.filter((r) => r.score >= 90).length} standout bottle{ratings.filter((r) => r.score >= 90).length === 1 ? "" : "s"} at 90+.
+                </p>
+              </div>
+              <div className="rounded-xl border bg-background/80 p-4">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+                <p className="mt-2 text-sm text-foreground">
+                  Review the highest and lowest ratings together so Pourfolio learns what actually separates favorites from misses.
+                </p>
+              </div>
+              <div className="rounded-xl border bg-background/80 p-4">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
+                <p className="mt-2 text-sm text-foreground">
+                  If ratings stay buried as a feed, your cellar can track events without ever getting smarter about your taste.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Stats Summary */}
           <div className="grid gap-4 md:grid-cols-4">
             <Card>
@@ -145,7 +171,7 @@ export default function RatingsPage() {
           {/* Ratings List */}
           <Card>
             <CardHeader>
-              <CardTitle>Recent Ratings</CardTitle>
+              <CardTitle>Recent taste signals</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="divide-y">

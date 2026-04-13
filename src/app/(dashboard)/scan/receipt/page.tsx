@@ -179,15 +179,37 @@ export default function ScanReceiptPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-playfair text-3xl font-bold">Scan Receipt</h1>
+          <h1 className="font-playfair text-3xl font-bold">Receipt scan</h1>
           <p className="text-muted-foreground">
-            Upload a receipt to automatically extract wine purchases
+            Convert one purchase moment into structured multi-bottle intake.
           </p>
         </div>
         <Link href="/scan">
           <Button variant="outline">Back to Scan</Button>
         </Link>
       </div>
+
+      {(scanState === "idle" || scanState === "uploading" || scanState === "processing") && (
+        <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+          <CardHeader>
+            <CardTitle className="font-playfair text-2xl">Receipt intake view</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-xl border bg-background/80 p-4">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
+              <p className="mt-2 text-sm text-foreground">Use receipt scan when the buying moment matters as much as the bottles themselves.</p>
+            </div>
+            <div className="rounded-xl border bg-background/80 p-4">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+              <p className="mt-2 text-sm text-foreground">Capture the full receipt cleanly so vendor, date, price, and quantities arrive with minimal cleanup.</p>
+            </div>
+            <div className="rounded-xl border bg-background/80 p-4">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
+              <p className="mt-2 text-sm text-foreground">If receipt intake is vague, you lose the purchase truth that powers value and replenishment intelligence.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Upload Section */}
       {(scanState === "idle" || scanState === "uploading" || scanState === "processing") && (

@@ -223,13 +223,33 @@ export default function AddVisitPage() {
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-playfair text-3xl font-bold">Log Winery Visit</h1>
-          <p className="text-muted-foreground">Record your winery experience</p>
+          <h1 className="font-playfair text-3xl font-bold">Log visit</h1>
+          <p className="text-muted-foreground">Turn a winery experience into durable buying and taste memory.</p>
         </div>
         <Link href="/visits">
           <Button variant="outline">Back to Visits</Button>
         </Link>
       </div>
+
+      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+        <CardHeader>
+          <CardTitle className="font-playfair text-2xl">Visit intake view</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
+            <p className="mt-2 text-sm text-foreground">This form should capture the winery, the best bottles, the quality of the experience, and whether you would go back.</p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+            <p className="mt-2 text-sm text-foreground">Log the standout facts while the visit is still fresh so it becomes useful purchase memory later.</p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
+            <p className="mt-2 text-sm text-foreground">If the visit is captured vaguely, the best bottles and the real quality signal disappear fast.</p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Recent Wineries */}
       {recentWineries && recentWineries.length > 0 && !wineryName && (

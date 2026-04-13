@@ -70,11 +70,31 @@ export default function LabelScanPage() {
   return (
     <div className="max-w-md mx-auto space-y-6">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-playfair font-bold">Label Scanner</h1>
+        <h1 className="text-3xl font-playfair font-bold">Label scan</h1>
         <p className="text-muted-foreground">
-          Take a photo of a wine bottle to automatically extract details.
+          Turn a bottle photo into structured wine detail.
         </p>
       </div>
+
+      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+        <CardHeader>
+          <CardTitle className="font-playfair text-2xl">Label intake view</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border bg-background/80 p-4 text-left">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
+            <p className="mt-2 text-sm text-foreground">A clean label photo is often the fastest way to recover identity when barcode data is weak or missing.</p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4 text-left">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+            <p className="mt-2 text-sm text-foreground">Fill the frame with the label, reduce glare, and let the system pre-build the add flow for you.</p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4 text-left">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
+            <p className="mt-2 text-sm text-foreground">Poor capture quality turns a premium intake shortcut into manual cleanup work.</p>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="border-2 border-dashed relative overflow-hidden min-h-[400px] flex flex-col justify-center items-center bg-muted/20">
         {selectedImage ? (

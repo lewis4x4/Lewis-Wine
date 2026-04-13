@@ -147,15 +147,35 @@ export default function AddShoppingPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-playfair text-3xl font-bold">Add to Shopping List</h1>
+          <h1 className="font-playfair text-3xl font-bold">Add shopping item</h1>
           <p className="text-muted-foreground">
-            Track a wine you need to buy
+            Turn a missing bottle into a clean next buy.
           </p>
         </div>
         <Link href="/shopping">
           <Button variant="outline">Back to List</Button>
         </Link>
       </div>
+
+      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+        <CardHeader>
+          <CardTitle className="font-playfair text-2xl">Shopping intake view</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
+            <p className="mt-2 text-sm text-foreground">Use this form to capture real purchase intent, not vague someday bottles.</p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+            <p className="mt-2 text-sm text-foreground">Prefer cellar-linked or database-backed items when possible so shopping decisions stay grounded.</p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
+            <p className="mt-2 text-sm text-foreground">If this intake is sloppy, the shopping list fills with duplicates, weak priorities, and vague targets.</p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Source Type Selection */}
       <Card>

@@ -109,7 +109,7 @@ export default function ShoppingListPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-playfair text-3xl font-bold">Shopping List</h1>
+          <h1 className="font-playfair text-3xl font-bold">Shopping</h1>
           <p className="text-muted-foreground">
             {stats?.totalBottlesNeeded || 0} bottles to restock
             {stats?.estimatedCost ? ` • Est. ${formatCurrency(stats.estimatedCost)}` : ""}
@@ -119,6 +119,32 @@ export default function ShoppingListPage() {
           <Button>+ Add Item</Button>
         </Link>
       </div>
+
+      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+        <CardHeader>
+          <CardTitle className="font-playfair text-2xl">Restock operating view</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
+            <p className="mt-2 text-sm text-foreground">
+              {stats?.active || 0} active shopping item{stats?.active === 1 ? "" : "s"} are competing for attention, with {(stats?.byUrgency.urgent || 0)} in the urgent lane.
+            </p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+            <p className="mt-2 text-sm text-foreground">
+              Convert the urgent list into actual buys, then clean out low-value noise so the shopping surface stays trustworthy.
+            </p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
+            <p className="mt-2 text-sm text-foreground">
+              If shopping turns into a cluttered checklist, low-stock intelligence stops leading to real replenishment.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">

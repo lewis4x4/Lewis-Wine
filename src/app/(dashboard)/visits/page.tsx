@@ -75,7 +75,7 @@ export default function WineryVisitsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-playfair text-3xl font-bold">Winery Visits</h1>
+          <h1 className="font-playfair text-3xl font-bold">Visits</h1>
           <p className="text-muted-foreground">
             {stats?.totalVisits || 0} visits to {stats?.uniqueWineries || 0} wineries
           </p>
@@ -84,6 +84,26 @@ export default function WineryVisitsPage() {
           <Button>+ Log Visit</Button>
         </Link>
       </div>
+
+      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+        <CardHeader>
+          <CardTitle className="font-playfair text-2xl">Visit memory view</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
+            <p className="mt-2 text-sm text-foreground">{stats?.totalVisits || 0} visits now exist as experiential memory, not just winery names.</p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+            <p className="mt-2 text-sm text-foreground">Capture the best wineries, strongest bottles, and return-worthiness so visits sharpen future buying decisions.</p>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
+            <p className="mt-2 text-sm text-foreground">Without memory structure, winery trips fade into anecdotes instead of becoming buying and travel intelligence.</p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">

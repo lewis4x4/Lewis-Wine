@@ -149,9 +149,9 @@ export default async function DashboardPage() {
             {/* Header Section */}
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight font-playfair">Dashboard</h2>
+                    <h2 className="text-3xl font-bold tracking-tight font-playfair">Command Center</h2>
                     <p className="text-muted-foreground">
-                        Overview of your collection
+                        One calm surface for what to open, what to watch, and what deserves attention.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -169,6 +169,46 @@ export default async function DashboardPage() {
                     </Link>
                 </div>
             </div>
+
+            <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
+                <CardHeader>
+                    <CardTitle className="font-playfair text-2xl">What matters now</CardTitle>
+                    <CardDescription>
+                        {readyToDrinkCount > 0
+                            ? `${readyToDrinkCount} bottle${readyToDrinkCount === 1 ? " is" : "s are"} in the peak window, with ${totalBottles} total bottle${totalBottles === 1 ? "" : "s"} in the cellar.`
+                            : `Your cellar holds ${totalBottles} bottle${totalBottles === 1 ? "" : "s"}, but nothing is clearly in a defined peak window yet.`}
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-xl border bg-background/80 p-4">
+                        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+                        <p className="mt-2 text-sm text-foreground">
+                            {readyToDrinkCount > 0
+                                ? "Use Tonight Engine to choose confidently from bottles that are ready now."
+                                : "Tighten drink windows and tasting memory so the cellar becomes more decisive."}
+                        </p>
+                    </div>
+                    <div className="rounded-xl border bg-background/80 p-4">
+                        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
+                        <p className="mt-2 text-sm text-foreground">
+                            {readyToDrinkCount > 0
+                                ? "Ready bottles become background inventory if no decision layer turns them into tonight plans."
+                                : "Without readiness and memory signals, the collection looks bigger than it feels useful."}
+                        </p>
+                    </div>
+                    <div className="rounded-xl border bg-background/80 p-4">
+                        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Operator shortcut</div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            <Link href="/recommendations">
+                                <Button size="sm">Open Tonight Engine</Button>
+                            </Link>
+                            <Link href="/cellar">
+                                <Button size="sm" variant="outline">Review Cellar</Button>
+                            </Link>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* KPI Cards */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -205,9 +245,9 @@ export default async function DashboardPage() {
                 {/* Left Column: Recent Activity & Quick Stats */}
                 <Card className="col-span-full lg:col-span-4 border-none shadow-md bg-gradient-to-br from-card to-secondary/10">
                     <CardHeader>
-                        <CardTitle>Recent Additions</CardTitle>
+                        <CardTitle>Recent movement</CardTitle>
                         <CardDescription>
-                            The latest bottles added to your cellar.
+                            The newest bottles and signals entering your decision surface.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
