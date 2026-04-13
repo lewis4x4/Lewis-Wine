@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ArrowRight, AlertTriangle, Clock3, Sparkles, Wine as WineIcon, Camera, BadgeDollarSign, BookHeart, Wrench, Link as LinkIcon } from "lucide-react";
 import type { CellarInventory, WineReference, Rating, LocationMode, CellarLocation, AromaNotes, MarketValueSource } from "@/types/database";
 
 type WineWithDetails = CellarInventory & {
@@ -237,13 +238,134 @@ export default function WineDetailPage() {
   const wineRef = wine.wine_reference;
   const name = wineRef?.name || wine.custom_name || "Unknown Wine";
   const producer = wineRef?.producer || wine.custom_producer;
-  const region = wineRef?.region;
+  const region = wineRef?.region || wine.custom_region;
   const country = wineRef?.country;
-  const vintage = wine.vintage;
-  const wineType = wineRef?.wine_type;
+  const vintage = wine.vintage || wine.custom_vintage;
+  const wineType = wineRef?.wine_type || wine.custom_wine_type;
   const avgRating = wine.ratings.length > 0
     ? Math.round(wine.ratings.reduce((sum, r) => sum + r.score, 0) / wine.ratings.length)
     : null;
+  const locationDisplay = getLocationDisplayString(
+    { simple_location: wine.simple_location, location: wine.location },
+    locationMode
+  );
+  const hasValue = wine.current_market_value_cents != null || wine.purchase_price_cents != null;
+  const hasDrinkWindow = !!wine.drink_after || !!wine.drink_before;
+  const hasNotes = wine.ratings.length > 0;
+  const likelyPremium = (wine.current_market_value_cents ?? wine.purchase_price_cents ?? 0) >= 10000;
+  const recommendation = wine.is_opened
+    ? {
+        label: "Finish soon",
+        tone: "amber",
+        reason: "This bottle is already opened, so the highest-leverage move is to enjoy it while it is still showing well.",
+      }
+    : !hasNotes
+      ? {
+          label: "Add first tasting",
+          tone: "violet",
+          reason: "You own this bottle, but you have not captured what you think of it yet.",
+        }
+      : !hasValue && likelyPremium
+        ? {
+            label: "Add value estimate",
+            tone: "blue",
+            reason: "This looks like a meaningful bottle, and the portfolio layer gets stronger once value is known.",
+          }
+        : !hasDrinkWindow
+          ? {
+              label: "Revisit readiness",
+              tone: "slate",
+              reason: "There is not enough aging guidance yet, so this bottle needs a readiness decision rather than blind waiting.",
+            }
+          : {
+              label: "Hold and watch",
+              tone: "green",
+              reason: "This bottle has enough context to keep, monitor, and open with intention.",
+            };
+  const heroKicker = wineRef ? "Reference-backed bottle" : "Custom cellar bottle";
+  const whatMattersNow = wine.is_opened
+    ? `This bottle is already opened${wine.glasses_poured ? ` and ${wine.glasses_poured} glass${wine.glasses_poured === 1 ? '' : 'es'} have been poured` : ''}.`
+    : !hasNotes
+      ? "You have not logged a tasting yet, so this bottle has value but very little memory."
+      : hasValue
+        ? `You have ${wine.quantity} bottle${wine.quantity === 1 ? '' : 's'} on hand with a tracked value signal.`
+        : `You have ${wine.quantity} bottle${wine.quantity === 1 ? '' : 's'} on hand, but the value picture is still incomplete.`;
+  const bestNextMove = recommendation.label === "Add first tasting"
+    ? "Taste this bottle and capture what you actually think, so Pourfolio can start learning from it."
+    : recommendation.label === "Add value estimate"
+      ? "Add a market value estimate so this bottle contributes honestly to portfolio intelligence."
+      : recommendation.label === "Finish soon"
+        ? "Plan the next pour and finish this opened bottle while the experience is still fresh."
+        : recommendation.label === "Revisit readiness"
+          ? "Set a drinking-window judgment or note whether this is a drink-now or hold bottle."
+          : "Keep this bottle in rotation and revisit it intentionally rather than letting it disappear into the rack.";
+  const riskIfIgnored = !hasNotes
+    ? "Without a tasting memory, this becomes another bottle you vaguely remember owning instead of truly understanding."
+    : !hasValue && likelyPremium
+      ? "Without a value signal, the portfolio layer understates what matters and what deserves attention."
+      : !locationDisplay
+        ? "Without a location, a good bottle becomes friction when you actually want it."
+        : "If this bottle sits without a decision, it risks becoming passive inventory instead of an intentional experience.";
+  const latestRating = wine.ratings.length > 0
+    ? [...wine.ratings].sort((a, b) => new Date(b.tasting_date).getTime() - new Date(a.tasting_date).getTime())[0]
+    : null;
+  const latestMemory = latestRating?.tasting_notes || latestRating?.nose_notes || latestRating?.palate_notes || null;
+  const memoryHeadline = latestRating
+    ? `${latestRating.score}/100` 
+    : "No tasting memory yet";
+  const memorySubhead = latestRating
+    ? latestMemory || "You have a tasting on file, but the emotional memory is still thin."
+    : "The first tasting note is where this bottle stops being inventory and starts becoming part of your wine life.";
+  const valueSourceLabel = wine.market_value_source
+    ? wine.market_value_source === 'manual'
+      ? 'Manual value'
+      : wine.market_value_source === 'estimate'
+        ? 'Estimated value'
+        : wine.market_value_source === 'vivino'
+          ? 'Vivino value'
+          : 'Wine-Searcher value'
+    : null;
+  const purchaseValue = wine.purchase_price_cents;
+  const marketValue = wine.current_market_value_cents;
+  const valueConfidence = marketValue != null
+    ? (wine.market_value_source === 'manual' || wine.market_value_source === 'estimate' ? 'Tracked with moderate confidence' : 'Tracked with source confidence')
+    : purchaseValue != null
+      ? 'Only purchase price is known'
+      : 'Value is still unknown';
+  const gainLoss = purchaseValue != null && marketValue != null ? marketValue - purchaseValue : null;
+  const vintageLooksInvalid = vintage != null && (vintage < 1000 || vintage > new Date().getFullYear() + 1);
+  const improvementPrompts = [
+    !wineRef && {
+      title: 'Link to wine reference',
+      body: 'This bottle is running as a custom record. That is acceptable, but linking it later will strengthen discovery and intelligence.',
+      priority: 'medium',
+    },
+    !hasNotes && {
+      title: 'Capture first tasting memory',
+      body: 'Without a tasting note, this bottle cannot teach Pourfolio anything about your palate.',
+      priority: 'high',
+    },
+    !hasValue && {
+      title: 'Add a value signal',
+      body: 'Purchase or market value is still missing, so portfolio truth is incomplete.',
+      priority: likelyPremium ? 'high' : 'medium',
+    },
+    !locationDisplay && {
+      title: 'Set storage location',
+      body: 'A bottle that cannot be found quickly becomes friction when the moment is right.',
+      priority: 'medium',
+    },
+    !hasDrinkWindow && {
+      title: 'Decide readiness window',
+      body: 'No drink-after or drink-before guidance exists yet, so future recommendations are weaker.',
+      priority: 'medium',
+    },
+    vintageLooksInvalid && {
+      title: 'Fix vintage data',
+      body: `The current vintage reads as ${vintage}, which looks malformed and will distort cellar intelligence.`,
+      priority: 'high',
+    },
+  ].filter(Boolean) as { title: string; body: string; priority: 'high' | 'medium' }[];
 
   const getScoreColor = (score: number) => {
     if (score >= 95) return "bg-purple-600";
@@ -305,52 +427,111 @@ export default function WineDetailPage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <Link
-            href={isConsumed ? "/cellar/history" : "/cellar"}
-            className="text-sm text-muted-foreground hover:text-foreground mb-2 inline-block"
-          >
-            &larr; {isConsumed ? "Back to History" : "Back to Cellar"}
-          </Link>
-          <h1 className="font-playfair text-2xl font-bold">
-            {vintage && `${vintage} `}{name}
-          </h1>
-          {producer && (
-            <p className="text-lg text-muted-foreground">{producer}</p>
-          )}
-        </div>
-        {avgRating && (
-          <div className={`px-4 py-2 rounded-lg text-white ${getScoreColor(avgRating)}`}>
-            <span className="text-2xl font-bold">{avgRating}</span>
+      {/* Bottle Brain Hero */}
+      <div className="rounded-3xl border bg-gradient-to-br from-card via-card to-primary/5 p-6 shadow-sm">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-4">
+            <div>
+              <Link
+                href={isConsumed ? "/cellar/history" : "/cellar"}
+                className="text-sm text-muted-foreground hover:text-foreground mb-3 inline-block"
+              >
+                &larr; {isConsumed ? "Back to History" : "Back to Cellar"}
+              </Link>
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <Badge variant="outline">{heroKicker}</Badge>
+                {wineType && (
+                  <Badge variant="secondary" className={getTypeColor(wineType)}>
+                    {wineType.charAt(0).toUpperCase() + wineType.slice(1)}
+                  </Badge>
+                )}
+                <Badge variant="secondary">
+                  {wine.quantity} bottle{wine.quantity !== 1 ? "s" : ""}
+                </Badge>
+                {locationDisplay && <Badge variant="outline">📍 {locationDisplay}</Badge>}
+              </div>
+              <h1 className="font-playfair text-3xl font-bold tracking-tight sm:text-4xl">
+                {vintage && `${vintage} `}{name}
+              </h1>
+              {producer && (
+                <p className="mt-2 text-lg text-muted-foreground">{producer}</p>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2 text-sm text-muted-foreground">
+                {region && <span>{region}</span>}
+                {region && country && <span>•</span>}
+                {country && <span>{country}</span>}
+              </div>
+            </div>
           </div>
-        )}
+
+          <div className="flex flex-col gap-3 lg:min-w-[240px]">
+            {avgRating && (
+              <div className={cn("rounded-2xl px-5 py-4 text-white shadow-sm", getScoreColor(avgRating))}>
+                <p className="text-xs uppercase tracking-[0.2em] text-white/80">Average rating</p>
+                <div className="mt-2 flex items-end gap-2">
+                  <span className="text-4xl font-bold leading-none">{avgRating}</span>
+                  <span className="pb-1 text-sm text-white/80">/100</span>
+                </div>
+              </div>
+            )}
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-xl bg-background/80 p-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Bottle Brain says</p>
+                    <p className="mt-2 font-medium text-foreground">{recommendation.label}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{recommendation.reason}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
 
-      {/* Quick Info */}
-      <div className="flex flex-wrap gap-2">
-        {wineType && (
-          <Badge variant="secondary" className={getTypeColor(wineType)}>
-            {wineType.charAt(0).toUpperCase() + wineType.slice(1)}
-          </Badge>
-        )}
-        {region && (
-          <Badge variant="outline">{region}</Badge>
-        )}
-        {country && (
-          <Badge variant="outline">{country}</Badge>
-        )}
-        <Badge variant="secondary">
-          {wine.quantity} bottle{wine.quantity !== 1 ? "s" : ""}
-        </Badge>
+      {/* Operator brief */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="p-4">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <WineIcon className="h-4 w-4" />
+            What matters now
+          </div>
+          <p className="mt-3 text-sm text-foreground">{whatMattersNow}</p>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <ArrowRight className="h-4 w-4" />
+            Best next move
+          </div>
+          <p className="mt-3 text-sm text-foreground">{bestNextMove}</p>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <AlertTriangle className="h-4 w-4" />
+            Risk if ignored
+          </div>
+          <p className="mt-3 text-sm text-foreground">{riskIfIgnored}</p>
+        </Card>
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-2">
+      {/* Readiness rail */}
+      <Card className="border-muted/80 bg-muted/30">
+        <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <Clock3 className="h-4 w-4" />
+              Readiness
+            </div>
+            <p className="text-lg font-semibold text-foreground">{recommendation.label}</p>
+            <p className="text-sm text-muted-foreground">{recommendation.reason}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
         <Sheet open={showRatingSheet} onOpenChange={setShowRatingSheet}>
           <SheetTrigger asChild>
-            <Button>Add Tasting Notes</Button>
+            <Button>{hasNotes ? 'Add another tasting' : 'Add first tasting'}</Button>
           </SheetTrigger>
           <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
             <SheetHeader>
@@ -370,6 +551,40 @@ export default function WineDetailPage() {
             </div>
           </SheetContent>
         </Sheet>
+
+        <Dialog open={showLocationDialog} onOpenChange={setShowLocationDialog}>
+          <DialogTrigger asChild>
+            <Button variant="outline" onClick={openLocationDialog}>Update location</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Update Storage Location</DialogTitle>
+              <DialogDescription>
+                Where is this wine stored in your cellar?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              {cellar && (
+                <LocationSelector
+                  cellarId={cellar.id}
+                  mode={locationMode}
+                  value={editLocation}
+                  locationId={editLocationId}
+                  onChange={setEditLocation}
+                  onLocationIdChange={setEditLocationId}
+                />
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowLocationDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveLocation}>
+                Save Location
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {!isConsumed && (
           <Dialog open={showConsumeDialog} onOpenChange={setShowConsumeDialog}>
@@ -441,65 +656,26 @@ export default function WineDetailPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Storage Location Card */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardHeader>
           <CardTitle className="text-base font-medium">Storage Location</CardTitle>
-          <Dialog open={showLocationDialog} onOpenChange={setShowLocationDialog}>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="sm" onClick={openLocationDialog}>
-                Edit
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Update Storage Location</DialogTitle>
-                <DialogDescription>
-                  Where is this wine stored in your cellar?
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                {cellar && (
-                  <LocationSelector
-                    cellarId={cellar.id}
-                    mode={locationMode}
-                    value={editLocation}
-                    locationId={editLocationId}
-                    onChange={setEditLocation}
-                    onLocationIdChange={setEditLocationId}
-                  />
-                )}
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowLocationDialog(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSaveLocation}>
-                  Save Location
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </CardHeader>
         <CardContent>
-          {(() => {
-            const locationDisplay = getLocationDisplayString(
-              { simple_location: wine.simple_location, location: wine.location },
-              locationMode
-            );
-            return locationDisplay ? (
-              <div className="flex items-center gap-2">
-                <span className="text-lg">📍</span>
-                <span className="font-medium">{locationDisplay}</span>
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                No location set. Click Edit to add one.
-              </p>
-            );
-          })()}
+          {locationDisplay ? (
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📍</span>
+              <span className="font-medium">{locationDisplay}</span>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              No location set yet. Use the action rail above to place this bottle.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -544,8 +720,150 @@ export default function WineDetailPage() {
         </CardContent>
       </Card>
 
+      {/* Memory rail */}
+      <Card className="border-primary/15 bg-gradient-to-br from-card to-primary/5">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <BookHeart className="h-4 w-4 text-primary" />
+            Memory rail
+          </CardTitle>
+          <CardDescription>
+            What this bottle means so far, not just what fields are filled in.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-2xl border bg-background/80 p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Current memory</p>
+            <p className="mt-2 text-lg font-semibold text-foreground">{memoryHeadline}</p>
+            {latestRating && <p className="mt-1 text-xs text-muted-foreground">{formatDate(latestRating.tasting_date)}</p>}
+            <p className="mt-2 text-sm text-muted-foreground">{memorySubhead}</p>
+            {latestRating && ((latestRating.occasion_tags && latestRating.occasion_tags.length > 0) || (latestRating.companions && latestRating.companions.length > 0)) && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {latestRating.occasion_tags?.map((tag: string) => (
+                  <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                ))}
+                {latestRating.companions?.map((companion: string) => (
+                  <Badge key={companion} variant="outline" className="text-xs">👤 {companion}</Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Value truth rail */}
+      <Card className="border-muted/80">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <BadgeDollarSign className="h-4 w-4 text-primary" />
+            Value truth
+          </CardTitle>
+          <CardDescription>
+            Honest portfolio context for this bottle, with confidence instead of fake precision.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-2xl bg-muted/40 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Purchase value</p>
+              <p className="mt-2 text-xl font-semibold text-foreground">{purchaseValue != null ? formatPrice(purchaseValue) : 'Unknown'}</p>
+            </div>
+            <div className="rounded-2xl bg-muted/40 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Current value</p>
+              <p className="mt-2 text-xl font-semibold text-foreground">{marketValue != null ? formatPrice(marketValue) : 'Unknown'}</p>
+            </div>
+            <div className="rounded-2xl bg-muted/40 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Confidence</p>
+              <p className="mt-2 text-sm font-medium text-foreground">{valueConfidence}</p>
+              {valueSourceLabel && <p className="mt-1 text-xs text-muted-foreground">{valueSourceLabel}</p>}
+            </div>
+          </div>
+          {gainLoss != null && (
+            <div className={cn('rounded-2xl p-4', gainLoss >= 0 ? 'bg-emerald-50' : 'bg-red-50')}>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Gain / loss</p>
+              <p className={cn('mt-2 text-lg font-semibold', gainLoss >= 0 ? 'text-emerald-700' : 'text-red-700')}>
+                {gainLoss >= 0 ? '+' : ''}{formatPrice(gainLoss)}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Photo Gallery */}
-      <PhotoGallery inventoryId={id} />
+      <Card className="border-muted/80">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Camera className="h-4 w-4 text-primary" />
+            Visual record
+          </CardTitle>
+          <CardDescription>
+            Label, bottle, and tasting imagery that make this bottle feel real.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="px-6 pb-6">
+            <PhotoGallery inventoryId={id} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Improve this bottle */}
+      <Card className="border-muted/80 bg-gradient-to-br from-card to-amber-50/40">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Wrench className="h-4 w-4 text-primary" />
+            Improve this bottle
+          </CardTitle>
+          <CardDescription>
+            High-leverage upgrades that make this record smarter, easier to trust, and more useful later.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {improvementPrompts.length === 0 ? (
+            <div className="rounded-2xl border bg-background/80 p-4">
+              <p className="text-sm font-medium text-foreground">This bottle is in strong shape.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                It has enough identity, memory, and value context to behave like a first-class Bottle Brain record.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {improvementPrompts.map((item) => (
+                <div key={item.title} className="rounded-2xl border bg-background/80 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-foreground">{item.title}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{item.body}</p>
+                    </div>
+                    <Badge variant={item.priority === 'high' ? 'destructive' : 'secondary'}>
+                      {item.priority === 'high' ? 'High priority' : 'Worth doing'}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Record posture */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <LinkIcon className="h-4 w-4 text-primary" />
+            Record posture
+          </CardTitle>
+          <CardDescription>
+            How this bottle is currently represented in Pourfolio.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Badge variant={wineRef ? 'secondary' : 'outline'}>{wineRef ? 'Reference linked' : 'Custom-first record'}</Badge>
+          <Badge variant={hasNotes ? 'secondary' : 'outline'}>{hasNotes ? 'Memory captured' : 'Memory thin'}</Badge>
+          <Badge variant={hasValue ? 'secondary' : 'outline'}>{hasValue ? 'Value tracked' : 'Value missing'}</Badge>
+          <Badge variant={locationDisplay ? 'secondary' : 'outline'}>{locationDisplay ? 'Location set' : 'Location missing'}</Badge>
+        </CardContent>
+      </Card>
 
       {/* Low Stock Alert Settings */}
       <Card>
