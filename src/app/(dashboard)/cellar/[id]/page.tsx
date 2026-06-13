@@ -9,6 +9,7 @@ import { useConsumeWine, useRestoreWine, useCellar } from "@/lib/hooks/use-cella
 import { getBrianFitForRatings, useBrianTasteProfile, type RatingWithSignals } from "@/lib/hooks/use-brian-fit";
 import { useAddRating, useRecentCompanions } from "@/lib/hooks/use-ratings";
 import { getLocationDisplayString } from "@/lib/hooks/use-cellar-locations";
+import { buildBottleIntelligence, type BottleIntelligence } from "@/lib/bottle-intelligence";
 import { useUpdateLowStockSettings } from "@/lib/hooks/use-low-stock-alerts";
 import { LocationSelector } from "@/components/cellar/location-selector";
 import { EnhancedTastingForm, EnhancedTastingData } from "@/components/tasting";
@@ -40,7 +41,7 @@ import {
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ArrowRight, AlertTriangle, Clock3, Sparkles, Wine as WineIcon, Camera, BadgeDollarSign, BookHeart, Wrench, Link as LinkIcon, Mic } from "lucide-react";
+import { ArrowRight, AlertTriangle, Clock3, Sparkles, Wine as WineIcon, Camera, BadgeDollarSign, BookHeart, Wrench, Link as LinkIcon, Mic, Gauge, ShieldCheck, MapPin, Star, GlassWater } from "lucide-react";
 import type { CellarInventory, WineReference, LocationMode, CellarLocation, AromaNotes, MarketValueSource } from "@/types/database";
 
 type WineWithDetails = CellarInventory & {
@@ -319,6 +320,40 @@ export default function WineDetailPage() {
     ratings: wine.ratings,
     fallbackScore: avgRating,
   });
+  const bottleIntelligence = buildBottleIntelligence({
+    id: wine.id,
+    name,
+    producer,
+    vintage,
+    region,
+    country,
+    wineType,
+    grapeVarieties: wineRef?.grape_varieties ?? null,
+    alcoholPercentage: wineRef?.alcohol_percentage ?? null,
+    quantity: wine.quantity,
+    bottleSizeMl: wine.bottle_size_ml,
+    drinkAfter: wine.drink_after,
+    drinkBefore: wine.drink_before,
+    purchasePriceCents: wine.purchase_price_cents,
+    currentMarketValueCents: wine.current_market_value_cents,
+    marketValueSource: wine.market_value_source,
+    simpleLocation: locationDisplay || wine.simple_location,
+    brianFit,
+    isOpened: wine.is_opened,
+    criticScores: wineRef?.critic_scores,
+    ratings: wine.ratings.map((rating) => ({
+      score: rating.score,
+      tastingDate: rating.tasting_date,
+      tastingNotes: rating.tasting_notes,
+      noseNotes: rating.nose_notes,
+      palateNotes: rating.palate_notes,
+      body: rating.body,
+      tannins: rating.tannins,
+      acidity: rating.acidity,
+      sweetness: rating.sweetness,
+      finish: rating.finish,
+    })),
+  });
   const tonightEngineSelected = typeof wine.notes === 'string' && wine.notes.includes('Tonight Engine pick');
   const latestMemory = latestRating?.tasting_notes || latestRating?.nose_notes || latestRating?.palate_notes || null;
   const memoryHeadline = latestRating
@@ -553,6 +588,8 @@ export default function WineDetailPage() {
           <p className="mt-3 text-sm text-foreground">{riskIfIgnored}</p>
         </Card>
       </div>
+
+      <BottleIntelligencePanel intelligence={bottleIntelligence} formatPrice={formatPrice} />
 
       {/* Readiness rail */}
       <Card className="border-muted/80 bg-muted/30">
@@ -1118,5 +1155,166 @@ export default function WineDetailPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function BottleIntelligencePanel({
+  intelligence,
+  formatPrice,
+}: {
+  intelligence: BottleIntelligence;
+  formatPrice: (cents: number) => string;
+}) {
+  const readinessTone = intelligence.readiness.state === "past_peak"
+    ? "border-red-200 bg-red-50 text-red-900"
+    : intelligence.readiness.state === "drink_soon"
+      ? "border-amber-200 bg-amber-50 text-amber-900"
+      : intelligence.readiness.state === "hold"
+        ? "border-slate-200 bg-slate-50 text-slate-900"
+        : "border-emerald-200 bg-emerald-50 text-emerald-900";
+  const glassTone = intelligence.identity.visualType === "white"
+    ? "from-amber-50 to-yellow-100 text-amber-700"
+    : intelligence.identity.visualType === "sparkling"
+      ? "from-yellow-50 to-stone-100 text-yellow-700"
+      : intelligence.identity.visualType === "rose"
+        ? "from-rose-50 to-pink-100 text-rose-700"
+        : "from-red-950 to-red-700 text-red-50";
+
+  return (
+    <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-card via-card to-primary/5 shadow-sm">
+      <CardHeader className="border-b bg-background/60">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              Bottle Intelligence
+            </div>
+            <CardTitle className="mt-2 text-2xl">{intelligence.identity.title}</CardTitle>
+            <CardDescription className="mt-1">{intelligence.identity.subtitle}</CardDescription>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {intelligence.identity.meta.map((item) => <Badge key={item} variant="secondary">{item}</Badge>)}
+            </div>
+          </div>
+          <div className={cn("flex h-28 w-28 shrink-0 items-center justify-center rounded-[2rem] bg-gradient-to-br shadow-inner", glassTone)}>
+            <GlassWater className="h-14 w-14" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5 p-5">
+        <div className="grid gap-4 md:grid-cols-4">
+          <div className={cn("rounded-2xl border p-4", readinessTone)}>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide opacity-80">
+              <Clock3 className="h-4 w-4" />
+              Readiness
+            </div>
+            <p className="mt-2 text-xl font-semibold">{intelligence.readiness.label}</p>
+            <p className="mt-1 text-sm opacity-80">{intelligence.readiness.windowLabel}</p>
+            <p className="mt-2 text-xs opacity-70">{intelligence.readiness.confidence.replace("-", " ")} window</p>
+          </div>
+          <div className="rounded-2xl border bg-background p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <BookHeart className="h-4 w-4" />
+              Memory
+            </div>
+            <p className="mt-2 text-xl font-semibold text-foreground">{intelligence.memoryDensity.label}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {intelligence.memoryDensity.ratingCount} tasting{intelligence.memoryDensity.ratingCount === 1 ? "" : "s"}
+              {intelligence.memoryDensity.averageScore ? ` • ${intelligence.memoryDensity.averageScore}/100 avg` : ""}
+            </p>
+          </div>
+          <div className="rounded-2xl border bg-background p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <Sparkles className="h-4 w-4" />
+              Bottle Brain role
+            </div>
+            <p className="mt-2 text-xl font-semibold text-foreground">{intelligence.bottleBrainRole.label}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{intelligence.bottleBrainRole.reason}</p>
+          </div>
+          <div className="rounded-2xl border bg-background p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <MapPin className="h-4 w-4" />
+              Location
+            </div>
+            <p className="mt-2 text-xl font-semibold text-foreground">{intelligence.location.status === "set" ? "Findable" : "Missing"}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{intelligence.location.label}</p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+          <div className="rounded-3xl border bg-background p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Gauge className="h-4 w-4" />
+                  Structure profile
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{intelligence.structure.summary}</p>
+              </div>
+              <Badge variant="outline" className="capitalize">{intelligence.structure.profileSource.replace("_", " ")}</Badge>
+            </div>
+            {intelligence.structure.traits.length ? (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {intelligence.structure.traits.map((trait) => (
+                  <div key={trait.key} className="rounded-2xl bg-muted/40 p-4">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">{trait.label}</p>
+                    <p className="mt-1 text-lg font-semibold text-foreground">{trait.value}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 rounded-2xl bg-muted/40 p-4 text-sm text-muted-foreground">No structure profile yet. A tasting note or reference enrichment will unlock it.</p>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-3xl border bg-background p-5">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <BadgeDollarSign className="h-4 w-4" />
+                Value / review
+              </div>
+              <p className="mt-2 text-lg font-semibold text-foreground">{intelligence.value.label}</p>
+              <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+                <p>Market: {intelligence.value.marketValueCents != null ? formatPrice(intelligence.value.marketValueCents) : "Unknown"}</p>
+                <p>Purchase: {intelligence.value.purchasePriceCents != null ? formatPrice(intelligence.value.purchasePriceCents) : "Unknown"}</p>
+                {intelligence.value.gainLossCents != null && <p>Gain/loss: {intelligence.value.gainLossCents >= 0 ? "+" : ""}{formatPrice(intelligence.value.gainLossCents)}</p>}
+                {intelligence.value.sourceLabel && <p>Source: {intelligence.value.sourceLabel}</p>}
+              </div>
+              {intelligence.criticScores.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {intelligence.criticScores.map((score) => <Badge key={score.label} variant="secondary"><Star className="mr-1 h-3 w-3" />{score.label}</Badge>)}
+                </div>
+              ) : (
+                <p className="mt-3 text-xs text-muted-foreground">No critic score on file yet.</p>
+              )}
+            </div>
+
+            <div className="rounded-3xl border bg-background p-5">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <Wrench className="h-4 w-4" />
+                Next signals
+              </div>
+              <div className="mt-3 space-y-2">
+                {intelligence.nextSignals.slice(0, 4).map((signal) => (
+                  <div key={`${signal.kind}-${signal.label}`} className="rounded-2xl bg-muted/40 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium text-foreground">{signal.label}</p>
+                      <Badge variant={signal.priority === "high" ? "destructive" : "secondary"} className="text-[10px] uppercase">{signal.priority}</Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{signal.reason}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {intelligence.memoryDensity.latestMemory && (
+          <div className="rounded-3xl border bg-background p-5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Latest personal memory</div>
+            <p className="mt-2 text-sm leading-6 text-foreground">{intelligence.memoryDensity.latestMemory}</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
