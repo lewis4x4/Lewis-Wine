@@ -22,6 +22,13 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import type { RecommendationsResponse, TonightContext, TonightRecommendation } from "@/app/api/recommendations/route";
+import {
+  buildTonightSelection,
+  getTonightSelectionStatus,
+  parseTonightSelection,
+  serializeTonightSelection,
+  TONIGHT_SELECTION_STORAGE_KEY,
+} from "@/lib/tonight-selection";
 
 const mealOptions = [
   { value: "anything", label: "Anything" },
@@ -66,6 +73,18 @@ async function fetchRecommendations(context: TonightContext): Promise<Recommenda
   return response.json();
 }
 
+function getInitialSelectedTonightId() {
+  if (typeof window === "undefined") return null;
+  const storedSelection = parseTonightSelection(window.localStorage.getItem(TONIGHT_SELECTION_STORAGE_KEY));
+  if (!storedSelection) return null;
+  const status = getTonightSelectionStatus(storedSelection, storedSelection.inventoryId);
+  if (!status.isActive) {
+    window.localStorage.removeItem(TONIGHT_SELECTION_STORAGE_KEY);
+    return null;
+  }
+  return storedSelection.inventoryId;
+}
+
 export default function RecommendationsPage() {
   const [context, setContext] = useState<TonightContext>({
     meal: "anything",
@@ -73,12 +92,14 @@ export default function RecommendationsPage() {
     mood: "cozy",
     adventurous: "balanced",
   });
-  const [selectedTonightId, setSelectedTonightId] = useState<string | null>(null);
+  const [selectedTonightId, setSelectedTonightId] = useState<string | null>(() => getInitialSelectedTonightId());
   const queryKey = useMemo(() => ["tonight-engine", context], [context]);
 
   function selectTonightBottle(recommendation: TonightRecommendation) {
+    const selection = buildTonightSelection(recommendation, context);
+    window.localStorage.setItem(TONIGHT_SELECTION_STORAGE_KEY, serializeTonightSelection(selection));
     setSelectedTonightId(recommendation.inventory_id);
-    toast.success("Tonight's bottle selected for this session.");
+    toast.success("Tonight’s bottle saved for this evening.");
   }
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({

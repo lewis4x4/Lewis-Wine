@@ -41,8 +41,14 @@ import {
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ArrowRight, AlertTriangle, Clock3, Sparkles, Wine as WineIcon, Camera, BadgeDollarSign, BookHeart, Wrench, Link as LinkIcon, Mic, Gauge, ShieldCheck, MapPin, Star, GlassWater } from "lucide-react";
+import { ArrowRight, AlertTriangle, Clock3, Sparkles, Wine as WineIcon, Camera, BadgeDollarSign, BookHeart, Wrench, Link as LinkIcon, Mic, Gauge, ShieldCheck, MapPin, Star, GlassWater, MoonStar } from "lucide-react";
 import type { CellarInventory, WineReference, LocationMode, CellarLocation, AromaNotes, MarketValueSource } from "@/types/database";
+import {
+  getTonightSelectionStatus,
+  parseTonightSelection,
+  TONIGHT_SELECTION_STORAGE_KEY,
+  type TonightSelection,
+} from "@/lib/tonight-selection";
 
 type WineWithDetails = CellarInventory & {
   wine_reference: WineReference | null;
@@ -60,6 +66,18 @@ type WineWithDetails = CellarInventory & {
   glasses_poured?: number;
   glasses_per_bottle?: number;
 };
+
+function getInitialTonightSelection(inventoryId: string) {
+  if (typeof window === "undefined") return null;
+  const storedSelection = parseTonightSelection(window.localStorage.getItem(TONIGHT_SELECTION_STORAGE_KEY));
+  if (!storedSelection) return null;
+  const status = getTonightSelectionStatus(storedSelection, inventoryId);
+  if (!status.isActive) {
+    window.localStorage.removeItem(TONIGHT_SELECTION_STORAGE_KEY);
+    return null;
+  }
+  return storedSelection;
+}
 
 export default function WineDetailPage() {
   const params = useParams();
@@ -80,6 +98,7 @@ export default function WineDetailPage() {
   const addRating = useAddRating();
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [restoreQuantity, setRestoreQuantity] = useState(1);
+  const [tonightSelection] = useState<TonightSelection | null>(() => getInitialTonightSelection(id));
   const updateLowStockSettings = useUpdateLowStockSettings();
   const { data: recentCompanions = [] } = useRecentCompanions();
   const locationMode: LocationMode = (cellar?.location_mode as LocationMode) || "simple";
@@ -354,7 +373,8 @@ export default function WineDetailPage() {
       finish: rating.finish,
     })),
   });
-  const tonightEngineSelected = typeof wine.notes === 'string' && wine.notes.includes('Tonight Engine pick');
+  const tonightSelectionStatus = getTonightSelectionStatus(tonightSelection, id);
+  const tonightEngineSelected = tonightSelectionStatus.isActiveForBottle;
   const latestMemory = latestRating?.tasting_notes || latestRating?.nose_notes || latestRating?.palate_notes || null;
   const memoryHeadline = latestRating
     ? `${latestRating.score}/100` 
@@ -549,16 +569,18 @@ export default function WineDetailPage() {
         </div>
       </div>
 
-      {tonightEngineSelected && (
+      {tonightEngineSelected && tonightSelection && (
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="flex items-start gap-3 p-4">
             <div className="rounded-xl bg-background/80 p-2">
-              <Sparkles className="h-4 w-4 text-primary" />
+              <MoonStar className="h-4 w-4 text-primary" />
             </div>
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Tonight Engine</p>
-              <p className="mt-2 font-medium text-foreground">This bottle has been selected for tonight.</p>
-              <p className="mt-1 text-sm text-muted-foreground">Bottle Brain and Tonight Engine are now aligned on this record, so this is your active decision bottle.</p>
+              <p className="mt-2 font-medium text-foreground">Selected for tonight at {tonightSelection.confidence}% confidence.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Context: {tonightSelection.context.meal || "anything"}, {tonightSelection.context.occasion || "occasion open"}, {tonightSelection.context.mood || "mood open"}. This marker expires this evening instead of pretending to be a permanent note.
+              </p>
             </div>
           </CardContent>
         </Card>
