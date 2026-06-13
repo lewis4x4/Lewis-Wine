@@ -2,14 +2,25 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, GlassWater, UtensilsCrossed, MoonStar, ChevronRight, CheckCircle2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  Compass,
+  Gauge,
+  MoonStar,
+  RefreshCw,
+  Scale,
+  ShieldCheck,
+  Sparkles,
+  UtensilsCrossed,
+} from "lucide-react";
 import type { RecommendationsResponse, TonightContext, TonightRecommendation } from "@/app/api/recommendations/route";
 
 const mealOptions = [
@@ -63,32 +74,12 @@ export default function RecommendationsPage() {
     adventurous: "balanced",
   });
   const [selectedTonightId, setSelectedTonightId] = useState<string | null>(null);
-  const queryClient = useQueryClient();
-  const supabase = createClient();
-
   const queryKey = useMemo(() => ["tonight-engine", context], [context]);
 
-  const markTonightBottle = useMutation({
-    mutationFn: async (recommendation: TonightRecommendation) => {
-      const existingNote = `Tonight Engine pick · ${new Date().toISOString()} · ${context.meal || "anything"} · ${context.occasion || "weeknight"} · ${context.mood || "cozy"} · ${context.adventurous || "balanced"}`;
-      const { error } = await supabase
-        .from("cellar_inventory")
-        .update({ notes: existingNote } as never)
-        .eq("id", recommendation.inventory_id);
-
-      if (error) throw error;
-      return recommendation.inventory_id;
-    },
-    onSuccess: (inventoryId) => {
-      setSelectedTonightId(inventoryId);
-      toast.success("Tonight's bottle locked in.");
-      queryClient.invalidateQueries({ queryKey: ["wine-detail", inventoryId] });
-      queryClient.invalidateQueries({ queryKey: ["cellar-inventory"] });
-    },
-    onError: () => {
-      toast.error("Could not save tonight's bottle.");
-    },
-  });
+  function selectTonightBottle(recommendation: TonightRecommendation) {
+    setSelectedTonightId(recommendation.inventory_id);
+    toast.success("Tonight's bottle selected for this session.");
+  }
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey,
@@ -136,29 +127,35 @@ export default function RecommendationsPage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-[28px] border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 px-8 py-8 shadow-[0_20px_60px_-40px_rgba(120,24,40,0.35)]">
+      <section className="overflow-hidden rounded-[32px] border border-border/60 bg-[radial-gradient(circle_at_top_left,rgba(120,24,40,0.10),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.94),rgba(250,247,241,0.74))] px-6 py-6 shadow-[0_28px_80px_-52px_rgba(15,23,42,0.42)] sm:px-8 sm:py-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <TonightEngineHeader />
-          <Button variant="outline" onClick={() => refetch()} disabled={isFetching} className="h-11 rounded-full px-5">
-            {isFetching ? "Refreshing..." : "Re-score tonight"}
+          <Button variant="outline" onClick={() => refetch()} disabled={isFetching} className="h-11 rounded-full border-border/70 bg-background/70 px-5 backdrop-blur">
+            <RefreshCw className={isFetching ? "mr-2 h-4 w-4 animate-spin" : "mr-2 h-4 w-4"} />
+            {isFetching ? "Re-scoring" : "Re-score tonight"}
           </Button>
         </div>
 
-        <div className="mt-8 grid gap-4 lg:grid-cols-[1.35fr_1fr]">
-          <Card className="rounded-3xl border border-border/60 bg-background/88 shadow-sm">
-            <CardHeader>
-              <CardTitle className="font-playfair text-3xl tracking-tight">{data.headline}</CardTitle>
-              <CardDescription className="text-base text-muted-foreground">{data.summary}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 pt-0">
-              <div className="rounded-2xl border border-border/60 bg-background p-4 text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">Confidence note:</span> {data.confidence_note}
+        <div className="mt-8 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <Card className="rounded-[28px] border border-border/60 bg-background/86 shadow-sm backdrop-blur">
+            <CardHeader className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="rounded-full border-primary/30 bg-primary/10 text-primary">Cellar-first</Badge>
+                <Badge variant="outline" className="rounded-full">{data.primary ? `${data.primary.confidence}% confidence` : "No pick yet"}</Badge>
+                <Badge variant="outline" className="rounded-full">{data.alternates.length} alternate{data.alternates.length === 1 ? "" : "s"}</Badge>
               </div>
-              {data.fallback_prompt && (
-                <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">Best next upgrade:</span> {data.fallback_prompt}
-                </div>
-              )}
+              <div>
+                <CardTitle className="font-playfair text-3xl tracking-tight sm:text-4xl">{data.headline}</CardTitle>
+                <CardDescription className="mt-2 max-w-3xl text-base leading-7 text-muted-foreground">{data.summary}</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="grid gap-3 pt-0 md:grid-cols-2">
+              <DecisionNote icon={<ShieldCheck className="h-4 w-4" />} label="Trust read" text={data.confidence_note} />
+              <DecisionNote
+                icon={data.fallback_prompt ? <AlertTriangle className="h-4 w-4" /> : <Gauge className="h-4 w-4" />}
+                label={data.fallback_prompt ? "Sharpen next pick" : "Data posture"}
+                text={data.fallback_prompt || "Enough signal is present to keep the decision crisp without pretending to know more than the cellar says."}
+              />
             </CardContent>
           </Card>
 
@@ -170,9 +167,9 @@ export default function RecommendationsPage() {
         <TonightPrimaryCard
           recommendation={data.primary}
           isSelected={selectedTonightId === data.primary.inventory_id}
-          isSaving={markTonightBottle.isPending}
+          isSaving={false}
           onMarkTonight={() => {
-            if (data.primary) markTonightBottle.mutate(data.primary);
+            if (data.primary) selectTonightBottle(data.primary);
           }}
         />
       ) : (
@@ -188,17 +185,18 @@ export default function RecommendationsPage() {
         <Card className="rounded-3xl border border-border/60 bg-background/88 shadow-sm">
           <CardHeader>
             <CardTitle className="tracking-tight">Alternates</CardTitle>
-            <CardDescription>Two credible backups with different tradeoffs.</CardDescription>
+            <CardDescription>Two credible backups. The badge shows confidence; Brian-Fit is separate when known.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {data.alternates.length > 0 ? (
-              data.alternates.map((recommendation) => (
+              data.alternates.map((recommendation, index) => (
                 <TonightAlternateCard
                   key={recommendation.id}
                   recommendation={recommendation}
+                  rank={index + 1}
                   isSelected={selectedTonightId === recommendation.inventory_id}
-                  isSaving={markTonightBottle.isPending}
-                  onMarkTonight={() => markTonightBottle.mutate(recommendation)}
+                  isSaving={false}
+                  onMarkTonight={() => selectTonightBottle(recommendation)}
                 />
               ))
             ) : (
@@ -209,13 +207,13 @@ export default function RecommendationsPage() {
 
         <Card className="rounded-3xl border border-border/60 bg-background/88 shadow-sm">
           <CardHeader>
-            <CardTitle className="tracking-tight">Why tonight’s picks work</CardTitle>
-            <CardDescription>Fast operator framing, not sommelier theater.</CardDescription>
+            <CardTitle className="tracking-tight">Critical read</CardTitle>
+            <CardDescription>What the engine is allowed to claim — and where it should stay humble.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <WhyRow label="Safe choice" text="Leans toward bottles with either proven taste signals or low-regret cellar fit." />
-            <WhyRow label="Interesting choice" text="Rewards unknown or underused bottles when you ask for more adventure." />
-            <WhyRow label="Special bottle" text="Elevates higher-value or scarcer bottles when the moment looks worth it." />
+          <CardContent className="space-y-4 text-sm text-muted-foreground">
+            <WhyRow icon={<ShieldCheck className="h-4 w-4" />} label="Grounded" text="Every pick comes from bottles actually in the cellar, with one primary recommendation instead of a vague list." />
+            <WhyRow icon={<Scale className="h-4 w-4" />} label="Tradeoff-aware" text="Confidence, Brian-Fit, value, and scarcity are visible as separate signals rather than collapsed into fake certainty." />
+            <WhyRow icon={<AlertTriangle className="h-4 w-4" />} label="Still thin" text="Sparse custom bottles remain useful but are labelled cautiously until tasting, value, or drink-window data improves." />
           </CardContent>
         </Card>
       </div>
@@ -312,46 +310,73 @@ function TonightPrimaryCard({
   isSaving: boolean;
   onMarkTonight: () => void;
 }) {
+  const scoreSignals = getScoreSignals(recommendation);
+
   return (
-    <Card className="rounded-[28px] border border-border/60 bg-background/96 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.28)]">
-      <CardHeader className="space-y-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge className="rounded-full bg-primary px-3 py-1 text-primary-foreground">Best bottle now</Badge>
-          <Badge variant="outline" className="rounded-full">Confidence {recommendation.confidence}%</Badge>
-          {recommendation.brian_fit_score && (
-            <Badge className="rounded-full bg-primary/10 px-3 py-1 text-primary hover:bg-primary/10">
-              Brian-Fit {recommendation.brian_fit_score}
-            </Badge>
-          )}
-          <Badge variant="outline" className="rounded-full">{formatWineType(recommendation.wine_type)}</Badge>
-        </div>
-        <div className="space-y-2">
-          <CardTitle className="font-playfair text-4xl tracking-tight">
-            {recommendation.vintage_label !== "Vintage unknown" ? `${recommendation.vintage_label} ` : ""}
-            {recommendation.name}
-          </CardTitle>
-          <CardDescription className="text-base">{recommendation.producer} • {recommendation.region}</CardDescription>
+    <Card className="overflow-hidden rounded-[32px] border border-border/60 bg-background/96 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.42)]">
+      <CardHeader className="border-b border-border/50 bg-[linear-gradient(135deg,rgba(120,24,40,0.08),transparent_42%)] p-6 sm:p-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="rounded-full bg-primary px-3 py-1 text-primary-foreground">Best bottle now</Badge>
+              <Badge variant="outline" className="rounded-full bg-background/70">{recommendation.confidence}% decision confidence</Badge>
+              {recommendation.brian_fit_score ? (
+                <Badge className="rounded-full bg-primary/10 px-3 py-1 text-primary hover:bg-primary/10">
+                  Brian-Fit {recommendation.brian_fit_score}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="rounded-full bg-background/70">Brian-Fit thin</Badge>
+              )}
+              <Badge variant="outline" className="rounded-full bg-background/70">{formatWineType(recommendation.wine_type)}</Badge>
+            </div>
+            <div className="space-y-2">
+              <CardTitle className="max-w-4xl font-playfair text-4xl tracking-tight sm:text-5xl">
+                {recommendation.vintage_label !== "Vintage unknown" ? `${recommendation.vintage_label} ` : ""}
+                {recommendation.name}
+              </CardTitle>
+              <CardDescription className="text-base leading-7">
+                {recommendation.producer} • {recommendation.region} • {recommendation.quantity} bottle{recommendation.quantity === 1 ? "" : "s"} left • {recommendation.price_context}
+              </CardDescription>
+            </div>
+          </div>
+
+          <div className="min-w-[160px] rounded-3xl border border-border/60 bg-background/82 p-4 text-center shadow-sm">
+            <div className="font-playfair text-5xl font-semibold tracking-tight text-primary">{recommendation.confidence}</div>
+            <div className="mt-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">confidence</div>
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-          <SignalCard icon={<UtensilsCrossed className="h-4 w-4" />} label="Why this fits" value={recommendation.reason} featured />
-          <div className="grid gap-4">
-            {recommendation.brian_fit_reason && (
-              <SignalCard icon={<Sparkles className="h-4 w-4" />} label="Brian-Fit explanation" value={recommendation.brian_fit_reason} />
-            )}
-            <SignalCard icon={<Sparkles className="h-4 w-4" />} label="Best for" value={recommendation.best_for} />
-            <SignalCard icon={<GlassWater className="h-4 w-4" />} label="Watch out for" value={recommendation.caution} />
+
+      <CardContent className="space-y-6 p-6 sm:p-8">
+        <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+          <SignalCard icon={<UtensilsCrossed className="h-4 w-4" />} label="Decision reason" value={recommendation.reason} featured />
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <SignalCard icon={<Compass className="h-4 w-4" />} label="Best moment" value={recommendation.best_for} />
+            <SignalCard icon={<AlertTriangle className="h-4 w-4" />} label="Watch-out" value={recommendation.caution} tone={recommendation.caution.includes("Low structural risk") ? "calm" : "warning"} />
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <span>{recommendation.quantity} bottle{recommendation.quantity === 1 ? "" : "s"} left</span>
-          <span>•</span>
-          <span>{recommendation.price_context}</span>
+        <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          {recommendation.brian_fit_reason ? (
+            <SignalCard icon={<Sparkles className="h-4 w-4" />} label="Brian-Fit evidence" value={recommendation.brian_fit_reason} />
+          ) : (
+            <SignalCard icon={<Sparkles className="h-4 w-4" />} label="Brian-Fit evidence" value="No strong Brian-Fit explanation yet. This pick leans on context and cellar practicality rather than pretending a taste profile match exists." tone="warning" />
+          )}
+          <div className="rounded-3xl border border-border/60 bg-muted/15 p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium text-foreground">Why it won</div>
+                <div className="text-xs text-muted-foreground">Transparent scoring, not black-box recommendation theatre.</div>
+              </div>
+              <Gauge className="h-5 w-5 text-primary" />
+            </div>
+            <div className="space-y-3">
+              {scoreSignals.map((signal) => <ScoreBar key={signal.label} {...signal} />)}
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 border-t border-border/50 pt-6">
           <Button asChild className="rounded-full px-5">
             <Link href={`/cellar/${recommendation.inventory_id}`}>
               Open Bottle Brain <ChevronRight className="ml-2 h-4 w-4" />
@@ -359,7 +384,7 @@ function TonightPrimaryCard({
           </Button>
           <Button variant={isSelected ? "secondary" : "outline"} onClick={onMarkTonight} disabled={isSaving} className="rounded-full px-5">
             {isSelected ? <CheckCircle2 className="mr-2 h-4 w-4" /> : null}
-            {isSaving ? "Saving..." : isSelected ? "Tonight’s bottle selected" : "Mark as tonight’s bottle"}
+            {isSaving ? "Saving..." : isSelected ? "Tonight’s bottle selected" : "Select for tonight"}
           </Button>
         </div>
       </CardContent>
@@ -369,31 +394,53 @@ function TonightPrimaryCard({
 
 function TonightAlternateCard({
   recommendation,
+  rank,
   isSelected,
   isSaving,
   onMarkTonight,
 }: {
   recommendation: TonightRecommendation;
+  rank: number;
   isSelected: boolean;
   isSaving: boolean;
   onMarkTonight: () => void;
 }) {
+  const scoreSignals = getScoreSignals(recommendation).slice(0, 3);
+
   return (
-    <div className="rounded-3xl border border-border/60 bg-background/88 p-5 shadow-sm">
+    <div className="rounded-3xl border border-border/60 bg-background/88 p-5 shadow-sm transition hover:border-primary/30 hover:shadow-md">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h3 className="text-lg font-medium tracking-tight text-foreground">
-            {recommendation.vintage_label !== "Vintage unknown" ? `${recommendation.vintage_label} ` : ""}
-            {recommendation.name}
-          </h3>
-          <p className="text-sm text-muted-foreground">{recommendation.producer} • {recommendation.region}</p>
+        <div className="space-y-2">
+          <Badge variant="outline" className="rounded-full bg-muted/30">Alternate {rank}</Badge>
+          <div>
+            <h3 className="text-lg font-medium tracking-tight text-foreground">
+              {recommendation.vintage_label !== "Vintage unknown" ? `${recommendation.vintage_label} ` : ""}
+              {recommendation.name}
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">{recommendation.producer} • {recommendation.region}</p>
+          </div>
         </div>
-        <Badge variant="outline" className="rounded-full">
-          {recommendation.brian_fit_score ?? recommendation.confidence}% Brian-Fit
-        </Badge>
+        <div className="flex flex-col items-end gap-2">
+          <Badge variant="outline" className="rounded-full">
+            {recommendation.confidence}% confidence
+          </Badge>
+          {recommendation.brian_fit_score ? (
+            <Badge className="rounded-full bg-primary/10 text-primary hover:bg-primary/10">
+              Brian-Fit {recommendation.brian_fit_score}
+            </Badge>
+          ) : null}
+        </div>
       </div>
       <p className="mt-4 text-sm leading-6 text-muted-foreground">{recommendation.reason}</p>
-      <div className="mt-4 rounded-2xl border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        {scoreSignals.map((signal) => (
+          <div key={signal.label} className="rounded-2xl border border-border/60 bg-muted/15 p-3">
+            <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">{signal.label}</div>
+            <div className="mt-1 text-sm font-medium text-foreground">{signal.value > 0 ? "+" : ""}{signal.value}</div>
+          </div>
+        ))}
+      </div>
+      <div className={recommendation.caution.includes("Low structural risk") ? "mt-4 rounded-2xl border border-border/60 bg-muted/15 p-3 text-xs leading-5 text-muted-foreground" : "mt-4 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs leading-5 text-amber-900"}>
         {recommendation.caution}
       </div>
       <div className="mt-4 flex items-center justify-between gap-3">
@@ -411,25 +458,88 @@ function TonightAlternateCard({
   );
 }
 
-function SignalCard({ icon, label, value, featured = false }: { icon: React.ReactNode; label: string; value: string; featured?: boolean }) {
+function DecisionNote({ icon, label, text }: { icon: React.ReactNode; label: string; text: string }) {
   return (
-    <div className={featured ? "rounded-3xl border border-border/60 bg-background p-5 shadow-sm" : "rounded-3xl border border-border/60 bg-muted/20 p-4"}>
-      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-        {icon}
+    <div className="rounded-2xl border border-border/60 bg-background/72 p-4 text-sm text-muted-foreground">
+      <div className="mb-2 flex items-center gap-2 font-medium text-foreground">
+        <span className="text-primary">{icon}</span>
         {label}
       </div>
-      <p className="text-sm leading-6 text-muted-foreground">{value}</p>
+      <p className="leading-6">{text}</p>
     </div>
   );
 }
 
-function WhyRow({ label, text }: { label: string; text: string }) {
+function SignalCard({
+  icon,
+  label,
+  value,
+  featured = false,
+  tone = "calm",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  featured?: boolean;
+  tone?: "calm" | "warning";
+}) {
+  const toneClass = tone === "warning"
+    ? "border-amber-500/25 bg-amber-500/10 text-amber-950"
+    : featured
+      ? "border-border/60 bg-background shadow-sm"
+      : "border-border/60 bg-muted/20";
+
   return (
-    <div>
-      <div className="font-medium text-foreground">{label}</div>
-      <div>{text}</div>
+    <div className={`rounded-3xl border p-4 ${featured ? "sm:p-5" : ""} ${toneClass}`}>
+      <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
+        <span className={tone === "warning" ? "text-amber-700" : "text-primary"}>{icon}</span>
+        {label}
+      </div>
+      <p className={tone === "warning" ? "text-sm leading-6 text-amber-900" : "text-sm leading-6 text-muted-foreground"}>{value}</p>
     </div>
   );
+}
+
+function ScoreBar({ label, value }: { label: string; value: number }) {
+  const width = Math.min(100, Math.max(8, Math.abs(value) * 5));
+  const isPositive = value >= 0;
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+        <span className="font-medium text-foreground">{label}</span>
+        <span className={isPositive ? "text-primary" : "text-amber-700"}>{isPositive ? "+" : ""}{value}</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-muted">
+        <div className={isPositive ? "h-full rounded-full bg-primary/70" : "h-full rounded-full bg-amber-500/70"} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function WhyRow({ icon, label, text }: { icon: React.ReactNode; label: string; text: string }) {
+  return (
+    <div className="flex gap-3 rounded-2xl border border-border/50 bg-muted/15 p-3">
+      <div className="mt-0.5 text-primary">{icon}</div>
+      <div>
+        <div className="font-medium text-foreground">{label}</div>
+        <div className="mt-1 leading-6">{text}</div>
+      </div>
+    </div>
+  );
+}
+
+function getScoreSignals(recommendation: TonightRecommendation) {
+  return [
+    { label: "Readiness", value: recommendation.score_breakdown.readiness },
+    { label: "Meal", value: recommendation.score_breakdown.meal_fit },
+    { label: "Occasion", value: recommendation.score_breakdown.occasion_fit },
+    { label: "Taste", value: recommendation.score_breakdown.taste_fit },
+    { label: "Confidence", value: recommendation.score_breakdown.confidence },
+    { label: "Adventure", value: recommendation.score_breakdown.adventure_fit },
+    { label: "Cellar", value: recommendation.score_breakdown.cellar_practicality },
+    { label: "Value", value: recommendation.score_breakdown.value_fit },
+  ];
 }
 
 function formatWineType(value: TonightRecommendation["wine_type"]) {
