@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm run lint && npm run test:capture && npm run test:command-center && npm run test:bottle-brain && npm run test:voice-capture && npm run test:field-reliability && npm run build",
+    "check": "npm run typecheck && npm run lint && npm run test:capture && npm run test:command-center && npm run test:bottle-brain && npm run test:voice-capture && npm run test:field-reliability && npm run test:p0-security && npm run build",
     "db:seed": "tsx scripts/seed-wines.ts",
     "db:seed:jarvis": "tsx scripts/seed-jarvis-demo.ts",
     "db:seed:brian-fit": "tsx scripts/seed-brian-fit.ts",
@@ -19,6 +19,7 @@
     "test:bottle-brain": "tsx tests/bottle-brain.test.ts",
     "test:voice-capture": "tsx tests/voice-tasting-capture.test.ts",
     "test:field-reliability": "tsx tests/field-reliability.test.ts",
+    "test:p0-security": "tsx tests/p0-security.test.ts",
     "wine:capture": "tsx scripts/capture-wine-rating.ts"
   },
   "dependencies": {

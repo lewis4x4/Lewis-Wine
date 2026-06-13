@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
+import {
+  checkRateLimit,
+  isAllowedAiImageMimeType,
+  validateAiImageUpload,
+} from "@/lib/api-security";
 import type { LabelScanResult } from "@/types/database";
 
 export async function POST(request: NextRequest) {
@@ -28,6 +33,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const rateLimit = checkRateLimit(`label-scan:${user.id}`);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Too many label scans. Please wait before trying again.",
+          wine: null,
+          raw_text: "",
+        },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
     const anthropic = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
@@ -44,18 +65,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert file to base64
-    const bytes = await file.arrayBuffer();
-    const base64 = Buffer.from(bytes).toString("base64");
+    // Determine media type before buffering
+    const uploadError = validateAiImageUpload(file);
+    if (uploadError) {
+      return NextResponse.json(
+        { success: false, error: uploadError, wine: null, raw_text: "" },
+        { status: 400 }
+      );
+    }
 
-    // Determine media type
-    const mediaType = file.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-    if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mediaType)) {
+    const mediaType = file.type;
+
+    if (!isAllowedAiImageMimeType(mediaType)) {
       return NextResponse.json(
         { success: false, error: "Invalid image format. Please upload a JPEG, PNG, GIF, or WebP image.", wine: null, raw_text: "" },
         { status: 400 }
       );
     }
+
+    // Convert file to base64 after validation
+    const bytes = await file.arrayBuffer();
+    const base64 = Buffer.from(bytes).toString("base64");
 
     // Call Claude Vision API
     const response = await anthropic.messages.create({

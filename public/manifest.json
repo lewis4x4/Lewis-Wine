@@ -2,7 +2,7 @@
   "name": "Pourfolio — Wine Intelligence OS",
   "short_name": "Pourfolio",
   "description": "A mobile-first wine intelligence OS for cellar actions, Bottle Brain retrieval, and JARVIS tasting capture.",
-  "start_url": "/dashboard",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#fbf7f1",

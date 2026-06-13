@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { createClient } from "@/lib/supabase/server";
+import {
+  checkRateLimit,
+  isAllowedAiImageMimeType,
+  validateAiImageUpload,
+} from "@/lib/api-security";
 import type { ExtractedWine, ReceiptScanResult } from "@/types/database";
 
 const anthropic = new Anthropic({
@@ -8,6 +14,71 @@ const anthropic = new Anthropic({
 
 export async function POST(request: NextRequest) {
   try {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error("ANTHROPIC_API_KEY is not configured");
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Service not configured",
+          vendor: null,
+          vendor_type: null,
+          purchase_date: null,
+          subtotal_cents: null,
+          tax_cents: null,
+          total_cents: null,
+          wines: [],
+          raw_text: "",
+        },
+        { status: 503 }
+      );
+    }
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Unauthorized",
+          vendor: null,
+          vendor_type: null,
+          purchase_date: null,
+          subtotal_cents: null,
+          tax_cents: null,
+          total_cents: null,
+          wines: [],
+          raw_text: "",
+        },
+        { status: 401 }
+      );
+    }
+
+    const rateLimit = checkRateLimit(`receipt-scan:${user.id}`);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Too many receipt scans. Please wait before trying again.",
+          vendor: null,
+          vendor_type: null,
+          purchase_date: null,
+          subtotal_cents: null,
+          tax_cents: null,
+          total_cents: null,
+          wines: [],
+          raw_text: "",
+        },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("receipt") as File | null;
 
@@ -18,18 +89,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert file to base64
-    const bytes = await file.arrayBuffer();
-    const base64 = Buffer.from(bytes).toString("base64");
+    // Determine media type before buffering
+    const uploadError = validateAiImageUpload(file);
+    if (uploadError) {
+      return NextResponse.json(
+        { error: uploadError },
+        { status: 400 }
+      );
+    }
 
-    // Determine media type
-    const mediaType = file.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-    if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mediaType)) {
+    const mediaType = file.type;
+
+    if (!isAllowedAiImageMimeType(mediaType)) {
       return NextResponse.json(
         { error: "Invalid image format. Please upload a JPEG, PNG, GIF, or WebP image." },
         { status: 400 }
       );
     }
+
+    // Convert file to base64 after validation
+    const bytes = await file.arrayBuffer();
+    const base64 = Buffer.from(bytes).toString("base64");
 
     // Call Claude Vision API
     const response = await anthropic.messages.create({

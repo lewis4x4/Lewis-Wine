@@ -27,7 +27,7 @@ class MemoryStorage implements OfflineDraftStorage {
 }
 
 assert.equal(manifest.display, "standalone");
-assert.equal(manifest.start_url, "/dashboard");
+assert.equal(manifest.start_url, "/");
 assert.equal(manifest.theme_color, "#722F37");
 assert.ok(manifest.shortcuts.some((shortcut) => shortcut.url === "/jarvis/voice"));
 assert.ok(manifest.shortcuts.some((shortcut) => shortcut.url === "/bottle-brain"));
