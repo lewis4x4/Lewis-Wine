@@ -16,6 +16,7 @@ import { EnhancedTastingForm, EnhancedTastingData } from "@/components/tasting";
 import { MarketValueEditor, PricePerGlass } from "@/components/financial";
 import { PhotoGallery } from "@/components/photos";
 import { QRCodeGenerator } from "@/components/wine/qr-generator";
+import { PriceEvidencePanel } from "@/components/cellar/price-evidence-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1207,6 +1208,16 @@ export default function WineDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PriceEvidencePanel
+        inventoryId={id}
+        wineReferenceId={wine.wine_reference_id}
+        onApplyMarketValue={async (patch) => {
+          await updateInventory.mutateAsync({ id, ...patch });
+          toast.success("Current market value updated from accepted evidence.");
+          await refetchWine();
+        }}
+      />
 
       {/* Record posture */}
       <Card>

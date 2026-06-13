@@ -2,7 +2,19 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { isPriceObservationStale } from "@/lib/current-intelligence/price-observations";
+import type { ObservationKind, ReviewStatus, SourceType, TruthLabel } from "@/lib/current-intelligence/types";
 import type { Cellar, CellarInventory, CellarInventoryInsert, WineReference, Rating, RatingSignal } from "@/types/database";
+
+type PriceObservationSummary = {
+  review_status?: string | null;
+  truth_label?: string | null;
+  observed_at?: string | null;
+  observation_kind?: string | null;
+  observed_price_cents?: number | null;
+  source_type?: string | null;
+  confidence?: number | null;
+};
 
 export function useCellar() {
   const supabase = createClient();
@@ -40,15 +52,54 @@ export function useCellarInventory() {
             nose_notes,
             palate_notes,
             rating_signals (*)
+          ),
+          wine_price_observations (
+            review_status,
+            truth_label,
+            observed_at,
+            observation_kind,
+            observed_price_cents,
+            source_type,
+            confidence
           )
         `)
         .eq("status", "in_cellar")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as (CellarInventory & {
+      const rows = (data ?? []) as Array<Record<string, unknown> & {
+        id: string;
+        wine_price_observations?: PriceObservationSummary[] | null;
+      }>;
+      const enriched = rows.map((wine) => {
+        const observations = wine.wine_price_observations ?? [];
+        const accepted = observations.filter((observation) => observation.review_status === "accepted");
+        const stale = accepted.filter((observation) => isPriceObservationStale({
+          id: "summary",
+          inventoryId: wine.id,
+          sourceType: (observation.source_type ?? "unknown") as SourceType,
+          observationKind: (observation.observation_kind ?? "estimate") as ObservationKind,
+          truthLabel: (observation.truth_label ?? "unknown") as TruthLabel,
+          reviewStatus: "accepted" as ReviewStatus,
+          observedPriceCents: observation.observed_price_cents ?? null,
+          currency: "USD",
+          confidence: observation.confidence ?? 0,
+          observedAt: observation.observed_at ?? new Date(0).toISOString(),
+        })).length;
+        return {
+          ...wine,
+          accepted_price_evidence_count: accepted.length,
+          stale_price_evidence_count: stale,
+          evidence_awaiting_review_count: observations.filter((observation) => observation.review_status === "draft").length,
+        };
+      });
+
+      return enriched as (CellarInventory & {
         wine_reference: WineReference | null;
         ratings: (Rating & { rating_signals?: RatingSignal[] | null })[];
+        accepted_price_evidence_count?: number;
+        stale_price_evidence_count?: number;
+        evidence_awaiting_review_count?: number;
       })[];
     },
   });

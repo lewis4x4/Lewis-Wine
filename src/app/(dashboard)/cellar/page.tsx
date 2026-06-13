@@ -23,6 +23,9 @@ import type { BrianFitSummary } from "@/lib/brian-fit";
 type BrianFitWineInventory = WineCardInventory & {
   brian_fit?: BrianFitSummary | null;
   brian_fit_score?: number | null;
+  accepted_price_evidence_count?: number | null;
+  stale_price_evidence_count?: number | null;
+  evidence_awaiting_review_count?: number | null;
 };
 
 export default function CellarPage() {
@@ -97,6 +100,9 @@ export default function CellarPage() {
         brian_fit_reason: wine.brian_fit?.reason ?? null,
         tags: wine.tags,
         created_at: wine.created_at,
+        accepted_price_evidence_count: wine.accepted_price_evidence_count,
+        stale_price_evidence_count: wine.stale_price_evidence_count,
+        evidence_awaiting_review_count: wine.evidence_awaiting_review_count,
       }))
     );
   }, [inventoryWithBrianFit]);

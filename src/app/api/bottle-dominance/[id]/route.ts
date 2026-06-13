@@ -7,11 +7,22 @@ import {
   type DominanceMarketSignal,
 } from "@/lib/bottle-dominance";
 
-function getConfiguredMarketSignal(): DominanceMarketSignal | null {
-  // Provider hook: when a licensed pricing provider is configured, plug it in here.
-  // Do not fabricate market values when the provider is absent.
-  if (!process.env.WINE_SEARCHER_API_KEY) return null;
-  return null;
+import {
+  normalizePriceObservation,
+  selectBestMarketValue,
+  type PriceObservation,
+} from "@/lib/current-intelligence/price-observations";
+
+function getConfiguredMarketSignal(observations: PriceObservation[]): DominanceMarketSignal | null {
+  const selected = selectBestMarketValue(observations.filter((observation) => observation.reviewStatus === "accepted"));
+  if (!selected?.observedPriceCents) return null;
+  return {
+    provider: selected.sourceName ?? selected.sourceType,
+    valueCents: selected.observedPriceCents,
+    sourceUrl: selected.sourceUrl,
+    checkedAt: selected.observedAt,
+    confidence: selected.confidence,
+  };
 }
 
 export async function POST(
@@ -56,8 +67,34 @@ export async function POST(
       return NextResponse.json({ success: false, error: "Bottle not found" }, { status: 404 });
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: observationRows } = await (supabase as any)
+      .from("wine_price_observations")
+      .select("*")
+      .eq("inventory_id", id);
+
+    const observations = (observationRows ?? []).map((row: Record<string, unknown>) => normalizePriceObservation({
+      id: String(row.id),
+      inventoryId: String(row.inventory_id),
+      wineReferenceId: (row.wine_reference_id as string | null) ?? null,
+      sourceType: row.source_type as PriceObservation["sourceType"],
+      sourceName: (row.source_name as string | null) ?? null,
+      sourceUrl: (row.source_url as string | null) ?? null,
+      observationKind: row.observation_kind as PriceObservation["observationKind"],
+      truthLabel: row.truth_label as PriceObservation["truthLabel"],
+      reviewStatus: row.review_status as PriceObservation["reviewStatus"],
+      observedPriceCents: (row.observed_price_cents as number | null) ?? null,
+      currency: String(row.currency ?? "USD"),
+      bottleSizeMl: (row.bottle_size_ml as number | null) ?? null,
+      vintage: (row.vintage as number | null) ?? null,
+      confidence: Number(row.confidence ?? 0),
+      observedAt: String(row.observed_at),
+      notes: (row.notes as string | null) ?? null,
+      rawPayload: row.raw_payload,
+    }));
+
     const draft = buildBottleDominanceDraft(wine as BottleDominanceRecord, {
-      market: getConfiguredMarketSignal(),
+      market: getConfiguredMarketSignal(observations),
     });
 
     return NextResponse.json({

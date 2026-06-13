@@ -29,6 +29,9 @@ export type CellarCommandWine = {
   brian_fit_reason?: string | null;
   tags?: string[] | null;
   created_at?: string | null;
+  accepted_price_evidence_count?: number | null;
+  stale_price_evidence_count?: number | null;
+  evidence_awaiting_review_count?: number | null;
 };
 
 export type CellarCommandItem = CellarCommandWine & {
@@ -57,6 +60,8 @@ export type CellarCommandCenter = {
     unlovedValueCents: number;
     missingMarketValues: number;
     recentUnreviewed: number;
+    evidenceAwaitingReview: number;
+    stalePriceEvidence: number;
   };
   lanes: {
     drinkNow: CellarCommandItem[];
@@ -67,6 +72,7 @@ export type CellarCommandCenter = {
     unlovedExpensive: CellarCommandItem[];
     missingMarketValue: CellarCommandItem[];
     recentUnreviewed: CellarCommandItem[];
+    evidenceReview: CellarCommandItem[];
   };
   executiveBrief: string;
   bestNextMove: string;
@@ -169,6 +175,10 @@ function isRecentUnreviewed(wine: CellarCommandItem, asOf: Date) {
   return ageDays >= 0 && ageDays <= RECENT_UNREVIEWED_DAYS;
 }
 
+function needsEvidenceReview(wine: CellarCommandItem) {
+  return (wine.evidence_awaiting_review_count ?? 0) > 0 || (wine.stale_price_evidence_count ?? 0) > 0;
+}
+
 function getActionAndReason(wine: CellarCommandWine, readiness: CellarCommandItem["readiness"]) {
   const name = getCellarCommandWineName(wine);
   const fitScore = wine.brian_fit_score;
@@ -201,6 +211,13 @@ function getActionAndReason(wine: CellarCommandWine, readiness: CellarCommandIte
     return {
       action: `Capture signal on ${name}`,
       reason: "The bottle lacks first-party tasting memory, which limits Brian-Fit confidence.",
+    };
+  }
+
+  if ((wine.evidence_awaiting_review_count ?? 0) > 0 || (wine.stale_price_evidence_count ?? 0) > 0) {
+    return {
+      action: `Review current intelligence on ${name}`,
+      reason: "This bottle has pricing/evidence signals that need approval or refresh before portfolio truth should rely on them.",
     };
   }
 
@@ -263,6 +280,9 @@ export function buildCellarCommandCenter(
   const recentUnreviewedItems = items
     .filter((wine) => isRecentUnreviewed(wine, asOf))
     .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime() || byCommandPriority(a, b));
+  const evidenceReviewItems = items
+    .filter(needsEvidenceReview)
+    .sort((a, b) => (b.evidence_awaiting_review_count ?? 0) - (a.evidence_awaiting_review_count ?? 0) || (b.stale_price_evidence_count ?? 0) - (a.stale_price_evidence_count ?? 0) || byCommandPriority(a, b));
 
   const lanes = {
     drinkNow: items
@@ -282,6 +302,7 @@ export function buildCellarCommandCenter(
     unlovedExpensive: unlovedExpensiveItems.slice(0, laneLimit),
     missingMarketValue: missingMarketValueItems.slice(0, laneLimit),
     recentUnreviewed: recentUnreviewedItems.slice(0, laneLimit),
+    evidenceReview: evidenceReviewItems.slice(0, laneLimit),
   };
 
   const bottleCount = (wines: CellarCommandItem[]) => wines.reduce((sum, wine) => sum + wine.quantity, 0);
@@ -298,6 +319,8 @@ export function buildCellarCommandCenter(
     unlovedValueCents: learnItems.reduce((sum, wine) => sum + (wine.estimatedValueCents ?? 0), 0),
     missingMarketValues: bottleCount(missingMarketValueItems),
     recentUnreviewed: bottleCount(recentUnreviewedItems),
+    evidenceAwaitingReview: items.reduce((sum, wine) => sum + Math.max(wine.evidence_awaiting_review_count ?? 0, 0), 0),
+    stalePriceEvidence: items.reduce((sum, wine) => sum + Math.max(wine.stale_price_evidence_count ?? 0, 0), 0),
   };
 
   const portfolioTruth = buildPortfolioTruth(wines);
@@ -311,12 +334,14 @@ export function buildCellarCommandCenter(
         portfolioTruth.totals.unknownBottles > 0 ? `${plural(portfolioTruth.totals.unknownBottles, "bottle")} has no value basis` : null,
         metrics.unlovedValueCents > 0 ? `${formatCurrency(metrics.unlovedValueCents)} of value has no tasting memory` : null,
         portfolioTruth.updateNext.length > 0 ? `${plural(portfolioTruth.updateNext.length, "valuation action")} should be updated next` : null,
+        metrics.evidenceAwaitingReview > 0 ? `${plural(metrics.evidenceAwaitingReview, "price evidence item")} await review` : null,
+        metrics.stalePriceEvidence > 0 ? `${plural(metrics.stalePriceEvidence, "price evidence item")} are stale` : null,
         metrics.recentUnreviewed > 0 ? `${plural(metrics.recentUnreviewed, "recent bottle")} still needs review` : null,
         metrics.replace > 0 ? `${plural(metrics.replace, "bottle")} should be considered for replacement` : null,
         metrics.needsSignal > 0 ? `${plural(metrics.needsSignal, "bottle")} still needs first-party taste signal` : null,
       ].filter(Boolean).join(". ") || "The cellar is stable; the best move is tightening windows and taste signal.";
 
-  const firstPriority = lanes.atRisk[0] ?? lanes.drinkNow[0] ?? lanes.unlovedExpensive[0] ?? lanes.missingMarketValue[0] ?? lanes.replace[0] ?? lanes.recentUnreviewed[0] ?? lanes.learn[0] ?? lanes.hold[0] ?? null;
+  const firstPriority = lanes.atRisk[0] ?? lanes.drinkNow[0] ?? lanes.unlovedExpensive[0] ?? lanes.evidenceReview[0] ?? lanes.missingMarketValue[0] ?? lanes.replace[0] ?? lanes.recentUnreviewed[0] ?? lanes.learn[0] ?? lanes.hold[0] ?? null;
   const bestNextMove = firstPriority
     ? `${firstPriority.action}: ${firstPriority.reason}`
     : "Add a bottle or scan a label to give the system something useful to command.";

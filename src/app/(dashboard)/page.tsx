@@ -122,6 +122,9 @@ export default async function DashboardPage() {
         custom_producer: string | null;
         custom_region: string | null;
         custom_wine_type: string | null;
+        accepted_price_evidence_count?: number | null;
+        stale_price_evidence_count?: number | null;
+        evidence_awaiting_review_count?: number | null;
     }
 
     const inventory = rawInventory as unknown as InventoryItem[] | null;
@@ -189,6 +192,9 @@ export default async function DashboardPage() {
         rating_signal_count: item.ratings?.reduce((sum, rating) => sum + (rating.rating_signals?.length ?? 0), 0) ?? 0,
         tags: item.tags,
         created_at: item.created_at,
+        accepted_price_evidence_count: item.accepted_price_evidence_count,
+        stale_price_evidence_count: item.stale_price_evidence_count,
+        evidence_awaiting_review_count: item.evidence_awaiting_review_count,
     }));
 
     const tasteGenome = buildTasteGenome((inventory || []).flatMap((item) =>

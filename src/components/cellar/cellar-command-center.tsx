@@ -17,6 +17,8 @@ const metricLabels = [
   { key: "replace", label: "Replace" },
   { key: "needsSignal", label: "Learn" },
   { key: "missingMarketValues", label: "Price gaps" },
+  { key: "evidenceAwaitingReview", label: "Evidence review" },
+  { key: "stalePriceEvidence", label: "Stale evidence" },
   { key: "recentUnreviewed", label: "New unreviewed" },
 ] as const;
 
@@ -45,7 +47,7 @@ export function CellarCommandCenter({ center, compact = false }: CellarCommandCe
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
           {metricLabels.map((metric) => (
             <div key={metric.key} className="rounded-3xl border border-border/60 bg-background/90 p-4 shadow-sm">
               <div className="text-3xl font-semibold tracking-tight tabular-nums">{center.metrics[metric.key]}</div>
@@ -92,6 +94,14 @@ export function CellarCommandCenter({ center, compact = false }: CellarCommandCe
         </div>
 
         <div className={cn("mt-4 grid gap-4", compact ? "lg:grid-cols-3" : "xl:grid-cols-3")}>
+          <CommandLane
+            title="Evidence review"
+            description="Bottles with pending or stale current-intelligence signals."
+            icon={<ShieldCheck className="h-4 w-4" />}
+            items={center.lanes.evidenceReview}
+            empty="No price evidence is waiting for approval or refresh."
+            tone="primary"
+          />
           <CommandLane
             title="Value without memory"
             description="Meaningful cellar value that still lacks a tasting read."
