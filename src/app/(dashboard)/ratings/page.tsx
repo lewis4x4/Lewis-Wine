@@ -18,6 +18,15 @@ type RatingWithInventory = Rating & {
   } | null;
 };
 
+type RatingInventory = {
+  vintage?: number | null;
+  custom_name?: string | null;
+  wine_reference?: {
+    name?: string | null;
+    producer?: string | null;
+  } | null;
+};
+
 export default function RatingsPage() {
   const supabase = createClient();
 
@@ -176,7 +185,7 @@ export default function RatingsPage() {
             <CardContent>
               <div className="divide-y">
                 {ratings.map((rating) => {
-                  const inventory = rating.cellar_inventory as any;
+                  const inventory = rating.cellar_inventory as RatingInventory | null;
                   const wine = inventory?.wine_reference;
                   const name = wine?.name || inventory?.custom_name || "Unknown Wine";
                   const producer = wine?.producer || "";

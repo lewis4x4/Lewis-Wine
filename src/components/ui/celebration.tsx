@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Confetti from "react-confetti";
 
 interface CelebrationProps {
@@ -9,35 +9,36 @@ interface CelebrationProps {
   duration?: number;
 }
 
+function getWindowDimensions() {
+  if (typeof window === "undefined") {
+    return { width: 0, height: 0 };
+  }
+  return { width: window.innerWidth, height: window.innerHeight };
+}
+
 export function Celebration({ show, onComplete, duration = 4000 }: CelebrationProps) {
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const [isRunning, setIsRunning] = useState(false);
+  const [dimensions, setDimensions] = useState(getWindowDimensions);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setDimensions({ width: window.innerWidth, height: window.innerHeight });
+    const handleResize = () => {
+      setDimensions(getWindowDimensions());
+    };
 
-      const handleResize = () => {
-        setDimensions({ width: window.innerWidth, height: window.innerHeight });
-      };
-
-      window.addEventListener("resize", handleResize);
-      return () => window.removeEventListener("resize", handleResize);
-    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   useEffect(() => {
-    if (show) {
-      setIsRunning(true);
-      const timer = setTimeout(() => {
-        setIsRunning(false);
-        onComplete?.();
-      }, duration);
-      return () => clearTimeout(timer);
-    }
+    if (!show) return;
+
+    const timer = window.setTimeout(() => {
+      onComplete?.();
+    }, duration);
+
+    return () => window.clearTimeout(timer);
   }, [show, duration, onComplete]);
 
-  if (!isRunning) return null;
+  if (!show) return null;
 
   return (
     <Confetti

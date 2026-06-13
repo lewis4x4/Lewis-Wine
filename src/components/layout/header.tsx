@@ -77,15 +77,24 @@ export function Header() {
             >
               Tonight Engine
             </Link>
+            <Link
+              href="/jarvis"
+              className="rounded-full border border-border/70 bg-background/80 px-3 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-accent"
+            >
+              JARVIS
+            </Link>
             <DropdownMenu>
               <DropdownMenuTrigger className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
                 Explore
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuItem asChild>
-                  <Link href="/recommendations">Tonight Engine</Link>
+                  <Link href="/jarvis">JARVIS Memory OS</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/recommendations">Tonight Engine</Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/wishlist">Wishlist</Link>
                 </DropdownMenuItem>
@@ -125,6 +134,10 @@ export function Header() {
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link href="/settings">Settings</Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/jarvis">JARVIS Memory OS</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut}>

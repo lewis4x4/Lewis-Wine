@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { deriveBrianFit } from "@/lib/brian-fit";
+import type { BrianTasteProfile, RatingSignal } from "@/types/database";
 
 export type TonightContext = {
   meal?: string;
@@ -20,6 +22,8 @@ export type TonightRecommendation = {
   quantity: number;
   price_context: string;
   confidence: number;
+  brian_fit_score?: number;
+  brian_fit_reason?: string;
   reason: string;
   best_for: string;
   caution: string;
@@ -55,7 +59,7 @@ type InventoryRow = {
     country: string | null;
     wine_type: TonightRecommendation["wine_type"] | null;
   } | null;
-  ratings: { score: number; tasting_notes: string | null }[];
+  ratings: { id: string; score: number; tasting_notes: string | null }[];
 };
 
 function normalizeType(item: InventoryRow): TonightRecommendation["wine_type"] {
@@ -215,6 +219,7 @@ export async function GET(request: Request) {
           wine_type
         ),
         ratings (
+          id,
           score,
           tasting_notes
         )
@@ -240,9 +245,34 @@ export async function GET(request: Request) {
       });
     }
 
+    const { data: tasteProfile } = await supabase
+      .from("brian_taste_profiles")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const ratingIds = rows.flatMap((item) => item.ratings.map((rating) => rating.id));
+    let signalMap = new Map<string, RatingSignal>();
+    if (ratingIds.length > 0) {
+      const { data: signals } = await supabase
+        .from("rating_signals")
+        .select("*")
+        .eq("user_id", user.id)
+        .in("rating_id", ratingIds);
+
+      signalMap = new Map(((signals || []) as RatingSignal[]).map((signal) => [signal.rating_id, signal]));
+    }
+
     const ranked = rows
       .map((item) => {
         const scored = scoreBottle(item, context);
+        const latestRating = item.ratings[0] || null;
+        const brianFit = deriveBrianFit({
+          profile: (tasteProfile as BrianTasteProfile | null) || null,
+          ratingSignal: latestRating ? signalMap.get(latestRating.id) || null : null,
+          tastingNotes: latestRating?.tasting_notes || null,
+          score: latestRating?.score || averageRating(item),
+        });
         return {
           id: item.id,
           inventory_id: item.id,
@@ -254,12 +284,14 @@ export async function GET(request: Request) {
           vintage_label: item.vintage ? String(item.vintage) : "Vintage unknown",
           quantity: item.quantity,
           price_context: formatPriceContext(item),
-          confidence: Math.max(55, Math.min(96, scored.score)),
-          reason: scored.reason,
+          confidence: Math.max(55, Math.min(96, Math.round((scored.score + brianFit.confidence) / 2))),
+          brian_fit_score: brianFit.score,
+          brian_fit_reason: brianFit.reason,
+          reason: `${scored.reason} Brian-fit: ${brianFit.reason}.`,
           best_for: scored.bestFor,
           caution: scored.caution,
           recommendation_type: "alternate" as const,
-          sortScore: scored.score,
+          sortScore: scored.score + Math.round((brianFit.score - 85) / 2),
         };
       })
       .sort((a, b) => b.sortScore - a.sortScore);
@@ -285,7 +317,9 @@ export async function GET(request: Request) {
       : "Tonight Engine could not find a strong primary bottle.";
     const confidence_note = sparseData >= Math.max(1, Math.ceil(rows.length * 0.6))
       ? "Confidence is directionally strong, but the cellar data is still sparse enough that a few better notes or value signals would sharpen future picks."
-      : "Confidence is supported by enough live cellar detail to make this feel like a grounded tonight decision.";
+      : tasteProfile
+        ? "Confidence is supported by live cellar detail plus your saved Brian-fit palate profile."
+        : "Confidence is supported by enough live cellar detail to make this feel like a grounded tonight decision.";
     const fallbackPrompt = sparseData >= Math.max(1, Math.ceil(rows.length * 0.6))
       ? "Best next upgrade: add one tasting note or one missing value signal to improve the next recommendation cycle."
       : null;

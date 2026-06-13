@@ -9,7 +9,6 @@ import {
 } from "@/lib/hooks/use-low-stock-alerts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 
 interface WineItem {
   id: string;

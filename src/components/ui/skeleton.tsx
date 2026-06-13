@@ -2,7 +2,9 @@
 
 import { cn } from "@/lib/utils";
 
-interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {}
+type SkeletonProps = React.HTMLAttributes<HTMLDivElement>;
+
+const CHART_BAR_HEIGHTS = [34, 58, 46, 72, 63, 81, 52, 69, 44, 76, 61, 88];
 
 function Skeleton({ className, ...props }: SkeletonProps) {
   return (
@@ -103,11 +105,11 @@ function SkeletonChart({ className }: { className?: string }) {
         <Skeleton className="h-3 w-48" />
       </div>
       <div className="flex h-48 items-end gap-2">
-        {Array.from({ length: 12 }).map((_, i) => (
+        {CHART_BAR_HEIGHTS.map((height, i) => (
           <Skeleton
             key={i}
             className="flex-1 rounded-t"
-            style={{ height: `${Math.random() * 60 + 20}%` }}
+            style={{ height: `${height}%` }}
           />
         ))}
       </div>

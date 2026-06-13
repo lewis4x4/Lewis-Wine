@@ -89,9 +89,6 @@ export default function ShoppingListPage() {
     return item.custom_name || "Unknown Wine";
   };
 
-  const getProducer = (item: ShoppingListWithWine) => {
-    return item.wine_reference?.producer || item.custom_producer;
-  };
 
   // Group by urgency for active items
   const groupedByUrgency = shoppingList?.reduce(

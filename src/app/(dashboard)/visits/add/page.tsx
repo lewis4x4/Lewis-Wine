@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import type { VisitType, WineType, WineryVisitWineInsert } from "@/types/database";
+import type { VisitType, WineType } from "@/types/database";
 
 const VISIT_TYPES: { value: VisitType; label: string }[] = [
   { value: "tasting", label: "Tasting" },
@@ -56,6 +56,43 @@ const createEmptyWine = (): WineTasted => ({
   price_per_bottle: "",
   interested_in_buying: false,
 });
+
+type RatingSelectorProps = {
+  value: number | null;
+  onChange: (v: number | null) => void;
+  label: string;
+};
+
+function RatingSelector({ value, onChange, label }: RatingSelectorProps) {
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            onClick={() => onChange(value === star ? null : star)}
+            className={`text-2xl ${
+              value && star <= value ? "text-yellow-500" : "text-gray-300"
+            } hover:text-yellow-400 transition-colors`}
+          >
+            ★
+          </button>
+        ))}
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="text-xs text-muted-foreground ml-2"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function AddVisitPage() {
   const router = useRouter();
@@ -104,7 +141,7 @@ export default function AddVisitPage() {
     setWinesTasted([...winesTasted, createEmptyWine()]);
   };
 
-  const updateWine = (id: string, field: keyof WineTasted, value: any) => {
+  const updateWine = <K extends keyof WineTasted>(id: string, field: K, value: WineTasted[K]) => {
     setWinesTasted(winesTasted.map((w) => (w.id === id ? { ...w, [field]: value } : w)));
   };
 
@@ -181,43 +218,6 @@ export default function AddVisitPage() {
       toast.error("Failed to log visit");
     }
   };
-
-  const RatingSelector = ({
-    value,
-    onChange,
-    label,
-  }: {
-    value: number | null;
-    onChange: (v: number | null) => void;
-    label: string;
-  }) => (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <div className="flex gap-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <button
-            key={star}
-            type="button"
-            onClick={() => onChange(value === star ? null : star)}
-            className={`text-2xl ${
-              value && star <= value ? "text-yellow-500" : "text-gray-300"
-            } hover:text-yellow-400 transition-colors`}
-          >
-            ★
-          </button>
-        ))}
-        {value && (
-          <button
-            type="button"
-            onClick={() => onChange(null)}
-            className="text-xs text-muted-foreground ml-2"
-          >
-            Clear
-          </button>
-        )}
-      </div>
-    </div>
-  );
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -450,7 +450,7 @@ export default function AddVisitPage() {
                     <Label>Type</Label>
                     <Select
                       value={wine.wine_type}
-                      onValueChange={(v) => updateWine(wine.id, "wine_type", v)}
+                      onValueChange={(v) => updateWine(wine.id, "wine_type", v as WineType)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Type" />

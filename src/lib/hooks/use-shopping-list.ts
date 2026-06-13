@@ -8,7 +8,6 @@ import type {
   ShoppingListUpdate,
   ShoppingListWithWine,
   ShoppingStatus,
-  ShoppingUrgency,
 } from "@/types/database";
 
 export function useShoppingList(status?: ShoppingStatus) {

@@ -1,0 +1,64 @@
+{
+  "owner": "Brian Lewis",
+  "created_by": "C-3PO",
+  "purpose": "Personal wine memory and recommendation engine seed data",
+  "entries": [
+    {
+      "logged_at": "2026-04-14T23:05:00-04:00",
+      "source": "telegram_photo_and_chat",
+      "wine": {
+        "name": "Cabernet Sauvignon",
+        "producer": "Martin Ray",
+        "vintage": 2022,
+        "region": "Santa Cruz Mountains",
+        "wine_type": "red"
+      },
+      "rating": {
+        "letter_grade": "A-",
+        "score_100": 93,
+        "c3po_estimate_range": "92-93"
+      },
+      "palate_signals": {
+        "smoothness": 5,
+        "boldness": 2,
+        "earthiness": 2,
+        "spiciness": 2,
+        "fruit_forward": 3,
+        "dryness": 3,
+        "tannin_strength": 2,
+        "acidity_level": 3,
+        "finish_length": 3,
+        "richness": 3
+      },
+      "decision_tags": [
+        "casual-drinker",
+        "easy-drinking",
+        "polished-cab",
+        "weeknight"
+      ],
+      "buy_signals": {
+        "buy_again": true,
+        "fit_summary": "Strong match for smooth casual drinking, not peak match for bold earthy spicy cravings."
+      },
+      "brian_phrases": [
+        "very smooth",
+        "not extremely bold and earthy and spicy like I like",
+        "just a good casual drinking wine"
+      ],
+      "summary": "A polished, smooth Cabernet that drinks easily and earns strong approval, but does not fully hit Brian's preferred bold earthy spicy upper-tier profile."
+    }
+  ],
+  "current_profile_hypothesis": {
+    "preferred_styles": [
+      "smooth reds",
+      "cabernet sauvignon",
+      "structured but easy-drinking wines"
+    ],
+    "highest_upside_traits": [
+      "more boldness",
+      "more earthiness",
+      "more spice"
+    ],
+    "working_theory": "Brian likes polished smooth reds, but his top scores likely go to bottles that add deeper earthy spicy structure without losing drinkability."
+  }
+}

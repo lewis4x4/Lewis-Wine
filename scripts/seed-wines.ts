@@ -121,12 +121,6 @@ function inferWineType(variety: string): WineReference["wine_type"] {
   return null;
 }
 
-// Parse vintage year from title (e.g., "Château Margaux 2015 Grand Vin")
-function parseVintage(title: string): number | null {
-  const match = title.match(/\b(19|20)\d{2}\b/);
-  return match ? parseInt(match[0]) : null;
-}
-
 // Parse wine name from title (remove vintage and winery if at start)
 function parseWineName(title: string, winery: string): string {
   let name = title;

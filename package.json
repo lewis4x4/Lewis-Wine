@@ -8,7 +8,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:seed": "tsx scripts/seed-wines.ts"
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run lint && npm run build",
+    "db:seed": "tsx scripts/seed-wines.ts",
+    "db:seed:jarvis": "tsx scripts/seed-jarvis-demo.ts",
+    "db:seed:brian-fit": "tsx scripts/seed-brian-fit.ts",
+    "db:migrations:check": "tsx scripts/check-migrations.ts",
+    "wine:capture": "tsx scripts/capture-wine-rating.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
@@ -35,7 +41,7 @@
     "framer-motion": "^12.23.24",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.555.0",
-    "next": "^16.0.8",
+    "next": "^16.2.9",
     "next-themes": "^0.4.6",
     "react": "19.2.0",
     "react-confetti": "^6.4.0",
@@ -52,13 +58,18 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "baseline-browser-mapping": "^2.10.37",
     "csv-parse": "^6.1.0",
     "dotenv": "^17.2.3",
     "eslint": "^9",
-    "eslint-config-next": "^16.0.8",
+    "eslint-config-next": "^16.2.9",
     "tailwindcss": "^4",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.4",
     "tw-animate-css": "^1.4.0",
     "typescript": "^5"
+  },
+  "overrides": {
+    "postcss": "^8.5.15",
+    "serialize-javascript": "^7.0.5"
   }
 }

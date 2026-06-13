@@ -15,7 +15,7 @@ export function useCellarLocations(cellarId: string | undefined) {
 
       // Use type assertion since cellar_locations may not be in generated types yet
       const { data, error } = await (supabase
-        .from("cellar_locations" as "cellar_locations")
+        .from("cellar_locations" as const)
         .select("*")
         .eq("cellar_id", cellarId)
         .order("sort_order", { ascending: true }) as unknown as Promise<{ data: CellarLocation[] | null; error: Error | null }>);
@@ -76,7 +76,7 @@ export function useAddLocation() {
     mutationFn: async (location: Omit<CellarLocation, "id" | "created_at">) => {
       // Use type assertion for table not in generated types
       const { data, error } = await (supabase
-        .from("cellar_locations" as "cellar_locations")
+        .from("cellar_locations" as const)
         .insert(location as never)
         .select()
         .single() as unknown as Promise<{ data: CellarLocation | null; error: Error | null }>);
@@ -95,14 +95,12 @@ export function useUpdateLocation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      id,
-      cellarId,
-      ...updates
-    }: Partial<CellarLocation> & { id: string; cellarId: string }) => {
+    mutationFn: async (variables: Partial<CellarLocation> & { id: string; cellarId: string }) => {
+      const { id, cellarId: _cellarId, ...updates } = variables;
+      void _cellarId;
       // Use type assertion for table not in generated types
       const { data, error } = await (supabase
-        .from("cellar_locations" as "cellar_locations")
+        .from("cellar_locations" as const)
         .update(updates as never)
         .eq("id", id)
         .select()
@@ -122,10 +120,11 @@ export function useDeleteLocation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, cellarId }: { id: string; cellarId: string }) => {
+    mutationFn: async (variables: { id: string; cellarId: string }) => {
+      const { id } = variables;
       // Use type assertion for table not in generated types
       const { error } = await (supabase
-        .from("cellar_locations" as "cellar_locations")
+        .from("cellar_locations" as const)
         .delete()
         .eq("id", id) as unknown as Promise<{ error: Error | null }>);
 

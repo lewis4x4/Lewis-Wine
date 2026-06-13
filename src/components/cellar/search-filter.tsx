@@ -391,7 +391,7 @@ export function filterAndSortWines<T extends {
   filters: FilterState,
   sort: SortState
 ): T[] {
-  let filtered = wines.filter((wine) => {
+  const filtered = wines.filter((wine) => {
     const name = wine.wine_reference?.name || wine.custom_name || "";
     const producer = wine.wine_reference?.producer || wine.custom_producer || "";
     const region = wine.wine_reference?.region || wine.custom_region || "";

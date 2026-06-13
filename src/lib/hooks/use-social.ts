@@ -362,7 +362,7 @@ export function useSocialFeed(visibility?: TastingVisibility) {
         .in("shared_tasting_id", tastingIds);
 
       // Check if current user has liked
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const { data: userLikes } = user
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ? await (supabase as any)

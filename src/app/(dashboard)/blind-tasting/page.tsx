@@ -9,10 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { EyeOff, Trophy, Wine, MapPin, RefreshCw } from "lucide-react";
+import { EyeOff, MapPin, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import Confetti from "react-confetti";
-import { getLocationDisplayString } from "@/lib/hooks/use-cellar-locations"; // Ensure this helper is exported or recreate logic
 
 type GameStage = "setup" | "retrieve" | "tasting" | "reveal";
 
@@ -224,7 +223,7 @@ export default function BlindTastingPage() {
                             </div>
                             {/* If we had structured location, we would display Zone/Rack here instead */}
                             <p className="text-sm text-muted-foreground">
-                                Warning: Don't peek at the label! Decant immediately.
+                                Warning: Don&apos;t peek at the label! Decant immediately.
                             </p>
                         </div>
                     </CardContent>

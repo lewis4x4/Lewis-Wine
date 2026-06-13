@@ -33,7 +33,9 @@ export async function POST(request: NextRequest) {
     });
 
     const formData = await request.formData();
-    const file = formData.get("label") as File | null;
+    const file =
+      (formData.get("label") as File | null) ??
+      (formData.get("image") as File | null);
 
     if (!file) {
       return NextResponse.json(

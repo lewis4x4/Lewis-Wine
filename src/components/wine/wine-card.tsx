@@ -10,19 +10,20 @@ import { getLocationDisplayString } from "@/lib/hooks/use-cellar-locations";
 import { cn } from "@/lib/utils";
 import type { CellarInventory, WineReference, Rating, CellarLocation, LocationMode } from "@/types/database";
 
+export type WineCardInventory = CellarInventory & {
+  wine_reference: WineReference | null;
+  ratings: Rating[];
+  location?: CellarLocation | null;
+  simple_location?: string | null;
+};
+
 interface WineCardProps {
-  wine: CellarInventory & {
-    wine_reference: WineReference | null;
-    ratings: Rating[];
-    location?: CellarLocation | null;
-    simple_location?: string | null;
-  };
+  wine: WineCardInventory;
   locationMode?: LocationMode;
   onQuantityChange?: (id: string, delta: number) => void;
-  compact?: boolean;
 }
 
-export function WineCard({ wine, locationMode = "simple", onQuantityChange, compact = false }: WineCardProps) {
+export function WineCard({ wine, locationMode = "simple", onQuantityChange }: WineCardProps) {
   const name = wine.wine_reference?.name || wine.custom_name || "Unknown Wine";
   const producer = wine.wine_reference?.producer || wine.custom_producer || "";
   const vintage = wine.vintage || wine.custom_vintage;
@@ -52,16 +53,6 @@ export function WineCard({ wine, locationMode = "simple", onQuantityChange, comp
       case "rose": return "border-l-pink-400";
       case "sparkling": return "border-l-yellow-400";
       default: return "border-l-gray-300";
-    }
-  };
-
-  const getTypeIconBg = (type: string | null | undefined) => {
-    switch (type) {
-      case "red": return "bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400";
-      case "white": return "bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400";
-      case "rose": return "bg-pink-100 text-pink-600 dark:bg-pink-950 dark:text-pink-400";
-      case "sparkling": return "bg-yellow-100 text-yellow-600 dark:bg-yellow-950 dark:text-yellow-400";
-      default: return "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
     }
   };
 

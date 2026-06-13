@@ -25,7 +25,6 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -88,7 +87,6 @@ export default function SettingsPage() {
       if (error) throw error;
 
       toast.success("Password updated successfully!");
-      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (error) {

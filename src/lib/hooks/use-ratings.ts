@@ -3,11 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/providers/auth-provider";
-import type { RatingInsert, FoodPairingInsert } from "@/types/database";
+import type { RatingInsert, RatingSignalInsert } from "@/types/database";
 import type { FoodPairingData } from "@/components/tasting";
 
 interface EnhancedRatingInsert extends Omit<RatingInsert, "user_id"> {
   food_pairings?: FoodPairingData[];
+  rating_signal?: Omit<RatingSignalInsert, "user_id" | "rating_id">;
 }
 
 export function useAddRating() {
@@ -19,7 +20,7 @@ export function useAddRating() {
     mutationFn: async (rating: EnhancedRatingInsert) => {
       if (!user) throw new Error("Not authenticated");
 
-      const { food_pairings, ...ratingData } = rating;
+      const { food_pairings, rating_signal, ...ratingData } = rating;
 
       // Insert the rating
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,6 +35,21 @@ export function useAddRating() {
         .single();
 
       if (ratingError) throw ratingError;
+
+      if (rating_signal) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: signalError } = await (supabase as any)
+          .from("rating_signals")
+          .upsert({
+            ...rating_signal,
+            rating_id: ratingResult.id,
+            user_id: user.id,
+          }, { onConflict: "rating_id" });
+
+        if (signalError) {
+          console.error("Error inserting rating signals:", signalError);
+        }
+      }
 
       // Insert food pairings if any
       if (food_pairings && food_pairings.length > 0) {

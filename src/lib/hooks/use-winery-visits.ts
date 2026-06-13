@@ -154,11 +154,9 @@ export function useUpdateWineryVisitWine() {
   const supabase = createClient();
 
   return useMutation({
-    mutationFn: async ({
-      id,
-      visit_id,
-      ...updates
-    }: WineryVisitWineUpdate & { id: string; visit_id: string }) => {
+    mutationFn: async (variables: WineryVisitWineUpdate & { id: string; visit_id: string }) => {
+      const { id, visit_id: _visitId, ...updates } = variables;
+      void _visitId;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("winery_visit_wines")
@@ -182,7 +180,8 @@ export function useDeleteWineryVisitWine() {
   const supabase = createClient();
 
   return useMutation({
-    mutationFn: async ({ id, visit_id }: { id: string; visit_id: string }) => {
+    mutationFn: async (variables: { id: string; visit_id: string }) => {
+      const { id } = variables;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
         .from("winery_visit_wines")

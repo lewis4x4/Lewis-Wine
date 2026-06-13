@@ -39,7 +39,7 @@ export default async function DashboardPage() {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
                 <h2 className="text-3xl font-playfair font-bold">Welcome to Pourfolio</h2>
-                <p className="text-muted-foreground max-w-md">Let's set up your first cellar to get started.</p>
+                <p className="text-muted-foreground max-w-md">Let&apos;s set up your first cellar to get started.</p>
                 <Link href="/onboarding">
                     <Button size="lg">Create My Cellar</Button>
                 </Link>
@@ -104,17 +104,13 @@ export default async function DashboardPage() {
     // Calculate this month's additions for trend indicators
     const now = new Date();
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
     let addedThisMonth = 0;
-    let addedLastMonth = 0;
 
     (inventory || []).forEach(item => {
         const createdAt = new Date(item.created_at);
         if (createdAt >= thisMonthStart) {
             addedThisMonth += item.quantity;
-        } else if (createdAt >= lastMonthStart && createdAt < thisMonthStart) {
-            addedLastMonth += item.quantity;
         }
     });
 

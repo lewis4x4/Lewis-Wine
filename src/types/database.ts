@@ -37,6 +37,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       wine_reference: {
         Row: {
@@ -99,6 +100,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       cellars: {
         Row: {
@@ -134,6 +136,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       cellar_locations: {
         Row: {
@@ -172,6 +175,7 @@ export type Database = {
           sort_order?: number;
           created_at?: string;
         };
+        Relationships: [];
       };
       cellar_inventory: {
         Row: {
@@ -285,6 +289,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       ratings: {
         Row: {
@@ -368,6 +373,7 @@ export type Database = {
           occasion_tags?: string[] | null;
           venue?: string | null;
         };
+        Relationships: [];
       };
       food_pairings: {
         Row: {
@@ -406,6 +412,7 @@ export type Database = {
           would_recommend?: boolean;
           created_at?: string;
         };
+        Relationships: [];
       };
       occasion_presets: {
         Row: {
@@ -438,6 +445,7 @@ export type Database = {
           sort_order?: number;
           created_at?: string;
         };
+        Relationships: [];
       };
       companion_presets: {
         Row: {
@@ -461,6 +469,7 @@ export type Database = {
           relationship?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       aroma_reference: {
         Row: {
@@ -487,6 +496,7 @@ export type Database = {
           wine_types?: string[] | null;
           sort_order?: number;
         };
+        Relationships: [];
       };
       purchases: {
         Row: {
@@ -531,6 +541,7 @@ export type Database = {
           vendor_type?: "winery" | "retailer" | "auction" | "private" | "other" | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       wishlist: {
         Row: {
@@ -602,6 +613,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       shopping_list: {
         Row: {
@@ -676,6 +688,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       winery_visits: {
         Row: {
@@ -759,6 +772,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       winery_visit_wines: {
         Row: {
@@ -815,6 +829,280 @@ export type Database = {
           tasting_order?: number | null;
           created_at?: string;
         };
+        Relationships: [];
+      };
+      capture_events: {
+        Row: {
+          id: string;
+          owner_id: string;
+          source_type: JarvisCaptureSourceType;
+          business_lane: JarvisBusinessLane;
+          title: string;
+          content_preview: string | null;
+          participants: string[];
+          happened_at: string | null;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          source_type: JarvisCaptureSourceType;
+          business_lane: JarvisBusinessLane;
+          title: string;
+          content_preview?: string | null;
+          participants?: string[];
+          happened_at?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          source_type?: JarvisCaptureSourceType;
+          business_lane?: JarvisBusinessLane;
+          title?: string;
+          content_preview?: string | null;
+          participants?: string[];
+          happened_at?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      artifacts: {
+        Row: {
+          id: string;
+          owner_id: string;
+          capture_event_id: string | null;
+          artifact_type: JarvisArtifactType;
+          title: string | null;
+          mime_type: string | null;
+          content_text: string | null;
+          source_url: string | null;
+          is_primary: boolean;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          capture_event_id?: string | null;
+          artifact_type: JarvisArtifactType;
+          title?: string | null;
+          mime_type?: string | null;
+          content_text?: string | null;
+          source_url?: string | null;
+          is_primary?: boolean;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          capture_event_id?: string | null;
+          artifact_type?: JarvisArtifactType;
+          title?: string | null;
+          mime_type?: string | null;
+          content_text?: string | null;
+          source_url?: string | null;
+          is_primary?: boolean;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      timeline_events: {
+        Row: {
+          id: string;
+          owner_id: string;
+          event_type: JarvisTimelineEventType;
+          business_lane: JarvisBusinessLane;
+          headline: string;
+          summary: string | null;
+          happened_at: string;
+          source_table: "capture_events" | "commitments" | "decisions" | "daily_briefs" | null;
+          source_id: string | null;
+          metadata: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          event_type: JarvisTimelineEventType;
+          business_lane: JarvisBusinessLane;
+          headline: string;
+          summary?: string | null;
+          happened_at?: string;
+          source_table?: "capture_events" | "commitments" | "decisions" | "daily_briefs" | null;
+          source_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          event_type?: JarvisTimelineEventType;
+          business_lane?: JarvisBusinessLane;
+          headline?: string;
+          summary?: string | null;
+          happened_at?: string;
+          source_table?: "capture_events" | "commitments" | "decisions" | "daily_briefs" | null;
+          source_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      commitments: {
+        Row: {
+          id: string;
+          owner_id: string;
+          business_lane: JarvisBusinessLane;
+          title: string;
+          description: string | null;
+          status: JarvisCommitmentStatus;
+          priority: JarvisCommitmentPriority;
+          commitment_type: JarvisCommitmentType;
+          counterparty: string | null;
+          participants: string[];
+          due_at: string | null;
+          completed_at: string | null;
+          source_capture_event_id: string | null;
+          source_decision_id: string | null;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          business_lane: JarvisBusinessLane;
+          title: string;
+          description?: string | null;
+          status?: JarvisCommitmentStatus;
+          priority?: JarvisCommitmentPriority;
+          commitment_type?: JarvisCommitmentType;
+          counterparty?: string | null;
+          participants?: string[];
+          due_at?: string | null;
+          completed_at?: string | null;
+          source_capture_event_id?: string | null;
+          source_decision_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          business_lane?: JarvisBusinessLane;
+          title?: string;
+          description?: string | null;
+          status?: JarvisCommitmentStatus;
+          priority?: JarvisCommitmentPriority;
+          commitment_type?: JarvisCommitmentType;
+          counterparty?: string | null;
+          participants?: string[];
+          due_at?: string | null;
+          completed_at?: string | null;
+          source_capture_event_id?: string | null;
+          source_decision_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      decisions: {
+        Row: {
+          id: string;
+          owner_id: string;
+          business_lane: JarvisBusinessLane;
+          title: string;
+          summary: string;
+          rationale: string | null;
+          status: JarvisDecisionStatus;
+          impact_level: JarvisDecisionImpactLevel;
+          decided_at: string;
+          source_capture_event_id: string | null;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          business_lane: JarvisBusinessLane;
+          title: string;
+          summary: string;
+          rationale?: string | null;
+          status?: JarvisDecisionStatus;
+          impact_level?: JarvisDecisionImpactLevel;
+          decided_at?: string;
+          source_capture_event_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          business_lane?: JarvisBusinessLane;
+          title?: string;
+          summary?: string;
+          rationale?: string | null;
+          status?: JarvisDecisionStatus;
+          impact_level?: JarvisDecisionImpactLevel;
+          decided_at?: string;
+          source_capture_event_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      daily_briefs: {
+        Row: {
+          id: string;
+          owner_id: string;
+          brief_date: string;
+          title: string;
+          summary: string;
+          priorities: string[];
+          blockers: string[];
+          watch_items: string[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          brief_date: string;
+          title: string;
+          summary: string;
+          priorities?: string[];
+          blockers?: string[];
+          watch_items?: string[];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          brief_date?: string;
+          title?: string;
+          summary?: string;
+          priorities?: string[];
+          blockers?: string[];
+          watch_items?: string[];
+          created_at?: string;
+          updated_at?: string;
+        };
       };
     };
     Views: {
@@ -828,6 +1116,15 @@ export type Database = {
       inventory_status: "in_cellar" | "consumed" | "gifted" | "sold";
       vendor_type: "winery" | "retailer" | "auction" | "private" | "other";
       location_mode: "simple" | "structured" | "grid";
+      jarvis_business_lane: JarvisBusinessLane;
+      jarvis_capture_source_type: JarvisCaptureSourceType;
+      jarvis_artifact_type: JarvisArtifactType;
+      jarvis_timeline_event_type: JarvisTimelineEventType;
+      jarvis_commitment_status: JarvisCommitmentStatus;
+      jarvis_commitment_priority: JarvisCommitmentPriority;
+      jarvis_commitment_type: JarvisCommitmentType;
+      jarvis_decision_status: JarvisDecisionStatus;
+      jarvis_decision_impact_level: JarvisDecisionImpactLevel;
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -843,6 +1140,12 @@ export type CellarLocation = Database["public"]["Tables"]["cellar_locations"]["R
 export type CellarInventory = Database["public"]["Tables"]["cellar_inventory"]["Row"];
 export type Rating = Database["public"]["Tables"]["ratings"]["Row"];
 export type Purchase = Database["public"]["Tables"]["purchases"]["Row"];
+export type CaptureEvent = Database["public"]["Tables"]["capture_events"]["Row"];
+export type Artifact = Database["public"]["Tables"]["artifacts"]["Row"];
+export type TimelineEvent = Database["public"]["Tables"]["timeline_events"]["Row"];
+export type Commitment = Database["public"]["Tables"]["commitments"]["Row"];
+export type Decision = Database["public"]["Tables"]["decisions"]["Row"];
+export type DailyBrief = Database["public"]["Tables"]["daily_briefs"]["Row"];
 
 // Insert types
 export type ProfileInsert = Database["public"]["Tables"]["profiles"]["Insert"];
@@ -850,6 +1153,12 @@ export type WineReferenceInsert = Database["public"]["Tables"]["wine_reference"]
 export type CellarInsert = Database["public"]["Tables"]["cellars"]["Insert"];
 export type CellarInventoryInsert = Database["public"]["Tables"]["cellar_inventory"]["Insert"];
 export type RatingInsert = Database["public"]["Tables"]["ratings"]["Insert"];
+export type CaptureEventInsert = Database["public"]["Tables"]["capture_events"]["Insert"];
+export type ArtifactInsert = Database["public"]["Tables"]["artifacts"]["Insert"];
+export type TimelineEventInsert = Database["public"]["Tables"]["timeline_events"]["Insert"];
+export type CommitmentInsert = Database["public"]["Tables"]["commitments"]["Insert"];
+export type DecisionInsert = Database["public"]["Tables"]["decisions"]["Insert"];
+export type DailyBriefInsert = Database["public"]["Tables"]["daily_briefs"]["Insert"];
 
 // Joined types for queries
 export type CellarInventoryWithWine = CellarInventory & {
@@ -973,6 +1282,41 @@ export type CellarInventoryWithValue = CellarInventory & {
 
 // Discovery & Planning Types
 export type WineType = "red" | "white" | "rose" | "sparkling" | "dessert" | "fortified";
+export type JarvisBusinessLane =
+  | "executive"
+  | "product"
+  | "commercial"
+  | "finance"
+  | "operations"
+  | "talent"
+  | "relationships"
+  | "personal";
+export type JarvisCaptureSourceType =
+  | "manual"
+  | "note"
+  | "transcript"
+  | "meeting"
+  | "email"
+  | "document";
+export type JarvisArtifactType = "primary_text" | "summary" | "attachment" | "link" | "brief";
+export type JarvisTimelineEventType = "capture" | "commitment" | "decision" | "brief";
+export type JarvisCommitmentStatus =
+  | "open"
+  | "in_progress"
+  | "blocked"
+  | "delegated"
+  | "done"
+  | "dropped";
+export type JarvisCommitmentPriority = "critical" | "high" | "normal" | "low";
+export type JarvisCommitmentType =
+  | "follow_up"
+  | "decision"
+  | "deliverable"
+  | "relationship"
+  | "finance"
+  | "personal";
+export type JarvisDecisionStatus = "active" | "superseded" | "reversed";
+export type JarvisDecisionImpactLevel = "low" | "medium" | "high";
 
 // Wishlist types
 export type WishlistPriority = "low" | "medium" | "high" | "must-have";
@@ -1236,3 +1580,96 @@ export type LabelScanResult = {
   raw_text: string;
   error?: string;
 };
+
+
+export type BrianTasteProfile = {
+  user_id: string;
+  preferred_smoothness: number | null;
+  preferred_boldness: number | null;
+  preferred_earthiness: number | null;
+  preferred_spiciness: number | null;
+  preferred_fruit_forward: number | null;
+  preferred_dryness: number | null;
+  preferred_tannin_strength: number | null;
+  preferred_acidity_level: number | null;
+  preferred_finish_length: number | null;
+  preferred_richness: number | null;
+  confidence_score: number | null;
+  profile_summary: string | null;
+  favorite_descriptors: string[] | null;
+  avoid_descriptors: string[] | null;
+  updated_at: string;
+  created_at: string;
+};
+
+export type BrianTasteProfileInsert = {
+  user_id: string;
+  preferred_smoothness?: number | null;
+  preferred_boldness?: number | null;
+  preferred_earthiness?: number | null;
+  preferred_spiciness?: number | null;
+  preferred_fruit_forward?: number | null;
+  preferred_dryness?: number | null;
+  preferred_tannin_strength?: number | null;
+  preferred_acidity_level?: number | null;
+  preferred_finish_length?: number | null;
+  preferred_richness?: number | null;
+  confidence_score?: number | null;
+  profile_summary?: string | null;
+  favorite_descriptors?: string[] | null;
+  avoid_descriptors?: string[] | null;
+  updated_at?: string;
+  created_at?: string;
+};
+
+export type BrianTasteProfileUpdate = Partial<Omit<BrianTasteProfileInsert, "user_id">>;
+
+export type RatingSignal = {
+  id: string;
+  rating_id: string;
+  user_id: string;
+  smoothness: number | null;
+  boldness: number | null;
+  earthiness: number | null;
+  spiciness: number | null;
+  fruit_forward: number | null;
+  dryness: number | null;
+  tannin_strength: number | null;
+  acidity_level: number | null;
+  finish_length: number | null;
+  richness: number | null;
+  buy_again: boolean | null;
+  value_feel: "poor" | "fair" | "good" | "strong" | "excellent" | null;
+  decision_tags: string[] | null;
+  occasion_tags: string[] | null;
+  brian_phrases: string[] | null;
+  extracted_from_text: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RatingSignalInsert = {
+  id?: string;
+  rating_id: string;
+  user_id: string;
+  smoothness?: number | null;
+  boldness?: number | null;
+  earthiness?: number | null;
+  spiciness?: number | null;
+  fruit_forward?: number | null;
+  dryness?: number | null;
+  tannin_strength?: number | null;
+  acidity_level?: number | null;
+  finish_length?: number | null;
+  richness?: number | null;
+  buy_again?: boolean | null;
+  value_feel?: "poor" | "fair" | "good" | "strong" | "excellent" | null;
+  decision_tags?: string[] | null;
+  occasion_tags?: string[] | null;
+  brian_phrases?: string[] | null;
+  extracted_from_text?: Record<string, unknown> | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type RatingSignalUpdate = Partial<Omit<RatingSignalInsert, "id" | "rating_id" | "user_id">>;

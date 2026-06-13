@@ -14,7 +14,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { WishlistWithWine, WishlistPriority } from "@/types/database";
 
@@ -81,13 +80,6 @@ export default function WishlistPage() {
     return item.wine_reference?.name || item.custom_name || "Unknown Wine";
   };
 
-  const getProducer = (item: WishlistWithWine) => {
-    return item.wine_reference?.producer || item.custom_producer;
-  };
-
-  const getRegion = (item: WishlistWithWine) => {
-    return item.wine_reference?.region || item.custom_region;
-  };
 
   // Group by priority for active items
   const groupedByPriority = wishlist?.reduce(

@@ -8,7 +8,6 @@ import type {
   WishlistUpdate,
   WishlistWithWine,
   WishlistStatus,
-  WishlistPriority,
 } from "@/types/database";
 
 export function useWishlist(status?: WishlistStatus) {

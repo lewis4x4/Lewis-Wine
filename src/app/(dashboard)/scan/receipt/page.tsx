@@ -241,6 +241,7 @@ export default function ScanReceiptPage() {
                 </div>
               ) : previewUrl ? (
                 <div className="space-y-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={previewUrl}
                     alt="Receipt preview"
@@ -354,6 +355,7 @@ export default function ScanReceiptPage() {
                 <CardTitle>Receipt Image</CardTitle>
               </CardHeader>
               <CardContent>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={previewUrl}
                   alt="Scanned receipt"

@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCellarLocations, useSimpleLocations } from "@/lib/hooks/use-cellar-locations";
-import type { LocationMode, CellarLocation } from "@/types/database";
+import type { LocationMode } from "@/types/database";
 
 interface LocationSelectorProps {
   cellarId: string;

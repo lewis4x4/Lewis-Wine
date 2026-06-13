@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { useTrackGlasses } from "@/lib/hooks/use-portfolio-value";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
 interface PricePerGlassProps {
   inventoryId: string;

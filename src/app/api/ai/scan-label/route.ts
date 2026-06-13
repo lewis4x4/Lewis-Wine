@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         let jsonResponse;
         try {
             jsonResponse = JSON.parse(content);
-        } catch (e) {
+        } catch {
             // Fallback simple parsing if strict JSON failed
             console.error("Failed to parse AI response", content);
             return NextResponse.json(

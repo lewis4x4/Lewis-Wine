@@ -64,12 +64,23 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function transformWines(data: any[]): WineSearchResult[] {
+type WineSearchRow = {
+  id: string;
+  name: string;
+  producer: string | null;
+  region: string | null;
+  country: string | null;
+  wine_type: string | null;
+  grape_varieties: string[] | null;
+  critic_scores: {
+    wine_enthusiast?: number;
+    description?: string;
+  } | null;
+};
+
+function transformWines(data: WineSearchRow[]): WineSearchResult[] {
   return data.map((wine) => {
-    const criticScores = wine.critic_scores as {
-      wine_enthusiast?: number;
-      description?: string;
-    } | null;
+    const criticScores = wine.critic_scores;
 
     return {
       id: wine.id,

@@ -25,11 +25,9 @@ import type { UserProfile, Friendship } from "@/types/database";
 
 function FriendCard({
   profile,
-  friendship,
   onRemove,
 }: {
   profile: UserProfile;
-  friendship?: Friendship;
   onRemove: () => void;
 }) {
   const initials = (profile.display_name || "??").substring(0, 2).toUpperCase();

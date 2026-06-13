@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useCellar, useCellarInventory, useUpdateInventory } from "@/lib/hooks/use-cellar";
 import { useCellarValue } from "@/lib/hooks/use-portfolio-value";
-import { WineCard } from "@/components/wine/wine-card";
+import { WineCard, type WineCardInventory } from "@/components/wine/wine-card";
 import { AlertsDashboard } from "@/components/cellar/alerts-dashboard";
 import { PortfolioDashboard } from "@/components/financial";
 import { SearchFilter, filterAndSortWines, type FilterState, type SortState } from "@/components/cellar/search-filter";
@@ -58,7 +58,7 @@ export default function CellarPage() {
   // Apply filters and sort
   const filteredInventory = useMemo(() => {
     if (!inventory) return [];
-    return filterAndSortWines(inventory as any, filters, sort);
+    return filterAndSortWines(inventory as WineCardInventory[], filters, sort);
   }, [inventory, filters, sort]);
 
   const formatCurrency = (cents: number) => {
@@ -321,7 +321,7 @@ export default function CellarPage() {
               {filteredInventory.map((wine) => (
                 <WineCard
                   key={wine.id}
-                  wine={wine as any}
+                  wine={wine}
                   locationMode={locationMode}
                   onQuantityChange={handleQuantityChange}
                 />
@@ -335,7 +335,7 @@ export default function CellarPage() {
                 {wines?.filter(w => filteredInventory.some(f => f.id === w.id)).map((wine) => (
                   <WineCard
                     key={wine.id}
-                    wine={wine as any}
+                    wine={wine}
                     locationMode={locationMode}
                     onQuantityChange={handleQuantityChange}
                   />

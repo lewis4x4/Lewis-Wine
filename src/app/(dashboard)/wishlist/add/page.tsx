@@ -11,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -20,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import type { WineReference, WishlistPriority } from "@/types/database";
+import type { WineReference, WineType, WishlistPriority } from "@/types/database";
 
 const WINE_SOURCES = [
   "Restaurant",
@@ -48,7 +47,7 @@ export default function AddWishlistPage() {
   const [wineName, setWineName] = useState("");
   const [producer, setProducer] = useState("");
   const [vintage, setVintage] = useState("");
-  const [wineType, setWineType] = useState("");
+  const [wineType, setWineType] = useState<WineType | "">("");
   const [region, setRegion] = useState("");
   const [priority, setPriority] = useState<WishlistPriority>("medium");
   const [targetPrice, setTargetPrice] = useState("");
@@ -97,7 +96,7 @@ export default function AddWishlistPage() {
         custom_producer: selectedWine ? null : producer || null,
         custom_region: selectedWine ? null : region || null,
         custom_vintage: vintage ? parseInt(vintage) : null,
-        custom_wine_type: selectedWine ? null : (wineType as any) || null,
+        custom_wine_type: selectedWine ? null : wineType || null,
         priority,
         target_price_cents: targetPrice ? Math.round(parseFloat(targetPrice) * 100) : null,
         max_price_cents: maxPrice ? Math.round(parseFloat(maxPrice) * 100) : null,
@@ -237,7 +236,7 @@ export default function AddWishlistPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="type">Wine Type</Label>
-                <Select value={wineType} onValueChange={setWineType} disabled={!!selectedWine}>
+                <Select value={wineType} onValueChange={(value) => setWineType(value as WineType)} disabled={!!selectedWine}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
