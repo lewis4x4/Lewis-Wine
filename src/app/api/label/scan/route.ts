@@ -89,6 +89,9 @@ export async function POST(request: NextRequest) {
   "grape_varieties": ["array", "of", "grape", "varieties"] or null,
   "alcohol_percentage": 14.5 (as decimal number) or null,
   "confidence": 85 (0-100 confidence score for overall extraction quality),
+  "detected_descriptors": ["dark fruit", "cedar", "full-bodied"] or [],
+  "suggested_tasting_note": "short provisional tasting note based only on label-visible cues, or null",
+  "brian_fit_hint": "short note explaining why this may or may not fit Brian's known palate, or null",
   "raw_text": "transcription of all visible text on the label"
 }
 
@@ -104,6 +107,9 @@ Important guidelines:
 - For regions like "Paso Robles" or "Napa Valley", the country is "USA"
 - Look for alcohol percentage usually shown as "XX% ALC/VOL" or "XX% ABV"
 - Confidence should reflect how clearly you can read the label (lower if blurry, partial, or obscured)
+- detected_descriptors should capture label/implied palate cues that may be useful later (fruit, oak, tannin, acidity, body, sweetness, earth, spice)
+- suggested_tasting_note must be provisional; never pretend the wine was tasted from the label alone
+- brian_fit_hint should reference likely fit signals only, not a final score
 - Return ONLY the JSON object, no explanation or markdown formatting`,
             },
           ],
@@ -156,6 +162,9 @@ Important guidelines:
         grape_varieties: parsedResult.grape_varieties,
         alcohol_percentage: parsedResult.alcohol_percentage,
         confidence: parsedResult.confidence,
+        detected_descriptors: parsedResult.detected_descriptors || null,
+        suggested_tasting_note: parsedResult.suggested_tasting_note || null,
+        brian_fit_hint: parsedResult.brian_fit_hint || null,
       },
       raw_text: parsedResult.raw_text || "",
     };

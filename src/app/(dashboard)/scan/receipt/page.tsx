@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { buildCaptureIntelligenceNotes } from "@/lib/capture-intelligence";
 import type { ReceiptScanResult, ExtractedWine, ReceiptImportItem, WineType } from "@/types/database";
 
 type ScanState = "idle" | "uploading" | "processing" | "review" | "importing";
@@ -124,17 +125,30 @@ export default function ScanReceiptPage() {
 
     try {
       for (const item of selectedItems) {
+        const captureNotes = buildCaptureIntelligenceNotes({
+          source: "receipt_scan",
+          confidence: item.confidence,
+          descriptors: item.detected_descriptors,
+          suggestedTastingNote: item.suggested_tasting_note,
+          brianFitHint: item.brian_fit_hint,
+          rawText: item.raw_text,
+        });
+
         await addToInventory.mutateAsync({
           cellar_id: cellar.id,
           custom_name: item.name,
           custom_producer: item.producer,
           custom_vintage: item.vintage,
+          custom_wine_type: item.wine_type,
+          custom_region: item.region,
           vintage: item.vintage,
           quantity: item.quantity,
           purchase_price_cents: item.unit_price_cents,
           purchase_date: scanResult?.purchase_date || new Date().toISOString().split("T")[0],
           purchase_location: scanResult?.vendor || undefined,
           status: "in_cellar",
+          notes: captureNotes,
+          tags: ["capture-intelligence", "receipt_scan"],
         });
       }
 
@@ -403,6 +417,18 @@ export default function ScanReceiptPage() {
                             <p className="text-xs text-muted-foreground font-mono">
                               Raw: {item.raw_text}
                             </p>
+                            {item.detected_descriptors && item.detected_descriptors.length > 0 && (
+                              <div className="flex flex-wrap gap-1 pt-1">
+                                {item.detected_descriptors.map((descriptor) => (
+                                  <Badge key={descriptor} variant="secondary" className="text-[10px]">
+                                    {descriptor}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                            {item.brian_fit_hint && (
+                              <p className="text-xs text-primary">Brian-Fit hint: {item.brian_fit_hint}</p>
+                            )}
                           </div>
                           <div className="text-right">
                             <p className="font-bold">

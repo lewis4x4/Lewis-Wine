@@ -70,7 +70,10 @@ export async function POST(request: NextRequest) {
       "confidence": 85 (0-100 confidence score for this extraction),
       "raw_text": "exact text from receipt for this line item",
       "region": "wine region if identifiable (e.g., Napa Valley, Bordeaux)",
-      "country": "country if identifiable"
+      "country": "country if identifiable",
+      "detected_descriptors": ["dark fruit", "oak", "structured"] or [],
+      "suggested_tasting_note": "short provisional tasting note based on receipt/known wine cues, or null",
+      "brian_fit_hint": "short note explaining likely Brian-Fit signal, or null"
     }
   ],
   "raw_text": "full text transcription of the receipt"
@@ -83,6 +86,9 @@ Important guidelines:
 - For quantity, look for indicators like "2x", "qty: 2", or multiple of the same item
 - Confidence should reflect how certain you are about the extraction (lower if text is blurry or ambiguous)
 - If you can identify the wine type from the name (Cabernet = red, Chardonnay = white, etc.), include it
+- Capture detected_descriptors for palate/texture cues implied by the wine line, producer, region, or visible tasting copy
+- Keep suggested_tasting_note provisional; receipt capture should create a future tasting scaffold, not a claimed tasting
+- brian_fit_hint should name likely Brian-Fit signal in plain language when enough context exists
 - Look for common wine retailers: Total Wine, BevMo, Wine.com, winery names, etc.
 - Return ONLY the JSON object, no explanation or markdown formatting`,
             },

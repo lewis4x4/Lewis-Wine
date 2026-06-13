@@ -61,6 +61,11 @@ export default function LabelScanPage() {
         grape_varieties: data.wine.grape_varieties?.join(", ") || "",
         alcohol_percentage: data.wine.alcohol_percentage ? String(data.wine.alcohol_percentage) : "",
         notes: data.raw_text || "",
+        capture_source: "label_scan",
+        capture_confidence: data.wine.confidence ? String(data.wine.confidence) : "",
+        capture_descriptors: data.wine.detected_descriptors?.join(", ") || "",
+        capture_tasting_note: data.wine.suggested_tasting_note || "",
+        capture_brian_fit_hint: data.wine.brian_fit_hint || "",
       }).toString();
 
       router.push(`/cellar/add?${queryParams}`);

@@ -9,11 +9,12 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm run lint && npm run build",
+    "check": "npm run typecheck && npm run lint && npm run test:capture && npm run build",
     "db:seed": "tsx scripts/seed-wines.ts",
     "db:seed:jarvis": "tsx scripts/seed-jarvis-demo.ts",
     "db:seed:brian-fit": "tsx scripts/seed-brian-fit.ts",
     "db:migrations:check": "tsx scripts/check-migrations.ts",
+    "test:capture": "tsx tests/capture-intelligence.test.ts",
     "wine:capture": "tsx scripts/capture-wine-rating.ts"
   },
   "dependencies": {

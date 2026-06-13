@@ -4,6 +4,8 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useCellar, useAddToInventory, useCellarInventory } from "@/lib/hooks/use-cellar";
+import { useAddRating } from "@/lib/hooks/use-ratings";
+import { buildCaptureIntelligenceNotes, parseCaptureSignalParams } from "@/lib/capture-intelligence";
 import { useWineSearch } from "@/lib/hooks/use-wine-search";
 import { RatingInput } from "@/components/wine/rating-input";
 import { Button } from "@/components/ui/button";
@@ -50,6 +52,8 @@ function AddWineContent() {
   const { data: cellar } = useCellar();
   const { data: inventory } = useCellarInventory();
   const addToInventory = useAddToInventory();
+  const addRating = useAddRating();
+  const captureSignal = parseCaptureSignalParams(searchParams);
 
   // Celebration state
   const [showCelebration, setShowCelebration] = useState(false);
@@ -70,7 +74,10 @@ function AddWineContent() {
   const [quantity, setQuantity] = useState(1);
   const [purchasePrice, setPurchasePrice] = useState("");
   const [purchaseLocation, setPurchaseLocation] = useState("");
-  const [notes, setNotes] = useState(searchParams.get("notes") || searchParams.get("description") || "");
+  const initialNotes = captureSignal
+    ? buildCaptureIntelligenceNotes(captureSignal)
+    : searchParams.get("notes") || searchParams.get("description") || "";
+  const [notes, setNotes] = useState(initialNotes);
   const [rating, setRating] = useState(85);
   const [includeRating, setIncludeRating] = useState(false);
 
@@ -123,7 +130,7 @@ function AddWineContent() {
       // Calculate current bottle count before adding
       const currentBottleCount = inventory?.reduce((sum, item) => sum + item.quantity, 0) || 0;
 
-      await addToInventory.mutateAsync({
+      const inventoryItem = await addToInventory.mutateAsync({
         cellar_id: cellar.id,
         wine_reference_id: selectedWine?.id || null,
         custom_name: selectedWine ? null : wineName,
@@ -137,9 +144,33 @@ function AddWineContent() {
         purchase_location: purchaseLocation || null,
         purchase_date: new Date().toISOString().split("T")[0],
         notes: notes || null,
+        tags: captureSignal ? ["capture-intelligence", captureSignal.source] : null,
         simple_location: locationMode === "simple" ? storageLocation : null,
         location_id: locationMode !== "simple" ? storageLocationId : null,
       });
+
+      if (includeRating) {
+        await addRating.mutateAsync({
+          inventory_id: inventoryItem.id,
+          wine_reference_id: selectedWine?.id || null,
+          score: rating,
+          tasting_notes: notes || null,
+          rating_signal: captureSignal
+            ? {
+                decision_tags: ["intake-capture"],
+                brian_phrases: captureSignal.descriptors ?? [],
+                extracted_from_text: {
+                  source: captureSignal.source,
+                  confidence: captureSignal.confidence,
+                  descriptors: captureSignal.descriptors ?? [],
+                  suggested_tasting_note: captureSignal.suggestedTastingNote,
+                  brian_fit_hint: captureSignal.brianFitHint,
+                  raw_text: captureSignal.rawText,
+                },
+              }
+            : undefined,
+        });
+      }
 
       // Check for milestone
       const newBottleCount = currentBottleCount + quantity;
@@ -202,6 +233,29 @@ function AddWineContent() {
             <p className="text-sm">
               Barcode scanned: <code className="bg-white px-2 py-1 rounded">{barcodeFromUrl}</code>
             </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {captureSignal && (
+        <Card className="border-primary/25 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="font-playfair text-xl">Capture intelligence attached</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              Pourfolio preserved the scan as tasting scaffolding, not just bottle metadata. Review it below before saving.
+            </p>
+            {captureSignal.descriptors && captureSignal.descriptors.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {captureSignal.descriptors.map((descriptor) => (
+                  <Badge key={descriptor} variant="secondary">{descriptor}</Badge>
+                ))}
+              </div>
+            )}
+            {captureSignal.brianFitHint && (
+              <p><span className="font-medium">Brian-Fit hint:</span> {captureSignal.brianFitHint}</p>
+            )}
           </CardContent>
         </Card>
       )}
@@ -471,8 +525,8 @@ function AddWineContent() {
           <Button type="button" variant="outline" onClick={() => router.back()}>
             Cancel
           </Button>
-          <Button type="submit" disabled={addToInventory.isPending}>
-            {addToInventory.isPending ? "Adding..." : "Add to Cellar"}
+          <Button type="submit" disabled={addToInventory.isPending || addRating.isPending}>
+            {addToInventory.isPending || addRating.isPending ? "Adding..." : "Add to Cellar"}
           </Button>
         </div>
       </form>

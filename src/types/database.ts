@@ -1491,6 +1491,9 @@ export type ExtractedWine = {
   raw_text: string; // Original text from receipt
   region: string | null;
   country: string | null;
+  detected_descriptors?: string[] | null;
+  suggested_tasting_note?: string | null;
+  brian_fit_hint?: string | null;
 };
 
 export type ReceiptScanResult = {
@@ -1576,6 +1579,9 @@ export type LabelScanResult = {
     grape_varieties: string[] | null;
     alcohol_percentage: number | null;
     confidence: number; // 0-100 confidence score
+    detected_descriptors?: string[] | null;
+    suggested_tasting_note?: string | null;
+    brian_fit_hint?: string | null;
   } | null;
   raw_text: string;
   error?: string;
