@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import type { TasteGenome } from "@/lib/taste-genome";
 import type { BrianTasteProfile } from "@/types/database";
 
 export default function AnalyticsPage() {
@@ -472,6 +473,7 @@ function TasteProfileSection() {
   return (
     <div className="space-y-6">
       {brianProfile && <BrianFitProfileCard brianProfile={brianProfile} />}
+      <TasteGenomeCard genome={tasteProfile.tasteGenome} />
 
       {/* Insights */}
       {tasteProfile.insights.length > 0 && (
@@ -731,6 +733,99 @@ function TasteProfileSection() {
         </Card>
       )}
     </div>
+  );
+}
+
+function TasteGenomeCard({ genome }: { genome: TasteGenome }) {
+  const topRegions = genome.affinities.regions.slice(0, 3);
+  const topStructures = genome.structureProfile.slice(0, 5);
+  const underperformer = genome.valuePattern.underperformers[0];
+
+  return (
+    <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-background to-background">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="font-playfair text-2xl">Taste Genome v1</CardTitle>
+            <CardDescription>Deterministic read of what your ratings actually prove versus what is still thin signal.</CardDescription>
+          </div>
+          <Badge variant="outline" className="rounded-full px-3 py-1 capitalize">
+            {genome.confidence.level} confidence
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="rounded-2xl border bg-background/80 p-4">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Genome read</div>
+          <p className="mt-2 text-lg font-medium text-foreground">{genome.headline}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{genome.confidence.explanation}</p>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="rounded-2xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Proven lanes</div>
+            <div className="mt-3 space-y-3">
+              {topRegions.length > 0 ? topRegions.map((region) => (
+                <div key={region.name} className="flex items-center justify-between gap-3 text-sm">
+                  <div>
+                    <div className="font-medium">{region.name}</div>
+                    <div className="text-xs text-muted-foreground">{region.count} ratings · {region.confidence}</div>
+                  </div>
+                  <Badge variant="secondary">{region.averageRating.toFixed(1)}</Badge>
+                </div>
+              )) : <p className="text-sm text-muted-foreground">No regional signal yet.</p>}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Structure fingerprint</div>
+            <div className="mt-3 space-y-2">
+              {topStructures.length > 0 ? topStructures.map((point) => (
+                <div key={point.dimension}>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium">{point.label}</span>
+                    <span className="text-muted-foreground">{point.average.toFixed(1)}/5</span>
+                  </div>
+                  <div className="mt-1 h-2 rounded-full bg-muted">
+                    <div className="h-2 rounded-full bg-primary" style={{ width: `${Math.min(100, point.average * 20)}%` }} />
+                  </div>
+                </div>
+              )) : <p className="text-sm text-muted-foreground">Add rating signals to expose structure.</p>}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Value intelligence</div>
+            <div className="mt-3 space-y-3 text-sm">
+              {genome.valuePattern.bestValue ? (
+                <div>
+                  <div className="font-medium">Best value signal</div>
+                  <p className="text-muted-foreground">{genome.valuePattern.bestValue.label} · {genome.valuePattern.bestValue.score} pts</p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">Value signal needs prices plus ratings.</p>
+              )}
+              {underperformer && (
+                <div>
+                  <div className="font-medium">Watchlist</div>
+                  <p className="text-muted-foreground">{underperformer.label} underperformed relative to price.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {genome.insights.length > 0 && (
+          <div className="grid gap-3 md:grid-cols-2">
+            {genome.insights.slice(0, 4).map((insight) => (
+              <div key={insight} className="rounded-xl border bg-background/70 p-3 text-sm text-muted-foreground">
+                {insight}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

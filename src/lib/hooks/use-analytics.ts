@@ -2,7 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import type { CellarInventory, WineReference, Rating } from "@/types/database";
+import { buildTasteGenome, type TasteGenome } from "@/lib/taste-genome";
+import type { CellarInventory, WineReference, Rating, RatingSignal } from "@/types/database";
 
 // Types for analytics data
 type DrinkingStats = {
@@ -56,6 +57,7 @@ type TasteProfile = {
     sweetness: { level: string; avgRating: number; count: number }[];
   };
   insights: string[];
+  tasteGenome: TasteGenome;
 };
 
 // Helper to get month string
@@ -438,14 +440,24 @@ export function useTasteProfile() {
         .select(`
           *,
           inventory:cellar_inventory (
+            vintage,
+            purchase_price_cents,
+            custom_wine_type,
+            custom_region,
+            custom_producer,
             wine_reference (*)
-          )
+          ),
+          rating_signals (*)
         `);
 
       if (error) throw error;
 
       type RatingWithInventory = Rating & {
-        inventory: { wine_reference: WineReference | null } | null;
+        inventory: (Pick<
+          CellarInventory,
+          "vintage" | "purchase_price_cents" | "custom_wine_type" | "custom_region" | "custom_producer"
+        > & { wine_reference: WineReference | null }) | null;
+        rating_signals?: RatingSignal[] | null;
       };
 
       const allRatings = ratings as RatingWithInventory[];
@@ -585,6 +597,23 @@ export function useTasteProfile() {
         );
       }
 
+      const tasteGenome = buildTasteGenome(
+        allRatings.map((rating) => {
+          const inv = rating.inventory;
+          const reference = inv?.wine_reference;
+          return {
+            id: rating.id,
+            score: rating.score,
+            wine_type: reference?.wine_type || inv?.custom_wine_type || null,
+            region: reference?.region || inv?.custom_region || null,
+            producer: reference?.producer || inv?.custom_producer || null,
+            vintage: inv?.vintage ?? null,
+            purchase_price_cents: inv?.purchase_price_cents ?? null,
+            rating_signal: rating.rating_signals?.[0] ?? null,
+          };
+        })
+      );
+
       const profile: TasteProfile = {
         averageRating,
         totalRatings: allRatings.length,
@@ -602,6 +631,7 @@ export function useTasteProfile() {
           sweetness: mapToStats(sweetnessMap),
         },
         insights,
+        tasteGenome,
       };
 
       return profile;
