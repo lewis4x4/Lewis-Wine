@@ -72,6 +72,12 @@ export function Header() {
               Analytics
             </Link>
             <Link
+              href="/bottle-brain"
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Bottle Brain
+            </Link>
+            <Link
               href="/recommendations"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
@@ -92,6 +98,9 @@ export function Header() {
                   <Link href="/jarvis">JARVIS Memory OS</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/bottle-brain">Bottle Brain</Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/recommendations">Tonight Engine</Link>
                 </DropdownMenuItem>
