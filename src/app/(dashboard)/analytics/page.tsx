@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { TasteGenome } from "@/lib/taste-genome";
+import type { PortfolioTruth } from "@/lib/portfolio-truth";
 import type { BrianTasteProfile } from "@/types/database";
 
 export default function AnalyticsPage() {
@@ -182,11 +183,11 @@ function SpendingStatsSection() {
   const { data: stats, isLoading } = useSpendingStats();
 
   if (isLoading) return <LoadingState />;
-  if (!stats || stats.totalSpent === 0) {
+  if (!stats || stats.portfolioTruth.totals.totalBottles === 0) {
     return (
       <EmptyState
-        title="No spending data yet"
-        description="Add purchase prices to your wines to track spending."
+        title="No portfolio data yet"
+        description="Add bottles to the cellar to build a serious valuation read."
       />
     );
   }
@@ -204,6 +205,8 @@ function SpendingStatsSection() {
 
   return (
     <div className="space-y-6">
+      <PortfolioTruthCard truth={stats.portfolioTruth} />
+
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard label="Total Spent" value={formatCurrency(stats.totalSpent)} icon="💰" />
@@ -331,6 +334,92 @@ function SpendingStatsSection() {
         </Card>
       )}
     </div>
+  );
+}
+
+function PortfolioTruthCard({ truth }: { truth: PortfolioTruth }) {
+  const formatCurrency = (cents: number) => new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(cents / 100);
+  const formatPercent = (value: number) => `${Math.round(value * 100)}%`;
+  const gainLoss = truth.performance.unrealizedGainLossCents;
+  const concentration = truth.concentration.regions[0];
+
+  return (
+    <Card className="border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-background to-background">
+      <CardHeader>
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <CardTitle className="font-playfair text-2xl">Portfolio Truth</CardTitle>
+            <CardDescription>{truth.executiveBrief}</CardDescription>
+          </div>
+          <Badge variant="outline" className="w-fit rounded-full px-3 py-1">
+            {truth.confidence.label}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="grid gap-3 md:grid-cols-4">
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Displayed value</div>
+            <div className="mt-2 text-2xl font-semibold">{formatCurrency(truth.totals.displayValueCents)}</div>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Market-known</div>
+            <div className="mt-2 text-2xl font-semibold">{formatCurrency(truth.totals.knownValueCents)}</div>
+            <div className="mt-1 text-xs text-muted-foreground">{formatPercent(truth.coverage.valueCoverage)} of priced value</div>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Estimated</div>
+            <div className="mt-2 text-2xl font-semibold">{formatCurrency(truth.totals.estimatedValueCents)}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Purchase-price fallback</div>
+          </div>
+          <div className="rounded-xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Gain / loss</div>
+            <div className={cn("mt-2 text-2xl font-semibold", gainLoss >= 0 ? "text-emerald-600" : "text-red-600")}>
+              {gainLoss >= 0 ? "+" : ""}{formatCurrency(gainLoss)}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">Only where cost and market both exist</div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr_1fr]">
+          <div className="rounded-2xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
+            <p className="mt-2 text-sm leading-6 text-foreground">{truth.bestNextMove}</p>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{truth.confidence.reason}</p>
+          </div>
+          <div className="rounded-2xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Top concentration</div>
+            {concentration ? (
+              <div className="mt-2">
+                <div className="text-sm font-semibold">{concentration.name}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {formatCurrency(concentration.valueCents)} · {formatPercent(concentration.shareOfValue)} of displayed value
+                </div>
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">No concentration signal yet.</p>
+            )}
+          </div>
+          <div className="rounded-2xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Update next</div>
+            <div className="mt-2 space-y-2">
+              {truth.updateNext.slice(0, 2).map((item) => (
+                <div key={item.id} className="text-sm">
+                  <div className="font-medium">{item.displayName}</div>
+                  <div className="text-xs text-muted-foreground">{item.reason}</div>
+                </div>
+              ))}
+              {truth.updateNext.length === 0 && <p className="text-sm text-muted-foreground">No obvious valuation gaps.</p>}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

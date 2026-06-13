@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { buildTasteGenome, type TasteGenome } from "@/lib/taste-genome";
+import { buildPortfolioTruth, type PortfolioTruth } from "@/lib/portfolio-truth";
 import type { CellarInventory, WineReference, Rating, RatingSignal } from "@/types/database";
 
 // Types for analytics data
@@ -27,6 +28,7 @@ type SpendingStats = {
   byType: { type: string; amount: number; bottles: number }[];
   byRegion: { region: string; amount: number; bottles: number }[];
   mostExpensiveBottle: { name: string; price: number } | null;
+  portfolioTruth: PortfolioTruth;
 };
 
 type VintageStats = {
@@ -166,14 +168,14 @@ export function useSpendingStats() {
   return useQuery({
     queryKey: ["analytics", "spending"],
     queryFn: async () => {
-      // Get all inventory with purchase info
+      // Get all active inventory with valuation fields
       const { data: inventory, error } = await supabase
         .from("cellar_inventory")
         .select(`
           *,
           wine_reference (*)
         `)
-        .not("purchase_price_cents", "is", null);
+        .eq("status", "in_cellar");
 
       if (error) throw error;
 
@@ -267,6 +269,21 @@ export function useSpendingStats() {
       );
       const mostExpensive = sortedByPrice[0];
 
+      const portfolioTruth = buildPortfolioTruth(wines.map((w) => ({
+        id: w.id,
+        name: w.wine_reference?.name,
+        custom_name: w.custom_name,
+        producer: w.wine_reference?.producer,
+        custom_producer: w.custom_producer,
+        region: w.wine_reference?.region,
+        custom_region: w.custom_region,
+        wine_type: w.wine_reference?.wine_type,
+        custom_wine_type: w.custom_wine_type,
+        quantity: w.quantity,
+        purchase_price_cents: w.purchase_price_cents,
+        current_market_value_cents: w.current_market_value_cents,
+      })));
+
       const stats: SpendingStats = {
         totalSpent,
         spentThisMonth,
@@ -295,6 +312,7 @@ export function useSpendingStats() {
               price: mostExpensive.purchase_price_cents || 0,
             }
           : null,
+        portfolioTruth,
       };
 
       return stats;
