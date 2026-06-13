@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import { useConsumeWine, useRestoreWine, useCellar } from "@/lib/hooks/use-cellar";
+import { useConsumeWine, useRestoreWine, useCellar, useUpdateInventory } from "@/lib/hooks/use-cellar";
 import { getBrianFitForRatings, useBrianTasteProfile, type RatingWithSignals } from "@/lib/hooks/use-brian-fit";
 import { useAddRating, useRecentCompanions } from "@/lib/hooks/use-ratings";
 import { getLocationDisplayString } from "@/lib/hooks/use-cellar-locations";
@@ -43,6 +43,12 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ArrowRight, AlertTriangle, Clock3, Sparkles, Wine as WineIcon, Camera, BadgeDollarSign, BookHeart, Wrench, Link as LinkIcon, Mic, Gauge, ShieldCheck, MapPin, Star, GlassWater, MoonStar } from "lucide-react";
 import type { CellarInventory, WineReference, LocationMode, CellarLocation, AromaNotes, MarketValueSource } from "@/types/database";
+import type { WineSearchResult } from "@/app/api/wines/search/route";
+import {
+  buildReferenceSearchQuery,
+  getReferenceMatchLabel,
+  shouldShowReferenceLinkAction,
+} from "@/lib/wine-reference-linking";
 import {
   getTonightSelectionStatus,
   parseTonightSelection,
@@ -98,7 +104,13 @@ export default function WineDetailPage() {
   const addRating = useAddRating();
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [restoreQuantity, setRestoreQuantity] = useState(1);
+  const [showReferenceDialog, setShowReferenceDialog] = useState(false);
+  const [referenceQuery, setReferenceQuery] = useState("");
+  const [referenceResults, setReferenceResults] = useState<WineSearchResult[]>([]);
+  const [isSearchingReferences, setIsSearchingReferences] = useState(false);
+  const [selectedReferenceId, setSelectedReferenceId] = useState<string | null>(null);
   const [tonightSelection] = useState<TonightSelection | null>(() => getInitialTonightSelection(id));
+  const updateInventory = useUpdateInventory();
   const updateLowStockSettings = useUpdateLowStockSettings();
   const { data: recentCompanions = [] } = useRecentCompanions();
   const locationMode: LocationMode = (cellar?.location_mode as LocationMode) || "simple";
@@ -401,7 +413,7 @@ export default function WineDetailPage() {
   const gainLoss = purchaseValue != null && marketValue != null ? marketValue - purchaseValue : null;
   const vintageLooksInvalid = vintage != null && (vintage < 1000 || vintage > new Date().getFullYear() + 1);
   const improvementPrompts = [
-    !wineRef && {
+    shouldShowReferenceLinkAction(wine) && {
       title: 'Link to wine reference',
       body: 'This bottle is running as a custom record. That is acceptable, but linking it later will strengthen discovery and intelligence.',
       priority: 'medium',
@@ -432,6 +444,42 @@ export default function WineDetailPage() {
       priority: 'high',
     },
   ].filter(Boolean) as { title: string; body: string; priority: 'high' | 'medium' }[];
+
+  const suggestedReferenceQuery = buildReferenceSearchQuery(wine);
+
+  async function searchReferenceMatches(queryOverride?: string) {
+    const query = (queryOverride ?? referenceQuery).trim();
+    if (query.length < 2) {
+      toast.error("Enter at least two characters to search reference wines.");
+      return;
+    }
+
+    setIsSearchingReferences(true);
+    try {
+      const response = await fetch(`/api/wines/search?q=${encodeURIComponent(query)}`);
+      if (!response.ok) throw new Error("Reference search failed");
+      const payload = await response.json() as { wines?: WineSearchResult[] };
+      setReferenceResults(payload.wines ?? []);
+      setSelectedReferenceId(null);
+      if (!payload.wines?.length) toast.info("No reference matches found. Try producer, cuvée, or region.");
+    } catch {
+      toast.error("Could not search wine references.");
+    } finally {
+      setIsSearchingReferences(false);
+    }
+  }
+
+  async function linkSelectedReference() {
+    if (!selectedReferenceId) return;
+    try {
+      await updateInventory.mutateAsync({ id, wine_reference_id: selectedReferenceId });
+      toast.success("Wine reference linked.");
+      setShowReferenceDialog(false);
+      await refetchWine();
+    } catch {
+      toast.error("Could not link this reference.");
+    }
+  }
 
   const getScoreColor = (score: number) => {
     if (score >= 95) return "bg-purple-600";
@@ -942,12 +990,80 @@ export default function WineDetailPage() {
                       {item.priority === 'high' ? 'High priority' : 'Worth doing'}
                     </Badge>
                   </div>
+                  {item.title === 'Link to wine reference' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-4 rounded-full"
+                      onClick={() => {
+                        setReferenceQuery(suggestedReferenceQuery);
+                        setShowReferenceDialog(true);
+                        void searchReferenceMatches(suggestedReferenceQuery);
+                      }}
+                    >
+                      Link reference
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={showReferenceDialog} onOpenChange={setShowReferenceDialog}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Link to wine reference</DialogTitle>
+            <DialogDescription>
+              Match this custom bottle to a reference record. Your cellar quantity, purchase/value data, notes, and photos stay on this bottle.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex gap-2">
+              <Input
+                value={referenceQuery}
+                onChange={(event) => setReferenceQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void searchReferenceMatches();
+                }}
+                placeholder="Producer, wine name, region, vintage"
+              />
+              <Button type="button" variant="outline" onClick={() => searchReferenceMatches()} disabled={isSearchingReferences}>
+                {isSearchingReferences ? "Searching..." : "Search"}
+              </Button>
+            </div>
+
+            <div className="max-h-[340px] space-y-2 overflow-y-auto pr-1">
+              {referenceResults.length === 0 ? (
+                <div className="rounded-2xl border bg-muted/30 p-4 text-sm text-muted-foreground">
+                  Search for the producer, cuvée, or region, then select the best reference match.
+                </div>
+              ) : referenceResults.map((result) => (
+                <button
+                  key={result.id}
+                  type="button"
+                  onClick={() => setSelectedReferenceId(result.id)}
+                  className={cn(
+                    "w-full rounded-2xl border p-4 text-left transition",
+                    selectedReferenceId === result.id ? "border-primary bg-primary/5" : "bg-background hover:border-primary/30"
+                  )}
+                >
+                  <p className="font-medium text-foreground">{result.producer || "Producer unknown"} — {result.name}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{getReferenceMatchLabel(result)}</p>
+                  {result.description && <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{result.description}</p>}
+                </button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReferenceDialog(false)}>Cancel</Button>
+            <Button onClick={linkSelectedReference} disabled={!selectedReferenceId || updateInventory.isPending}>
+              {updateInventory.isPending ? "Linking..." : "Link selected reference"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Record posture */}
       <Card>
