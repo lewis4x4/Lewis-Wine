@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ArrowRight, AlertTriangle, Clock3, Sparkles, Wine as WineIcon, Camera, BadgeDollarSign, BookHeart, Wrench, Link as LinkIcon, Mic, Gauge, ShieldCheck, MapPin, Star, GlassWater, MoonStar } from "lucide-react";
+import { ArrowRight, AlertTriangle, Clock3, Sparkles, Wine as WineIcon, Camera, BadgeDollarSign, BookHeart, Wrench, Link as LinkIcon, Mic, Gauge, ShieldCheck, MapPin, Star, GlassWater, MoonStar, Rocket } from "lucide-react";
 import type { CellarInventory, WineReference, LocationMode, CellarLocation, AromaNotes, MarketValueSource } from "@/types/database";
 import type { WineSearchResult } from "@/app/api/wines/search/route";
 import {
@@ -49,6 +49,11 @@ import {
   getReferenceMatchLabel,
   shouldShowReferenceLinkAction,
 } from "@/lib/wine-reference-linking";
+import {
+  buildSafeDominancePatch,
+  getBottleConfidenceScore,
+  type BottleDominanceDraft,
+} from "@/lib/bottle-dominance";
 import {
   getTonightSelectionStatus,
   parseTonightSelection,
@@ -109,6 +114,10 @@ export default function WineDetailPage() {
   const [referenceResults, setReferenceResults] = useState<WineSearchResult[]>([]);
   const [isSearchingReferences, setIsSearchingReferences] = useState(false);
   const [selectedReferenceId, setSelectedReferenceId] = useState<string | null>(null);
+  const [showDominanceDialog, setShowDominanceDialog] = useState(false);
+  const [dominanceDraft, setDominanceDraft] = useState<BottleDominanceDraft | null>(null);
+  const [selectedDominanceSuggestionIds, setSelectedDominanceSuggestionIds] = useState<string[]>([]);
+  const [isDominatingBottle, setIsDominatingBottle] = useState(false);
   const [tonightSelection] = useState<TonightSelection | null>(() => getInitialTonightSelection(id));
   const updateInventory = useUpdateInventory();
   const updateLowStockSettings = useUpdateLowStockSettings();
@@ -481,6 +490,39 @@ export default function WineDetailPage() {
     }
   }
 
+  async function dominateBottle() {
+    setIsDominatingBottle(true);
+    try {
+      const response = await fetch(`/api/bottle-dominance/${encodeURIComponent(id)}`, { method: "POST" });
+      const payload = await response.json() as { success: boolean; draft?: BottleDominanceDraft; error?: string };
+      if (!response.ok || !payload.success || !payload.draft) throw new Error(payload.error ?? "Dominance failed");
+      setDominanceDraft(payload.draft);
+      setSelectedDominanceSuggestionIds(payload.draft.suggestions.filter((suggestion) => suggestion.safeToApply).map((suggestion) => suggestion.id));
+      setShowDominanceDialog(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not dominate this bottle.");
+    } finally {
+      setIsDominatingBottle(false);
+    }
+  }
+
+  async function applyDominanceSuggestions() {
+    if (!dominanceDraft) return;
+    const patch = buildSafeDominancePatch(dominanceDraft, selectedDominanceSuggestionIds);
+    if (Object.keys(patch).length === 0) {
+      toast.info("No selected updates to apply.");
+      return;
+    }
+    try {
+      await updateInventory.mutateAsync({ id, ...patch });
+      toast.success("Bottle dossier updated.");
+      setShowDominanceDialog(false);
+      await refetchWine();
+    } catch {
+      toast.error("Could not apply bottle dominance updates.");
+    }
+  }
+
   const getScoreColor = (score: number) => {
     if (score >= 95) return "bg-purple-600";
     if (score >= 90) return "bg-green-600";
@@ -702,6 +744,11 @@ export default function WineDetailPage() {
             Capture voice tasting
           </Button>
         </Link>
+
+        <Button variant="outline" onClick={dominateBottle} disabled={isDominatingBottle}>
+          <Rocket className="h-4 w-4" />
+          {isDominatingBottle ? "Dominating..." : "Dominate this bottle"}
+        </Button>
 
         <Dialog open={showLocationDialog} onOpenChange={setShowLocationDialog}>
           <DialogTrigger asChild>
@@ -1060,6 +1107,102 @@ export default function WineDetailPage() {
             <Button variant="outline" onClick={() => setShowReferenceDialog(false)}>Cancel</Button>
             <Button onClick={linkSelectedReference} disabled={!selectedReferenceId || updateInventory.isPending}>
               {updateInventory.isPending ? "Linking..." : "Link selected reference"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDominanceDialog} onOpenChange={setShowDominanceDialog}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Dominate this bottle</DialogTitle>
+            <DialogDescription>
+              Build a sourced bottle dossier. Verified facts can be applied; unknowns stay unknown instead of becoming fake precision.
+            </DialogDescription>
+          </DialogHeader>
+          {dominanceDraft && (
+            <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+              <div className="grid gap-3 md:grid-cols-4">
+                {Object.entries(getBottleConfidenceScore(dominanceDraft)).map(([key, value]) => (
+                  <div key={key} className="rounded-2xl border bg-muted/30 p-3">
+                    <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{key}</p>
+                    <p className="mt-1 text-2xl font-semibold">{value}%</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-2xl border p-4">
+                <p className="text-sm font-medium">Identity</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {dominanceDraft.identity.producer ? `${dominanceDraft.identity.producer} — ` : ""}{dominanceDraft.identity.displayName}
+                  {dominanceDraft.identity.vintage ? ` • ${dominanceDraft.identity.vintage}` : ""}
+                  {dominanceDraft.identity.region ? ` • ${dominanceDraft.identity.region}` : ""}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border p-4">
+                <p className="text-sm font-medium">Market</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {dominanceDraft.market.valueCents != null
+                    ? `${formatPrice(dominanceDraft.market.valueCents)} via ${dominanceDraft.market.provider}`
+                    : "Unknown — no configured pricing provider returned a verified value."}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Suggested updates</p>
+                {dominanceDraft.suggestions.length === 0 ? (
+                  <div className="rounded-2xl border bg-muted/30 p-4 text-sm text-muted-foreground">
+                    No safe automatic updates yet. The dossier still captured evidence and gaps.
+                  </div>
+                ) : dominanceDraft.suggestions.map((suggestion) => (
+                  <label key={suggestion.id} className="flex gap-3 rounded-2xl border p-4">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={selectedDominanceSuggestionIds.includes(suggestion.id)}
+                      onChange={(event) => {
+                        setSelectedDominanceSuggestionIds((current) => event.target.checked
+                          ? [...current, suggestion.id]
+                          : current.filter((item) => item !== suggestion.id));
+                      }}
+                    />
+                    <span>
+                      <span className="block font-medium">{suggestion.label}</span>
+                      <span className="mt-1 block text-sm text-muted-foreground">
+                        {String(suggestion.currentValue ?? "Unknown")} → {String(suggestion.proposedValue ?? "Unknown")} • {suggestion.confidence}% • {suggestion.truthLabel.replace("_", " ")}
+                      </span>
+                      <span className="mt-1 block text-xs text-muted-foreground">{suggestion.reason}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              {dominanceDraft.gaps.length > 0 && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                  <p className="text-sm font-medium text-amber-900">Still missing</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800">
+                    {dominanceDraft.gaps.map((gap) => <li key={`${gap.kind}:${gap.message}`}>{gap.message}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Evidence</p>
+                {dominanceDraft.evidence.map((item) => (
+                  <div key={item.id} className="rounded-2xl border bg-background/80 p-3 text-sm">
+                    <p className="font-medium">{item.title}</p>
+                    <p className="mt-1 text-muted-foreground">{item.detail}</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">{item.sourceType} • {item.truthLabel.replace("_", " ")} • {item.confidence}%</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDominanceDialog(false)}>Cancel</Button>
+            <Button onClick={applyDominanceSuggestions} disabled={!dominanceDraft || updateInventory.isPending}>
+              {updateInventory.isPending ? "Applying..." : "Apply selected updates"}
             </Button>
           </DialogFooter>
         </DialogContent>
