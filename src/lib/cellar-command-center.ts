@@ -48,6 +48,9 @@ export type CellarCommandCenter = {
     needsSignal: number;
     highBrianFit: number;
     estimatedValueCents: number;
+    unlovedValueCents: number;
+    missingMarketValues: number;
+    recentUnreviewed: number;
   };
   lanes: {
     drinkNow: CellarCommandItem[];
@@ -55,12 +58,17 @@ export type CellarCommandCenter = {
     replace: CellarCommandItem[];
     learn: CellarCommandItem[];
     hold: CellarCommandItem[];
+    unlovedExpensive: CellarCommandItem[];
+    missingMarketValue: CellarCommandItem[];
+    recentUnreviewed: CellarCommandItem[];
   };
   executiveBrief: string;
   bestNextMove: string;
 };
 
 const HIGH_BRIAN_FIT = 92;
+const EXPENSIVE_UNLOVED_CENTS = 10000;
+const RECENT_UNREVIEWED_DAYS = 14;
 
 type CommandReadiness = Exclude<WineReadinessState, "unknown"> | "unknown";
 
@@ -89,6 +97,14 @@ function getRegionName(wine: CellarCommandWine) {
 function getEstimatedValueCents(wine: CellarCommandWine) {
   const unitValue = wine.current_market_value_cents ?? wine.purchase_price_cents ?? null;
   return unitValue == null ? null : unitValue * Math.max(wine.quantity, 0);
+}
+
+function formatCurrency(cents: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(cents / 100);
 }
 
 function getReadiness(wine: CellarCommandWine, asOf: Date): CommandReadiness {
@@ -120,6 +136,22 @@ function isReplaceCandidate(wine: CellarCommandWine) {
     return true;
   }
   return wine.quantity === 1 && (wine.brian_fit_score ?? 0) >= HIGH_BRIAN_FIT;
+}
+
+function isUnlovedExpensive(wine: CellarCommandItem) {
+  return (wine.ratings_count ?? 0) === 0 && (wine.estimatedValueCents ?? 0) >= EXPENSIVE_UNLOVED_CENTS;
+}
+
+function isMissingMarketValue(wine: CellarCommandItem) {
+  return wine.current_market_value_cents == null;
+}
+
+function isRecentUnreviewed(wine: CellarCommandItem, asOf: Date) {
+  if ((wine.ratings_count ?? 0) > 0 || !wine.created_at) return false;
+  const createdAt = new Date(wine.created_at);
+  if (Number.isNaN(createdAt.getTime())) return false;
+  const ageDays = (asOf.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+  return ageDays >= 0 && ageDays <= RECENT_UNREVIEWED_DAYS;
 }
 
 function getActionAndReason(wine: CellarCommandWine, readiness: CellarCommandItem["readiness"]) {
@@ -207,6 +239,15 @@ export function buildCellarCommandCenter(
   const learnItems = items
     .filter((wine) => (wine.ratings_count ?? 0) === 0)
     .sort(byCommandPriority);
+  const unlovedExpensiveItems = items
+    .filter(isUnlovedExpensive)
+    .sort((a, b) => (b.estimatedValueCents ?? 0) - (a.estimatedValueCents ?? 0) || byCommandPriority(a, b));
+  const missingMarketValueItems = items
+    .filter(isMissingMarketValue)
+    .sort((a, b) => (b.purchase_price_cents ?? 0) - (a.purchase_price_cents ?? 0) || byCommandPriority(a, b));
+  const recentUnreviewedItems = items
+    .filter((wine) => isRecentUnreviewed(wine, asOf))
+    .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime() || byCommandPriority(a, b));
 
   const lanes = {
     drinkNow: items
@@ -223,6 +264,9 @@ export function buildCellarCommandCenter(
       .filter((wine) => wine.readiness === "hold")
       .sort(byCommandPriority)
       .slice(0, laneLimit),
+    unlovedExpensive: unlovedExpensiveItems.slice(0, laneLimit),
+    missingMarketValue: missingMarketValueItems.slice(0, laneLimit),
+    recentUnreviewed: recentUnreviewedItems.slice(0, laneLimit),
   };
 
   const metrics = {
@@ -235,6 +279,9 @@ export function buildCellarCommandCenter(
     needsSignal: learnItems.length,
     highBrianFit: items.filter((wine) => (wine.brian_fit_score ?? 0) >= HIGH_BRIAN_FIT).length,
     estimatedValueCents: items.reduce((sum, wine) => sum + (wine.estimatedValueCents ?? 0), 0),
+    unlovedValueCents: learnItems.reduce((sum, wine) => sum + (wine.estimatedValueCents ?? 0), 0),
+    missingMarketValues: missingMarketValueItems.length,
+    recentUnreviewed: recentUnreviewedItems.length,
   };
 
   const executiveBrief = metrics.totalBottles === 0
@@ -242,11 +289,14 @@ export function buildCellarCommandCenter(
     : [
         metrics.pastPeak > 0 ? `${plural(metrics.pastPeak, "bottle")} needs a decision before it drifts further` : null,
         metrics.readyNow > 0 ? `${plural(metrics.readyNow, "bottle")} can be opened with confidence now` : null,
+        metrics.unlovedValueCents > 0 ? `${formatCurrency(metrics.unlovedValueCents)} of value has no tasting memory` : null,
+        metrics.missingMarketValues > 0 ? `${plural(metrics.missingMarketValues, "bottle")} needs market value coverage` : null,
+        metrics.recentUnreviewed > 0 ? `${plural(metrics.recentUnreviewed, "recent bottle")} still needs review` : null,
         metrics.replace > 0 ? `${plural(metrics.replace, "bottle")} should be considered for replacement` : null,
         metrics.needsSignal > 0 ? `${plural(metrics.needsSignal, "bottle")} still needs first-party taste signal` : null,
       ].filter(Boolean).join(". ") || "The cellar is stable; the best move is tightening windows and taste signal.";
 
-  const firstPriority = lanes.atRisk[0] ?? lanes.drinkNow[0] ?? lanes.replace[0] ?? lanes.learn[0] ?? lanes.hold[0] ?? null;
+  const firstPriority = lanes.atRisk[0] ?? lanes.drinkNow[0] ?? lanes.unlovedExpensive[0] ?? lanes.missingMarketValue[0] ?? lanes.replace[0] ?? lanes.recentUnreviewed[0] ?? lanes.learn[0] ?? lanes.hold[0] ?? null;
   const bestNextMove = firstPriority
     ? `${firstPriority.action}: ${firstPriority.reason}`
     : "Add a bottle or scan a label to give the system something useful to command.";

@@ -73,8 +73,47 @@ function testExecutiveBriefNamesTheSharpestMove() {
   assert.match(center.bestNextMove, /Old Bordeaux/);
 }
 
+function testCommandCenterFindsPortfolioAndDataQualityRails() {
+  const center = buildCellarCommandCenter([
+    wine({
+      id: "expensive-unloved",
+      name: "Grand Cru Mystery",
+      quantity: 1,
+      purchase_price_cents: 24000,
+      current_market_value_cents: 30000,
+      ratings_count: 0,
+      created_at: "2025-01-01T00:00:00Z",
+    }),
+    wine({
+      id: "missing-market",
+      name: "Unpriced Barbaresco",
+      quantity: 2,
+      purchase_price_cents: 9000,
+      current_market_value_cents: null,
+      ratings_count: 1,
+    }),
+    wine({
+      id: "recent-unreviewed",
+      name: "New Arrival Pinot",
+      quantity: 1,
+      purchase_price_cents: 7000,
+      ratings_count: 0,
+      created_at: "2026-06-08T00:00:00Z",
+    }),
+  ], { asOf });
+
+  assert.equal(center.metrics.unlovedValueCents, 37000);
+  assert.equal(center.metrics.missingMarketValues, 2);
+  assert.equal(center.metrics.recentUnreviewed, 1);
+  assert.equal(center.lanes.unlovedExpensive[0].id, "expensive-unloved");
+  assert.equal(center.lanes.missingMarketValue[0].id, "missing-market");
+  assert.equal(center.lanes.recentUnreviewed[0].id, "recent-unreviewed");
+  assert.match(center.executiveBrief, /\$370 of value has no tasting memory/);
+}
+
 testWineNameUsesVintageProducerAndFallbacks();
 testCommandCenterBuildsActionLanes();
 testExecutiveBriefNamesTheSharpestMove();
+testCommandCenterFindsPortfolioAndDataQualityRails();
 
 console.log("cellar-command-center tests passed");

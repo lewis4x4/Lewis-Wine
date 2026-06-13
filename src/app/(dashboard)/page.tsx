@@ -69,6 +69,10 @@ export default async function DashboardPage() {
         region,
         producer
       ),
+      ratings (
+        id,
+        score
+      ),
       custom_name,
       custom_producer,
       custom_region
@@ -93,6 +97,7 @@ export default async function DashboardPage() {
             region: string | null;
             producer: string | null;
         } | null;
+        ratings: Array<{ id: string; score: number | null }> | null;
         custom_name: string | null;
         custom_producer: string | null;
         custom_region: string | null;
@@ -157,6 +162,7 @@ export default async function DashboardPage() {
         current_market_value_cents: item.current_market_value_cents,
         low_stock_threshold: item.low_stock_threshold,
         low_stock_alert_enabled: item.low_stock_alert_enabled,
+        ratings_count: item.ratings?.length ?? 0,
         tags: item.tags,
         created_at: item.created_at,
     })), { laneLimit: 4 });

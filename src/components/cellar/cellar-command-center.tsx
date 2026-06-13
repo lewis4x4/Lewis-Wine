@@ -15,6 +15,8 @@ const metricLabels = [
   { key: "pastPeak", label: "At risk" },
   { key: "replace", label: "Replace" },
   { key: "needsSignal", label: "Learn" },
+  { key: "missingMarketValues", label: "Price gaps" },
+  { key: "recentUnreviewed", label: "New unreviewed" },
 ] as const;
 
 export function CellarCommandCenter({ center, compact = false }: CellarCommandCenterProps) {
@@ -42,7 +44,7 @@ export function CellarCommandCenter({ center, compact = false }: CellarCommandCe
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           {metricLabels.map((metric) => (
             <div key={metric.key} className="rounded-3xl border border-border/60 bg-background/90 p-4 shadow-sm">
               <div className="text-3xl font-semibold tracking-tight tabular-nums">{center.metrics[metric.key]}</div>
@@ -82,6 +84,33 @@ export function CellarCommandCenter({ center, compact = false }: CellarCommandCe
             icon={<Brain className="h-4 w-4" />}
             items={center.lanes.learn}
             empty="Every visible bottle has at least some memory. Excellent."
+            tone="muted"
+          />
+        </div>
+
+        <div className={cn("mt-4 grid gap-4", compact ? "lg:grid-cols-3" : "xl:grid-cols-3")}>
+          <CommandLane
+            title="Value without memory"
+            description="Meaningful cellar value that still lacks a tasting read."
+            icon={<Brain className="h-4 w-4" />}
+            items={center.lanes.unlovedExpensive}
+            empty="No expensive blind spots. The valuable bottles have memory."
+            tone="warning"
+          />
+          <CommandLane
+            title="Market gaps"
+            description="Bottles where portfolio truth is held back by missing current value."
+            icon={<Sparkles className="h-4 w-4" />}
+            items={center.lanes.missingMarketValue}
+            empty="No market-value gaps detected in the visible cellar."
+            tone="primary"
+          />
+          <CommandLane
+            title="New unreviewed"
+            description="Recent additions that should be checked before they fade into inventory."
+            icon={<Clock3 className="h-4 w-4" />}
+            items={center.lanes.recentUnreviewed}
+            empty="No recent additions waiting for review."
             tone="muted"
           />
         </div>
