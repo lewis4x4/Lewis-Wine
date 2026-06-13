@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useConsumeWine, useRestoreWine, useCellar } from "@/lib/hooks/use-cellar";
+import { getBrianFitForRatings, useBrianTasteProfile, type RatingWithSignals } from "@/lib/hooks/use-brian-fit";
 import { useAddRating, useRecentCompanions } from "@/lib/hooks/use-ratings";
 import { getLocationDisplayString } from "@/lib/hooks/use-cellar-locations";
 import { useUpdateLowStockSettings } from "@/lib/hooks/use-low-stock-alerts";
@@ -40,11 +41,11 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ArrowRight, AlertTriangle, Clock3, Sparkles, Wine as WineIcon, Camera, BadgeDollarSign, BookHeart, Wrench, Link as LinkIcon } from "lucide-react";
-import type { CellarInventory, WineReference, Rating, LocationMode, CellarLocation, AromaNotes, MarketValueSource } from "@/types/database";
+import type { CellarInventory, WineReference, LocationMode, CellarLocation, AromaNotes, MarketValueSource } from "@/types/database";
 
 type WineWithDetails = CellarInventory & {
   wine_reference: WineReference | null;
-  ratings: Rating[];
+  ratings: RatingWithSignals[];
   location?: CellarLocation | null;
   simple_location?: string | null;
   low_stock_threshold?: number | null;
@@ -72,6 +73,7 @@ export default function WineDetailPage() {
   const [editLocationId, setEditLocationId] = useState<string | null>(null);
 
   const { data: cellar } = useCellar();
+  const { data: brianTasteProfile } = useBrianTasteProfile();
   const consumeWine = useConsumeWine();
   const restoreWine = useRestoreWine();
   const addRating = useAddRating();
@@ -94,7 +96,10 @@ export default function WineDetailPage() {
         .select(`
           *,
           wine_reference (*),
-          ratings (*),
+          ratings (
+            *,
+            rating_signals (*)
+          ),
           location:cellar_locations (*)
         `)
         .eq("id", id)
@@ -309,6 +314,11 @@ export default function WineDetailPage() {
   const latestRating = wine.ratings.length > 0
     ? [...wine.ratings].sort((a, b) => new Date(b.tasting_date).getTime() - new Date(a.tasting_date).getTime())[0]
     : null;
+  const brianFit = getBrianFitForRatings({
+    profile: brianTasteProfile,
+    ratings: wine.ratings,
+    fallbackScore: avgRating,
+  });
   const tonightEngineSelected = typeof wine.notes === 'string' && wine.notes.includes('Tonight Engine pick');
   const latestMemory = latestRating?.tasting_notes || latestRating?.nose_notes || latestRating?.palate_notes || null;
   const memoryHeadline = latestRating
@@ -473,6 +483,17 @@ export default function WineDetailPage() {
                   <span className="text-4xl font-bold leading-none">{avgRating}</span>
                   <span className="pb-1 text-sm text-white/80">/100</span>
                 </div>
+              </div>
+            )}
+            {brianFit && (
+              <div className="rounded-2xl border border-primary/20 bg-primary/10 px-5 py-4 text-primary shadow-sm">
+                <p className="text-xs uppercase tracking-[0.2em] text-primary/80">Brian-Fit</p>
+                <div className="mt-2 flex items-end gap-2">
+                  <span className="text-4xl font-bold leading-none">{brianFit.score}</span>
+                  <span className="pb-1 text-sm text-primary/80">/100</span>
+                </div>
+                <p className="mt-2 text-xs text-primary/80">{brianFit.confidence}% confidence</p>
+                <p className="mt-3 text-sm leading-6 text-foreground">{brianFit.reason}</p>
               </div>
             )}
             <Card className="border-primary/20 bg-primary/5">

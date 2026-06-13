@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export type SortOption = "name" | "date" | "rating" | "value" | "vintage";
+export type SortOption = "name" | "date" | "rating" | "value" | "vintage" | "brianFit";
 export type SortDirection = "asc" | "desc";
 
 export interface FilterState {
@@ -163,6 +163,7 @@ export function SearchFilter({
             <SelectItem value="name-asc">Name A-Z</SelectItem>
             <SelectItem value="name-desc">Name Z-A</SelectItem>
             <SelectItem value="rating-desc">Highest Rated</SelectItem>
+            <SelectItem value="brianFit-desc">Best Brian-Fit</SelectItem>
             <SelectItem value="value-desc">Highest Value</SelectItem>
             <SelectItem value="vintage-desc">Newest Vintage</SelectItem>
             <SelectItem value="vintage-asc">Oldest Vintage</SelectItem>
@@ -386,6 +387,7 @@ export function filterAndSortWines<T extends {
   custom_producer?: string | null;
   custom_region?: string | null;
   ratings?: { score: number }[];
+  brian_fit_score?: number | null;
 }>(
   wines: T[],
   filters: FilterState,
@@ -457,6 +459,11 @@ export function filterAndSortWines<T extends {
         const ratingA = a.ratings?.[0]?.score || 0;
         const ratingB = b.ratings?.[0]?.score || 0;
         return (ratingA - ratingB) * direction;
+      }
+      case "brianFit": {
+        const fitA = a.brian_fit_score || 0;
+        const fitB = b.brian_fit_score || 0;
+        return (fitA - fitB) * direction;
       }
       case "value": {
         const valueA = a.current_market_value_cents || a.purchase_price_cents || 0;

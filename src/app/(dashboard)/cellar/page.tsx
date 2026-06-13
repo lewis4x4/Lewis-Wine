@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useCellar, useCellarInventory, useUpdateInventory } from "@/lib/hooks/use-cellar";
+import { getBrianFitForRatings, useBrianTasteProfile } from "@/lib/hooks/use-brian-fit";
 import { useCellarValue } from "@/lib/hooks/use-portfolio-value";
 import { WineCard, type WineCardInventory } from "@/components/wine/wine-card";
 import { AlertsDashboard } from "@/components/cellar/alerts-dashboard";
@@ -14,6 +15,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SkeletonWineCard } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { LocationMode } from "@/types/database";
+import type { BrianFitSummary } from "@/lib/brian-fit";
+
+type BrianFitWineInventory = WineCardInventory & {
+  brian_fit?: BrianFitSummary | null;
+  brian_fit_score?: number | null;
+};
 
 export default function CellarPage() {
   const [showPortfolio, setShowPortfolio] = useState(false);
@@ -30,6 +37,7 @@ export default function CellarPage() {
 
   const { data: cellar, isLoading: cellarLoading } = useCellar();
   const { data: inventory, isLoading: inventoryLoading } = useCellarInventory();
+  const { data: brianTasteProfile } = useBrianTasteProfile();
   const { data: cellarValue } = useCellarValue();
   const updateInventory = useUpdateInventory();
   const locationMode: LocationMode = (cellar?.location_mode as LocationMode) || "simple";
@@ -44,22 +52,39 @@ export default function CellarPage() {
 
   const isLoading = cellarLoading || inventoryLoading;
 
+  const inventoryWithBrianFit = useMemo<BrianFitWineInventory[]>(() => {
+    if (!inventory) return [];
+
+    return inventory.map((wine) => {
+      const brianFit = getBrianFitForRatings({
+        profile: brianTasteProfile,
+        ratings: wine.ratings,
+      });
+
+      return {
+        ...(wine as WineCardInventory),
+        brian_fit: brianFit,
+        brian_fit_score: brianFit?.score ?? null,
+      };
+    });
+  }, [brianTasteProfile, inventory]);
+
   // Get unique regions for filter dropdown
   const availableRegions = useMemo(() => {
-    if (!inventory) return [];
+    if (!inventoryWithBrianFit.length) return [];
     const regions = new Set<string>();
-    inventory.forEach((wine) => {
+    inventoryWithBrianFit.forEach((wine) => {
       const region = wine.wine_reference?.region || wine.custom_region;
       if (region) regions.add(region);
     });
     return Array.from(regions).sort();
-  }, [inventory]);
+  }, [inventoryWithBrianFit]);
 
   // Apply filters and sort
   const filteredInventory = useMemo(() => {
-    if (!inventory) return [];
-    return filterAndSortWines(inventory as WineCardInventory[], filters, sort);
-  }, [inventory, filters, sort]);
+    if (!inventoryWithBrianFit.length) return [];
+    return filterAndSortWines(inventoryWithBrianFit, filters, sort);
+  }, [inventoryWithBrianFit, filters, sort]);
 
   const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -69,14 +94,14 @@ export default function CellarPage() {
   };
 
   // Group wines by type
-  const winesByType = inventory?.reduce(
+  const winesByType = inventoryWithBrianFit.reduce(
     (acc, wine) => {
       const type = wine.wine_reference?.wine_type || "other";
       if (!acc[type]) acc[type] = [];
       acc[type].push(wine);
       return acc;
     },
-    {} as Record<string, typeof inventory>
+    {} as Record<string, BrianFitWineInventory[]>
   );
 
   return (
@@ -322,6 +347,7 @@ export default function CellarPage() {
                 <WineCard
                   key={wine.id}
                   wine={wine}
+                  brianFit={wine.brian_fit}
                   locationMode={locationMode}
                   onQuantityChange={handleQuantityChange}
                 />
@@ -336,6 +362,7 @@ export default function CellarPage() {
                   <WineCard
                     key={wine.id}
                     wine={wine}
+                    brianFit={wine.brian_fit}
                     locationMode={locationMode}
                     onQuantityChange={handleQuantityChange}
                   />

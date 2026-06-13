@@ -1,10 +1,12 @@
 "use client";
 
 import { useDrinkingStats, useSpendingStats, useVintageStats, useTasteProfile } from "@/lib/hooks/use-analytics";
+import { useBrianTasteProfile } from "@/lib/hooks/use-brian-fit";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import type { BrianTasteProfile } from "@/types/database";
 
 export default function AnalyticsPage() {
   return (
@@ -445,9 +447,10 @@ function VintageStatsSection() {
 
 function TasteProfileSection() {
   const { data: profile, isLoading } = useTasteProfile();
+  const { data: brianProfile, isLoading: brianProfileLoading } = useBrianTasteProfile();
 
-  if (isLoading) return <LoadingState />;
-  if (!profile) {
+  if (isLoading || brianProfileLoading) return <LoadingState />;
+  if (!profile && !brianProfile) {
     return (
       <EmptyState
         title="No taste profile yet"
@@ -456,10 +459,22 @@ function TasteProfileSection() {
     );
   }
 
+  if (!profile) {
+    return (
+      <div className="space-y-6">
+        {brianProfile && <BrianFitProfileCard brianProfile={brianProfile} />}
+      </div>
+    );
+  }
+
+  const tasteProfile = profile;
+
   return (
     <div className="space-y-6">
+      {brianProfile && <BrianFitProfileCard brianProfile={brianProfile} />}
+
       {/* Insights */}
-      {profile.insights.length > 0 && (
+      {tasteProfile.insights.length > 0 && (
         <Card className="border-primary/50 bg-primary/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -468,7 +483,7 @@ function TasteProfileSection() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {profile.insights.map((insight, index) => (
+              {tasteProfile.insights.map((insight, index) => (
                 <p key={index} className="text-lg">
                   {insight}
                 </p>
@@ -482,19 +497,19 @@ function TasteProfileSection() {
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard
           label="Average Rating"
-          value={profile.averageRating.toFixed(1)}
+          value={tasteProfile.averageRating.toFixed(1)}
           icon="⭐"
         />
         <StatCard
           label="Total Ratings"
-          value={profile.totalRatings.toString()}
+          value={tasteProfile.totalRatings.toString()}
           icon="📊"
         />
         <StatCard
           label="Top Type"
           value={
-            profile.preferredTypes[0]
-              ? capitalize(profile.preferredTypes[0].type)
+            tasteProfile.preferredTypes[0]
+              ? capitalize(tasteProfile.preferredTypes[0].type)
               : "-"
           }
           icon="🏆"
@@ -509,9 +524,9 @@ function TasteProfileSection() {
         </CardHeader>
         <CardContent>
           <div className="flex items-end gap-1 h-32">
-            {profile.ratingDistribution.map((bucket) => {
+            {tasteProfile.ratingDistribution.map((bucket) => {
               const maxCount = Math.max(
-                ...profile.ratingDistribution.map((b) => b.count)
+                ...tasteProfile.ratingDistribution.map((b) => b.count)
               );
               return (
                 <div
@@ -544,7 +559,7 @@ function TasteProfileSection() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {profile.preferredTypes.map((type, index) => (
+              {tasteProfile.preferredTypes.map((type, index) => (
                 <div key={type.type} className="flex items-center gap-3">
                   <div
                     className={cn(
@@ -580,7 +595,7 @@ function TasteProfileSection() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {profile.preferredRegions.slice(0, 5).map((region, index) => (
+              {tasteProfile.preferredRegions.slice(0, 5).map((region, index) => (
                 <div key={region.region} className="flex items-center gap-3">
                   <div
                     className={cn(
@@ -611,7 +626,7 @@ function TasteProfileSection() {
       </div>
 
       {/* Favorite Producers */}
-      {profile.preferredProducers.length > 0 && (
+      {tasteProfile.preferredProducers.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Favorite Producers</CardTitle>
@@ -619,7 +634,7 @@ function TasteProfileSection() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {profile.preferredProducers.map((producer) => (
+              {tasteProfile.preferredProducers.map((producer) => (
                 <Badge key={producer.producer} variant="outline" className="px-3 py-1">
                   {producer.producer} ({producer.avgRating.toFixed(1)})
                 </Badge>
@@ -630,8 +645,8 @@ function TasteProfileSection() {
       )}
 
       {/* Characteristics */}
-      {(profile.characteristics.body.length > 0 ||
-        profile.characteristics.tannins.length > 0) && (
+      {(tasteProfile.characteristics.body.length > 0 ||
+        tasteProfile.characteristics.tannins.length > 0) && (
         <Card>
           <CardHeader>
             <CardTitle>Preferred Characteristics</CardTitle>
@@ -639,11 +654,11 @@ function TasteProfileSection() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2">
-              {profile.characteristics.body.length > 0 && (
+              {tasteProfile.characteristics.body.length > 0 && (
                 <div>
                   <h4 className="font-medium mb-2">Body</h4>
                   <div className="space-y-1">
-                    {profile.characteristics.body.slice(0, 3).map((item) => (
+                    {tasteProfile.characteristics.body.slice(0, 3).map((item) => (
                       <div
                         key={item.level}
                         className="flex items-center justify-between text-sm"
@@ -657,11 +672,11 @@ function TasteProfileSection() {
                   </div>
                 </div>
               )}
-              {profile.characteristics.tannins.length > 0 && (
+              {tasteProfile.characteristics.tannins.length > 0 && (
                 <div>
                   <h4 className="font-medium mb-2">Tannins</h4>
                   <div className="space-y-1">
-                    {profile.characteristics.tannins.slice(0, 3).map((item) => (
+                    {tasteProfile.characteristics.tannins.slice(0, 3).map((item) => (
                       <div
                         key={item.level}
                         className="flex items-center justify-between text-sm"
@@ -675,11 +690,11 @@ function TasteProfileSection() {
                   </div>
                 </div>
               )}
-              {profile.characteristics.acidity.length > 0 && (
+              {tasteProfile.characteristics.acidity.length > 0 && (
                 <div>
                   <h4 className="font-medium mb-2">Acidity</h4>
                   <div className="space-y-1">
-                    {profile.characteristics.acidity.slice(0, 3).map((item) => (
+                    {tasteProfile.characteristics.acidity.slice(0, 3).map((item) => (
                       <div
                         key={item.level}
                         className="flex items-center justify-between text-sm"
@@ -693,11 +708,11 @@ function TasteProfileSection() {
                   </div>
                 </div>
               )}
-              {profile.characteristics.sweetness.length > 0 && (
+              {tasteProfile.characteristics.sweetness.length > 0 && (
                 <div>
                   <h4 className="font-medium mb-2">Sweetness</h4>
                   <div className="space-y-1">
-                    {profile.characteristics.sweetness.slice(0, 3).map((item) => (
+                    {tasteProfile.characteristics.sweetness.slice(0, 3).map((item) => (
                       <div
                         key={item.level}
                         className="flex items-center justify-between text-sm"
@@ -716,6 +731,64 @@ function TasteProfileSection() {
         </Card>
       )}
     </div>
+  );
+}
+
+function BrianFitProfileCard({ brianProfile }: { brianProfile: BrianTasteProfile }) {
+  const favoriteDescriptors = brianProfile.favorite_descriptors || [];
+  const avoidDescriptors = brianProfile.avoid_descriptors || [];
+  const updatedLabel = new Date(brianProfile.updated_at).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  return (
+    <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-background to-background">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="font-playfair text-2xl">Brian-Fit profile</CardTitle>
+            <CardDescription>The seeded palate model that powers Pourfolio recommendations.</CardDescription>
+          </div>
+          <Badge className="rounded-full bg-primary/10 px-3 py-1 text-primary hover:bg-primary/10">
+            {brianProfile.confidence_score ?? 0}% confidence
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-base leading-7 text-foreground">
+          {brianProfile.profile_summary || "Profile summary is still forming from ratings and tasting signals."}
+        </p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Favorite descriptors</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {favoriteDescriptors.length > 0 ? (
+                favoriteDescriptors.map((descriptor) => (
+                  <Badge key={descriptor} variant="secondary">{descriptor}</Badge>
+                ))
+              ) : (
+                <span className="text-sm text-muted-foreground">Awaiting stronger positive signals.</span>
+              )}
+            </div>
+          </div>
+          <div className="rounded-2xl border bg-background/80 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Avoid signals</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {avoidDescriptors.length > 0 ? (
+                avoidDescriptors.map((descriptor) => (
+                  <Badge key={descriptor} variant="outline">{descriptor}</Badge>
+                ))
+              ) : (
+                <span className="text-sm text-muted-foreground">No strong avoid pattern yet.</span>
+              )}
+            </div>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">Last updated {updatedLabel}</p>
+      </CardContent>
+    </Card>
   );
 }
 

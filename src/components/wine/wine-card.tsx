@@ -9,6 +9,7 @@ import { MapPin } from "lucide-react";
 import { getLocationDisplayString } from "@/lib/hooks/use-cellar-locations";
 import { cn } from "@/lib/utils";
 import type { CellarInventory, WineReference, Rating, CellarLocation, LocationMode } from "@/types/database";
+import type { BrianFitSummary } from "@/lib/brian-fit";
 
 export type WineCardInventory = CellarInventory & {
   wine_reference: WineReference | null;
@@ -20,10 +21,11 @@ export type WineCardInventory = CellarInventory & {
 interface WineCardProps {
   wine: WineCardInventory;
   locationMode?: LocationMode;
+  brianFit?: BrianFitSummary | null;
   onQuantityChange?: (id: string, delta: number) => void;
 }
 
-export function WineCard({ wine, locationMode = "simple", onQuantityChange }: WineCardProps) {
+export function WineCard({ wine, locationMode = "simple", brianFit, onQuantityChange }: WineCardProps) {
   const name = wine.wine_reference?.name || wine.custom_name || "Unknown Wine";
   const producer = wine.wine_reference?.producer || wine.custom_producer || "";
   const vintage = wine.vintage || wine.custom_vintage;
@@ -147,18 +149,28 @@ export function WineCard({ wine, locationMode = "simple", onQuantityChange }: Wi
               </div>
             </div>
 
-            {/* Rating Badge */}
-            {displayRating && (
-              <div className="shrink-0">
-                <div className={cn(
-                  "flex h-14 min-w-[56px] flex-col items-center justify-center rounded-2xl px-3",
-                  getRatingColor(displayRating)
-                )}>
-                  <span className="text-xl font-bold leading-none">{displayRating}</span>
-                  <span className="mt-1 text-[10px] uppercase tracking-[0.14em] opacity-80 leading-none">
-                    {isUserRating ? "You" : "Critic"}
-                  </span>
-                </div>
+            {/* Rating Badges */}
+            {(displayRating || brianFit) && (
+              <div className="flex shrink-0 flex-col gap-2">
+                {displayRating && (
+                  <div className={cn(
+                    "flex h-14 min-w-[56px] flex-col items-center justify-center rounded-2xl px-3",
+                    getRatingColor(displayRating)
+                  )}>
+                    <span className="text-xl font-bold leading-none">{displayRating}</span>
+                    <span className="mt-1 text-[10px] uppercase tracking-[0.14em] opacity-80 leading-none">
+                      {isUserRating ? "You" : "Critic"}
+                    </span>
+                  </div>
+                )}
+                {brianFit && (
+                  <div className="flex h-14 min-w-[56px] flex-col items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 px-3 text-primary">
+                    <span className="text-xl font-bold leading-none">{brianFit.score}</span>
+                    <span className="mt-1 text-[10px] uppercase tracking-[0.14em] leading-none">
+                      Brian-Fit
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -172,6 +184,13 @@ export function WineCard({ wine, locationMode = "simple", onQuantityChange }: Wi
               <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Best next move</div>
               <div className="mt-1 font-medium text-foreground">{nextMove}</div>
             </div>
+            {brianFit && (
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Why Brian may like it</div>
+                <div className="mt-1 font-medium text-foreground">{brianFit.reason}</div>
+                <div className="mt-1 text-xs text-muted-foreground">{brianFit.confidence}% confidence</div>
+              </div>
+            )}
           </div>
 
           {/* Drinking Window Progress */}

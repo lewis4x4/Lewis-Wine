@@ -102,7 +102,11 @@ export function deriveBrianFit(params: {
     reasons.push("the spice profile looks lighter than your top-tier preference");
   }
   if (reasons.length === 0) {
-    reasons.push("it aligns reasonably well with your current taste profile");
+    reasons.push(
+      matched > 0
+        ? "it aligns reasonably well with your current taste profile"
+        : "this is a provisional read until you capture tasting signal for this bottle"
+    );
   }
 
   return {

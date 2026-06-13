@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import type { Cellar, CellarInventory, CellarInventoryInsert, WineReference, Rating } from "@/types/database";
+import type { Cellar, CellarInventory, CellarInventoryInsert, WineReference, Rating, RatingSignal } from "@/types/database";
 
 export function useCellar() {
   const supabase = createClient();
@@ -32,7 +32,15 @@ export function useCellarInventory() {
         .select(`
           *,
           wine_reference (*),
-          ratings (id, score, tasting_date, tasting_notes)
+          ratings (
+            id,
+            score,
+            tasting_date,
+            tasting_notes,
+            nose_notes,
+            palate_notes,
+            rating_signals (*)
+          )
         `)
         .eq("status", "in_cellar")
         .order("created_at", { ascending: false });
@@ -40,7 +48,7 @@ export function useCellarInventory() {
       if (error) throw error;
       return data as (CellarInventory & {
         wine_reference: WineReference | null;
-        ratings: Rating[];
+        ratings: (Rating & { rating_signals?: RatingSignal[] | null })[];
       })[];
     },
   });

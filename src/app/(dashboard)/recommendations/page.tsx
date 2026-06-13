@@ -318,6 +318,11 @@ function TonightPrimaryCard({
         <div className="flex flex-wrap items-center gap-2">
           <Badge className="rounded-full bg-primary px-3 py-1 text-primary-foreground">Best bottle now</Badge>
           <Badge variant="outline" className="rounded-full">Confidence {recommendation.confidence}%</Badge>
+          {recommendation.brian_fit_score && (
+            <Badge className="rounded-full bg-primary/10 px-3 py-1 text-primary hover:bg-primary/10">
+              Brian-Fit {recommendation.brian_fit_score}
+            </Badge>
+          )}
           <Badge variant="outline" className="rounded-full">{formatWineType(recommendation.wine_type)}</Badge>
         </div>
         <div className="space-y-2">
@@ -332,6 +337,9 @@ function TonightPrimaryCard({
         <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
           <SignalCard icon={<UtensilsCrossed className="h-4 w-4" />} label="Why this fits" value={recommendation.reason} featured />
           <div className="grid gap-4">
+            {recommendation.brian_fit_reason && (
+              <SignalCard icon={<Sparkles className="h-4 w-4" />} label="Brian-Fit explanation" value={recommendation.brian_fit_reason} />
+            )}
             <SignalCard icon={<Sparkles className="h-4 w-4" />} label="Best for" value={recommendation.best_for} />
             <SignalCard icon={<GlassWater className="h-4 w-4" />} label="Watch out for" value={recommendation.caution} />
           </div>
@@ -380,7 +388,9 @@ function TonightAlternateCard({
           </h3>
           <p className="text-sm text-muted-foreground">{recommendation.producer} • {recommendation.region}</p>
         </div>
-        <Badge variant="outline" className="rounded-full">{recommendation.confidence}% fit</Badge>
+        <Badge variant="outline" className="rounded-full">
+          {recommendation.brian_fit_score ?? recommendation.confidence}% Brian-Fit
+        </Badge>
       </div>
       <p className="mt-4 text-sm leading-6 text-muted-foreground">{recommendation.reason}</p>
       <div className="mt-4 rounded-2xl border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
