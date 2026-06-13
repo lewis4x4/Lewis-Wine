@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, Mic, MicOff, Save, Sparkles } from "lucide-react";
+import { ArrowUpRight, Check, Mic, MicOff, Pencil, RotateCcw, Save, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,14 +11,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import {
   createOfflineTastingDraft,
+  deleteOfflineTastingDraft,
   drainSavedOfflineTastingDrafts,
   getOfflineTastingDrafts,
   markOfflineTastingDraftFailed,
   markOfflineTastingDraftSyncing,
   saveOfflineTastingDraft,
+  updateOfflineTastingDraft,
   type OfflineTastingDraft,
 } from "@/lib/offline-tasting-drafts";
-import type { VoiceTastingDraft } from "@/lib/voice-tasting-capture";
+import type { VoiceTastingDraft, VoiceTastingMatch } from "@/lib/voice-tasting-capture";
 import { shouldQueueVoiceTastingFailure, voiceTastingFailureMessage } from "@/lib/voice-tasting-sync";
 
 type VoiceTastingResponse = {
@@ -56,14 +59,19 @@ type BrowserWithSpeech = Window & {
   webkitSpeechRecognition?: SpeechRecognitionConstructor;
 };
 
-const example =
+const transcriptPlaceholder =
   "Jarvis, log the 2018 Ridge Monte Bello. 96 points. Black cherry, cedar, graphite, firm tannins, bright acidity, long finish. Had it with steak at home. Definitely buy again; value feels strong.";
 
-async function runVoiceCapture(transcript: string, save: boolean, idempotencyKey?: string) {
+async function runVoiceCapture(
+  transcript: string,
+  save: boolean,
+  idempotencyKey?: string,
+  selectedInventoryId?: string | null,
+) {
   const response = await fetch("/api/voice-tasting-capture", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ transcript, save, idempotencyKey }),
+    body: JSON.stringify({ transcript, save, idempotencyKey, selectedInventoryId }),
   });
   const data = (await response.json()) as VoiceTastingResponse;
   if (!response.ok || !data.success) {
@@ -75,12 +83,17 @@ async function runVoiceCapture(transcript: string, save: boolean, idempotencyKey
 }
 
 export function VoiceTastingCapture() {
-  const [transcript, setTranscript] = useState(example);
+  const searchParams = useSearchParams();
+  const deepLinkedInventoryId = searchParams.get("inventoryId");
+  const [transcript, setTranscript] = useState("");
   const [draft, setDraft] = useState<VoiceTastingDraft | null>(null);
+  const [selectedInventoryId, setSelectedInventoryId] = useState<string | null>(deepLinkedInventoryId);
   const [isListening, setIsListening] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [offlineDrafts, setOfflineDrafts] = useState<OfflineTastingDraft[]>([]);
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const [editingTranscript, setEditingTranscript] = useState("");
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const speechSupported = useMemo(() => {
@@ -88,6 +101,10 @@ export function VoiceTastingCapture() {
     const speechWindow = window as BrowserWithSpeech;
     return Boolean(speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition);
   }, []);
+
+  useEffect(() => {
+    setSelectedInventoryId(deepLinkedInventoryId);
+  }, [deepLinkedInventoryId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -154,8 +171,9 @@ export function VoiceTastingCapture() {
     if (!clean) return;
     setIsBusy(true);
     try {
-      const data = await runVoiceCapture(clean, false);
+      const data = await runVoiceCapture(clean, false, undefined, selectedInventoryId);
       setDraft(data.draft || null);
+      if (data.draft?.matchedWine) setSelectedInventoryId(data.draft.matchedWine.id);
       toast.success("JARVIS structured the tasting draft.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Capture preview failed.");
@@ -169,18 +187,22 @@ export function VoiceTastingCapture() {
     if (!clean) return;
 
     if (typeof window !== "undefined" && !window.navigator.onLine) {
-      const offlineDraft = saveOfflineTastingDraft(window.localStorage, createOfflineTastingDraft({ transcript: clean }));
+      const offlineDraft = saveOfflineTastingDraft(
+        window.localStorage,
+        createOfflineTastingDraft({ transcript: clean, selectedInventoryId }),
+      );
       refreshOfflineDrafts();
       toast.info(`Queued tasting offline: ${offlineDraft.id}`);
       return;
     }
 
-    const saveDraft = createOfflineTastingDraft({ transcript: clean });
+    const saveDraft = createOfflineTastingDraft({ transcript: clean, selectedInventoryId });
 
     setIsBusy(true);
     try {
-      const data = await runVoiceCapture(clean, true, saveDraft.idempotencyKey);
+      const data = await runVoiceCapture(clean, true, saveDraft.idempotencyKey, selectedInventoryId);
       setDraft(data.draft || null);
+      if (data.draft?.matchedWine) setSelectedInventoryId(data.draft.matchedWine.id);
       toast.success(data.message || "Tasting saved.");
     } catch (error) {
       const maybeDraft = error as Error & { draft?: VoiceTastingDraft; status?: number };
@@ -196,12 +218,37 @@ export function VoiceTastingCapture() {
         refreshOfflineDrafts();
       }
 
-      const fallback = shouldQueue
-        ? voiceTastingFailureMessage(maybeDraft.status)
-        : voiceTastingFailureMessage(maybeDraft.status);
+      const fallback = voiceTastingFailureMessage(maybeDraft.status);
       toast.error(error instanceof Error ? (shouldQueue ? `${error.message} ${fallback}` : fallback) : fallback);
     } finally {
       setIsBusy(false);
+    }
+  };
+
+  const syncOneOfflineDraft = async (offlineDraft: OfflineTastingDraft) => {
+    if (typeof window === "undefined") return false;
+    markOfflineTastingDraftSyncing(window.localStorage, offlineDraft.id);
+    refreshOfflineDrafts();
+    try {
+      await runVoiceCapture(
+        offlineDraft.transcript,
+        true,
+        offlineDraft.idempotencyKey || offlineDraft.id,
+        offlineDraft.selectedInventoryId,
+      );
+      drainSavedOfflineTastingDrafts(window.localStorage, [offlineDraft.id]);
+      refreshOfflineDrafts();
+      toast.success("Offline tasting synced.");
+      return true;
+    } catch (error) {
+      markOfflineTastingDraftFailed(
+        window.localStorage,
+        offlineDraft.id,
+        error instanceof Error ? error.message : "Sync failed.",
+      );
+      refreshOfflineDrafts();
+      toast.error("Offline draft still needs attention.");
+      return false;
     }
   };
 
@@ -216,33 +263,69 @@ export function VoiceTastingCapture() {
     if (!queued.length) return;
 
     setIsBusy(true);
-    const savedIds: string[] = [];
+    let savedCount = 0;
     try {
       for (const offlineDraft of queued) {
-        markOfflineTastingDraftSyncing(window.localStorage, offlineDraft.id);
-        refreshOfflineDrafts();
-        try {
-          await runVoiceCapture(
-            offlineDraft.transcript,
-            true,
-            offlineDraft.idempotencyKey || offlineDraft.id,
-          );
-          savedIds.push(offlineDraft.id);
-        } catch (error) {
-          markOfflineTastingDraftFailed(
-            window.localStorage,
-            offlineDraft.id,
-            error instanceof Error ? error.message : "Sync failed.",
-          );
-        }
+        const saved = await syncOneOfflineDraft(offlineDraft);
+        if (saved) savedCount += 1;
       }
-      drainSavedOfflineTastingDrafts(window.localStorage, savedIds);
-      refreshOfflineDrafts();
-      if (savedIds.length > 0) toast.success(`Synced ${savedIds.length} offline tasting ${savedIds.length === 1 ? "draft" : "drafts"}.`);
-      if (savedIds.length < queued.length) toast.error("Some offline drafts still need attention.");
+      if (savedCount > 0) toast.success(`Synced ${savedCount} offline tasting ${savedCount === 1 ? "draft" : "drafts"}.`);
+      if (savedCount < queued.length) toast.error("Some offline drafts still need attention.");
     } finally {
       setIsBusy(false);
     }
+  };
+
+  const retryOfflineDraft = async (offlineDraft: OfflineTastingDraft) => {
+    if (typeof window === "undefined") return;
+    if (!window.navigator.onLine) {
+      toast.error("Still offline. Retry when the cellar is back online.");
+      return;
+    }
+    setIsBusy(true);
+    try {
+      await syncOneOfflineDraft(offlineDraft);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const beginEditOfflineDraft = (offlineDraft: OfflineTastingDraft) => {
+    setEditingDraftId(offlineDraft.id);
+    setEditingTranscript(offlineDraft.transcript);
+  };
+
+  const saveEditedOfflineDraft = (offlineDraft: OfflineTastingDraft) => {
+    if (typeof window === "undefined") return;
+    updateOfflineTastingDraft(window.localStorage, offlineDraft.id, {
+      transcript: editingTranscript,
+      selectedInventoryId: offlineDraft.selectedInventoryId,
+    });
+    setEditingDraftId(null);
+    setEditingTranscript("");
+    refreshOfflineDrafts();
+    toast.success("Offline draft updated.");
+  };
+
+  const removeOfflineDraft = (offlineDraft: OfflineTastingDraft) => {
+    if (typeof window === "undefined") return;
+    deleteOfflineTastingDraft(window.localStorage, offlineDraft.id);
+    refreshOfflineDrafts();
+    toast.success("Offline draft deleted.");
+  };
+
+  const chooseBottle = (match: VoiceTastingMatch) => {
+    setSelectedInventoryId(match.id);
+    if (draft) {
+      setDraft({
+        ...draft,
+        matchedWine: match,
+        alternatives: draft.alternatives.filter((candidate) => candidate.id !== match.id),
+        status: "ready_to_save",
+        warnings: [],
+      });
+    }
+    toast.success(`Selected ${match.displayName} for this tasting.`);
   };
 
   return (
@@ -261,6 +344,9 @@ export function VoiceTastingCapture() {
             <Badge variant={isOnline ? "secondary" : "outline"} className="rounded-full">
               {isOnline ? "Online" : "Offline queue active"}
             </Badge>
+            {selectedInventoryId ? (
+              <Badge variant="outline" className="rounded-full">Bottle selected from cellar</Badge>
+            ) : null}
             <Button
               type="button"
               variant={isListening ? "destructive" : "outline"}
@@ -280,8 +366,11 @@ export function VoiceTastingCapture() {
             value={transcript}
             onChange={(event) => setTranscript(event.target.value)}
             className="min-h-56 rounded-3xl border-border/60 bg-background p-4 text-base leading-7"
-            placeholder="Jarvis, log the 2018 Ridge Monte Bello..."
+            placeholder={transcriptPlaceholder}
           />
+          <p className="text-xs leading-5 text-muted-foreground">
+            Start blank in the field. Paste a note, dictate one, or launch from a bottle page to lock the tasting to that bottle.
+          </p>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Button className="h-11 rounded-full" onClick={preview} disabled={isBusy || !transcript.trim()}>
@@ -294,7 +383,19 @@ export function VoiceTastingCapture() {
             </Button>
           </div>
 
-          <OfflineQueue drafts={offlineDrafts} isBusy={isBusy} onSync={syncOfflineDrafts} />
+          <OfflineQueue
+            drafts={offlineDrafts}
+            isBusy={isBusy}
+            editingDraftId={editingDraftId}
+            editingTranscript={editingTranscript}
+            onEditTranscript={setEditingTranscript}
+            onBeginEdit={beginEditOfflineDraft}
+            onCancelEdit={() => setEditingDraftId(null)}
+            onSaveEdit={saveEditedOfflineDraft}
+            onDelete={removeOfflineDraft}
+            onRetry={retryOfflineDraft}
+            onSync={syncOfflineDrafts}
+          />
         </CardContent>
       </Card>
 
@@ -302,11 +403,11 @@ export function VoiceTastingCapture() {
         <CardHeader>
           <CardTitle className="font-playfair text-3xl font-semibold tracking-tight">Structured draft</CardTitle>
           <CardDescription>
-            Save only when the bottle match is high-confidence. Otherwise use the cellar link to disambiguate first.
+            Save only when the bottle match is high-confidence. If JARVIS is unsure, choose one of the cellar alternatives first.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          {draft ? <DraftPreview draft={draft} /> : (
+          {draft ? <DraftPreview draft={draft} onChooseBottle={chooseBottle} /> : (
             <div className="rounded-3xl border border-dashed border-border/70 bg-muted/20 p-8 text-center text-muted-foreground">
               No draft yet. Preview the transcript to see the bottle match and extracted rating signal.
             </div>
@@ -320,10 +421,26 @@ export function VoiceTastingCapture() {
 function OfflineQueue({
   drafts,
   isBusy,
+  editingDraftId,
+  editingTranscript,
+  onEditTranscript,
+  onBeginEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onDelete,
+  onRetry,
   onSync,
 }: {
   drafts: OfflineTastingDraft[];
   isBusy: boolean;
+  editingDraftId: string | null;
+  editingTranscript: string;
+  onEditTranscript: (value: string) => void;
+  onBeginEdit: (draft: OfflineTastingDraft) => void;
+  onCancelEdit: () => void;
+  onSaveEdit: (draft: OfflineTastingDraft) => void;
+  onDelete: (draft: OfflineTastingDraft) => void;
+  onRetry: (draft: OfflineTastingDraft) => void;
   onSync: () => void;
 }) {
   if (!drafts.length) {
@@ -342,25 +459,63 @@ function OfflineQueue({
           <div className="text-xs text-muted-foreground">{drafts.length} waiting to sync into ratings.</div>
         </div>
         <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={onSync} disabled={isBusy}>
-          Sync now
+          Sync all
         </Button>
       </div>
       <div className="space-y-2">
-        {drafts.slice(0, 3).map((offlineDraft) => (
-          <div key={offlineDraft.id} className="rounded-2xl border border-border/70 bg-background/70 p-3 text-xs leading-5">
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-foreground">{offlineDraft.status}</span>
-              <span className="text-muted-foreground">attempts {offlineDraft.attempts}</span>
+        {drafts.slice(0, 5).map((offlineDraft) => {
+          const isEditing = editingDraftId === offlineDraft.id;
+          return (
+            <div key={offlineDraft.id} className="rounded-2xl border border-border/70 bg-background/70 p-3 text-xs leading-5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium text-foreground">{offlineDraft.status}</span>
+                <span className="text-muted-foreground">attempts {offlineDraft.attempts}</span>
+              </div>
+              {isEditing ? (
+                <div className="mt-2 space-y-2">
+                  <Textarea
+                    value={editingTranscript}
+                    onChange={(event) => onEditTranscript(event.target.value)}
+                    className="min-h-24 rounded-2xl text-sm"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" className="rounded-full" onClick={() => onSaveEdit(offlineDraft)} disabled={!editingTranscript.trim()}>
+                      <Check className="h-3.5 w-3.5" /> Save edit
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" className="rounded-full" onClick={onCancelEdit}>
+                      <X className="h-3.5 w-3.5" /> Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="mt-1 line-clamp-2 text-muted-foreground">{offlineDraft.transcript}</p>
+                  {offlineDraft.selectedInventoryId ? (
+                    <div className="mt-1 text-[11px] text-muted-foreground">Bottle locked from cellar link.</div>
+                  ) : null}
+                  {offlineDraft.lastError ? <p className="mt-1 text-[11px] text-destructive">{offlineDraft.lastError}</p> : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => onRetry(offlineDraft)} disabled={isBusy}>
+                      <RotateCcw className="h-3.5 w-3.5" /> Retry
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" className="rounded-full" onClick={() => onBeginEdit(offlineDraft)} disabled={isBusy}>
+                      <Pencil className="h-3.5 w-3.5" /> Edit
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => onDelete(offlineDraft)} disabled={isBusy}>
+                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
-            <p className="mt-1 line-clamp-2 text-muted-foreground">{offlineDraft.transcript}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function DraftPreview({ draft }: { draft: VoiceTastingDraft }) {
+function DraftPreview({ draft, onChooseBottle }: { draft: VoiceTastingDraft; onChooseBottle: (match: VoiceTastingMatch) => void }) {
   const statusLabel = draft.status === "ready_to_save" ? "Ready to save" : "Needs bottle match";
 
   return (
@@ -376,29 +531,31 @@ function DraftPreview({ draft }: { draft: VoiceTastingDraft }) {
       </div>
 
       {draft.matchedWine ? (
-        <Link
-          href={draft.matchedWine.href}
-          className="group block rounded-3xl border border-border/70 bg-background p-5 transition-colors hover:border-primary/30 hover:bg-primary/5"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="font-medium text-foreground group-hover:text-primary">{draft.matchedWine.displayName}</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                {[draft.matchedWine.producer, draft.matchedWine.region].filter(Boolean).join(" • ")}
-              </div>
-            </div>
-            <ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Badge variant="outline" className="rounded-full">{draft.matchedWine.confidence} confidence</Badge>
-            <Badge variant="secondary" className="rounded-full">match {draft.matchedWine.matchScore}</Badge>
-          </div>
-        </Link>
+        <WineMatchCard match={draft.matchedWine} selected />
       ) : (
         <div className="rounded-3xl border border-amber-200/70 bg-amber-50/50 p-5 text-sm leading-6 text-amber-900">
-          JARVIS could not lock this to a bottle. Add the producer, vintage, or wine name before saving.
+          JARVIS could not lock this to a bottle. Add the producer, vintage, or wine name — or choose a cellar alternative below.
         </div>
       )}
+
+      {draft.alternatives.length ? (
+        <div className="space-y-2">
+          <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Cellar alternatives</div>
+          <div className="space-y-2">
+            {draft.alternatives.map((match) => (
+              <div key={match.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/70 p-3">
+                <div className="min-w-0">
+                  <div className="font-medium text-foreground">{match.displayName}</div>
+                  <div className="text-xs text-muted-foreground">{[match.producer, match.region].filter(Boolean).join(" • ")}</div>
+                </div>
+                <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => onChooseBottle(match)}>
+                  Use this bottle
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <SignalPill label="Food" value={draft.rating.food_pairing} />
@@ -418,6 +575,30 @@ function DraftPreview({ draft }: { draft: VoiceTastingDraft }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function WineMatchCard({ match, selected }: { match: VoiceTastingMatch; selected?: boolean }) {
+  return (
+    <Link
+      href={match.href}
+      className="group block rounded-3xl border border-border/70 bg-background p-5 transition-colors hover:border-primary/30 hover:bg-primary/5"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-medium text-foreground group-hover:text-primary">{match.displayName}</div>
+          <div className="mt-1 text-sm text-muted-foreground">
+            {[match.producer, match.region].filter(Boolean).join(" • ")}
+          </div>
+        </div>
+        <ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Badge variant="outline" className="rounded-full">{match.confidence} confidence</Badge>
+        <Badge variant="secondary" className="rounded-full">match {match.matchScore}</Badge>
+        {selected ? <Badge variant="default" className="rounded-full">selected bottle</Badge> : null}
+      </div>
+    </Link>
   );
 }
 

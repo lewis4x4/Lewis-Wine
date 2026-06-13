@@ -4,6 +4,7 @@ export type OfflineTastingDraft = {
   id: string;
   idempotencyKey: string;
   transcript: string;
+  selectedInventoryId?: string | null;
   createdAt: string;
   updatedAt: string;
   status: OfflineDraftStatus;
@@ -36,6 +37,7 @@ function safeParseDrafts(raw: string | null): OfflineTastingDraft[] {
         return [
           {
             idempotencyKey: candidate.idempotencyKey || candidate.id,
+            selectedInventoryId: candidate.selectedInventoryId || null,
             ...candidate,
           } as OfflineTastingDraft,
         ];
@@ -66,7 +68,11 @@ function makeDraftId(transcript: string, createdAt: string) {
   return `offline-tasting-${stamp}-${slug}`;
 }
 
-export function createOfflineTastingDraft(input: { transcript: string; createdAt?: string }): OfflineTastingDraft {
+export function createOfflineTastingDraft(input: {
+  transcript: string;
+  selectedInventoryId?: string | null;
+  createdAt?: string;
+}): OfflineTastingDraft {
   const createdAt = input.createdAt ?? new Date().toISOString();
   const transcript = input.transcript.trim();
   const id = makeDraftId(transcript, createdAt);
@@ -75,6 +81,7 @@ export function createOfflineTastingDraft(input: { transcript: string; createdAt
     id,
     idempotencyKey: id,
     transcript,
+    selectedInventoryId: input.selectedInventoryId || null,
     createdAt,
     updatedAt: createdAt,
     status: "queued",
@@ -94,6 +101,7 @@ export function saveOfflineTastingDraft(storage: OfflineDraftStorage, draft: Off
     ...draft,
     idempotencyKey: draft.idempotencyKey || draft.id,
     transcript: draft.transcript.trim(),
+    selectedInventoryId: draft.selectedInventoryId || null,
     updatedAt: draft.updatedAt || new Date().toISOString(),
   };
 
@@ -105,6 +113,37 @@ export function saveOfflineTastingDraft(storage: OfflineDraftStorage, draft: Off
 
   writeDrafts(storage, drafts.slice(0, 20));
   return nextDraft;
+}
+
+export function updateOfflineTastingDraft(
+  storage: OfflineDraftStorage,
+  id: string,
+  updates: { transcript?: string; selectedInventoryId?: string | null },
+): OfflineTastingDraft | null {
+  const drafts = getOfflineTastingDrafts(storage);
+  const existingIndex = drafts.findIndex((draft) => draft.id === id);
+  if (existingIndex < 0) return null;
+
+  const existingDraft = drafts[existingIndex];
+  const updatedDraft: OfflineTastingDraft = {
+    ...existingDraft,
+    transcript: updates.transcript?.trim() || existingDraft.transcript,
+    selectedInventoryId: updates.selectedInventoryId === undefined ? existingDraft.selectedInventoryId || null : updates.selectedInventoryId,
+    status: "queued",
+    updatedAt: new Date().toISOString(),
+    lastError: null,
+  };
+
+  const nextDrafts = [...drafts];
+  nextDrafts[existingIndex] = updatedDraft;
+  writeDrafts(storage, nextDrafts);
+  return updatedDraft;
+}
+
+export function deleteOfflineTastingDraft(storage: OfflineDraftStorage, id: string) {
+  const remaining = getOfflineTastingDrafts(storage).filter((draft) => draft.id !== id);
+  writeDrafts(storage, remaining);
+  return remaining;
 }
 
 export function markOfflineTastingDraftFailed(storage: OfflineDraftStorage, id: string, lastError: string) {

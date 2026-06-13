@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ArrowRight, AlertTriangle, Clock3, Sparkles, Wine as WineIcon, Camera, BadgeDollarSign, BookHeart, Wrench, Link as LinkIcon } from "lucide-react";
+import { ArrowRight, AlertTriangle, Clock3, Sparkles, Wine as WineIcon, Camera, BadgeDollarSign, BookHeart, Wrench, Link as LinkIcon, Mic } from "lucide-react";
 import type { CellarInventory, WineReference, LocationMode, CellarLocation, AromaNotes, MarketValueSource } from "@/types/database";
 
 type WineWithDetails = CellarInventory & {
@@ -588,6 +588,13 @@ export default function WineDetailPage() {
             </div>
           </SheetContent>
         </Sheet>
+
+        <Link href={`/jarvis/voice?inventoryId=${encodeURIComponent(id)}`}>
+          <Button variant="outline">
+            <Mic className="h-4 w-4" />
+            Capture voice tasting
+          </Button>
+        </Link>
 
         <Dialog open={showLocationDialog} onOpenChange={setShowLocationDialog}>
           <DialogTrigger asChild>

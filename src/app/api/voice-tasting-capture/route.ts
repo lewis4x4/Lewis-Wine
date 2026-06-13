@@ -7,6 +7,7 @@ type VoiceTastingRequest = {
   transcript?: string;
   save?: boolean;
   idempotencyKey?: string;
+  selectedInventoryId?: string | null;
 };
 
 type InventoryForVoice = CellarInventory & {
@@ -71,7 +72,8 @@ export async function POST(request: Request) {
     if (inventoryError) throw inventoryError;
 
     const docs = ((inventory || []) as InventoryForVoice[]).map(toDoc);
-    const draft = buildVoiceTastingDraft(transcript, docs);
+    const selectedInventoryId = typeof body.selectedInventoryId === "string" ? body.selectedInventoryId.trim() : null;
+    const draft = buildVoiceTastingDraft(transcript, docs, { selectedInventoryId });
 
     if (!body.save) {
       return NextResponse.json({ success: true, mode: "preview", draft });

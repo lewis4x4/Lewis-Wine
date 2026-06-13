@@ -234,12 +234,25 @@ export function summarizeVoiceTastingDraft(draft: VoiceTastingDraft) {
 export function buildVoiceTastingDraft(
   transcript: string,
   docs: VoiceTastingWineDoc[],
-  options: { asOf?: Date } = {},
+  options: { asOf?: Date; selectedInventoryId?: string | null } = {},
 ): VoiceTastingDraft {
   const normalized = transcript.trim();
   const asOf = options.asOf ?? new Date();
-  const matches = rankVoiceTastingMatches(normalized, docs);
-  const matchedWine = matches[0]?.confidence === "high" ? matches[0] : null;
+  const rankedMatches = rankVoiceTastingMatches(normalized, docs);
+  const selectedDoc = options.selectedInventoryId
+    ? docs.find((doc) => doc.id === options.selectedInventoryId && doc.quantity > 0)
+    : null;
+  const selectedMatch: VoiceTastingMatch | null = selectedDoc
+    ? {
+        ...selectedDoc,
+        matchScore: Math.max(rankedMatches.find((match) => match.id === selectedDoc.id)?.matchScore ?? 0, 100),
+        confidence: "high",
+      }
+    : null;
+  const matches = selectedMatch
+    ? [selectedMatch, ...rankedMatches.filter((match) => match.id !== selectedMatch.id)]
+    : rankedMatches;
+  const matchedWine = selectedMatch || (matches[0]?.confidence === "high" ? matches[0] : null);
   const descriptors = extractDescriptors(normalized);
   const occasion = occasionTags(normalized);
   const decisions = decisionTags(normalized);
@@ -273,6 +286,7 @@ export function buildVoiceTastingDraft(
       descriptors,
       matched_wine_id: matchedWine?.id ?? null,
       match_confidence: matchedWine?.confidence ?? "low",
+      selected_inventory_id: options.selectedInventoryId ?? null,
     },
   };
 

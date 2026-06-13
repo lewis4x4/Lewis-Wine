@@ -64,4 +64,15 @@ assert.equal(ambiguousDraft.rating.score, 90);
 assert.equal(ambiguousDraft.matchedWine, null);
 assert.ok(summarizeVoiceTastingDraft(ambiguousDraft).includes("needs a bottle match"));
 
+const selectedDraft = buildVoiceTastingDraft("Jarvis, log this bottle. 93 points. Red fruit and cedar.", docs, {
+  selectedInventoryId: "inv-burgundy",
+  asOf: new Date("2026-06-12T12:00:00Z"),
+});
+assert.equal(selectedDraft.status, "ready_to_save");
+assert.equal(selectedDraft.matchedWine?.id, "inv-burgundy");
+assert.equal(selectedDraft.matchedWine?.confidence, "high");
+assert.equal(selectedDraft.rating.inventory_id, "inv-burgundy");
+assert.equal(selectedDraft.ratingSignal.extracted_from_text?.selected_inventory_id, "inv-burgundy");
+assert.ok(!selectedDraft.alternatives.some((match) => match.id === "inv-burgundy"));
+
 console.log("voice-tasting-capture tests passed");
