@@ -183,6 +183,60 @@ function testEmptyRetrievalReturnsNoUncitedClaims() {
   assert.match(answer.answer, /do not have enough cellar context/i);
 }
 
+function testModeProfileExplainsStrategyAndPriorities() {
+  const retrieval = retrieveBottleBrainContext("For guests at dinner, compare the Cabernet vs Pinot and give me the safe pick", docs, {
+    asOf: new Date("2026-06-12T12:00:00Z"),
+    limit: 3,
+  });
+  const answer = buildBottleBrainAnswer("For guests at dinner, compare the Cabernet vs Pinot and give me the safe pick", retrieval);
+
+  assert.equal(retrieval.modeProfile.id, "guest");
+  assert.match(retrieval.modeProfile.promise, /serve/i);
+  assert.ok(retrieval.modeProfile.priorities.includes("crowd_confidence"));
+  assert.ok(retrieval.modeProfile.guardrails.some((guardrail) => guardrail.includes("thin")));
+  assert.equal(answer.modeProfile.id, retrieval.modeProfile.id);
+}
+
+function testDecisionModeAssignsBottleRolesAndTradeoffs() {
+  const retrieval = retrieveBottleBrainContext("For guests at dinner, compare the Cabernet vs Pinot and give me the safe pick", docs, {
+    asOf: new Date("2026-06-12T12:00:00Z"),
+    limit: 3,
+  });
+  const answer = buildBottleBrainAnswer("For guests at dinner, compare the Cabernet vs Pinot and give me the safe pick", retrieval);
+
+  assert.equal(retrieval.evidencePackets[0].modeRole, "safe_pick");
+  assert.ok(retrieval.evidencePackets.some((packet) => packet.modeRole === "interesting_pick"));
+  assert.ok(answer.tradeoffs.length >= 1);
+  assert.ok(answer.tradeoffs[0].winnerCitationId);
+  assert.ok(answer.tradeoffs[0].reason.includes("because"));
+}
+
+function testOccasionModeExtractsScenarioSignals() {
+  const retrieval = retrieveBottleBrainContext("Steak dinner celebration tonight — give me a safe pick and an interesting alternate", docs, {
+    asOf: new Date("2026-06-12T12:00:00Z"),
+    limit: 3,
+  });
+  const answer = buildBottleBrainAnswer("Steak dinner celebration tonight — give me a safe pick and an interesting alternate", retrieval);
+
+  assert.equal(retrieval.decisionMode, "occasion");
+  assert.ok(retrieval.occasionSignals.includes("steak"));
+  assert.ok(retrieval.occasionSignals.includes("celebration"));
+  assert.match(answer.answer, /occasion/i);
+  assert.ok(answer.modeProfile.priorities.includes("occasion_fit"));
+}
+
+function testRiskModeHasTriageRolesAndDoesNotRecommendOpeningReadyBottleFirst() {
+  const retrieval = retrieveBottleBrainContext("What is drifting or past peak and needs triage?", docs, {
+    asOf: new Date("2026-06-12T12:00:00Z"),
+    limit: 3,
+  });
+
+  assert.equal(retrieval.decisionMode, "cellar_risk");
+  assert.equal(retrieval.evidencePackets[0].id, "old-bordeaux");
+  assert.equal(retrieval.evidencePackets[0].modeRole, "triage_now");
+  assert.equal(retrieval.evidencePackets[0].recommendedAction, "update_window");
+}
+
 testRetrievalFindsDrinkNowAndBrianFit();
 testRetrievalFindsLearningGaps();
 testAnswerUsesCitationsAndUncertainty();
@@ -191,5 +245,9 @@ testAnswerIsCitationConstrainedAndSeparatesEvidenceTypes();
 testAuditModeShowsSystemKnowledgeAndGapsWithoutInventingBottles();
 testGuestAndComparisonModesProduceTradeoffLanguage();
 testEmptyRetrievalReturnsNoUncitedClaims();
+testModeProfileExplainsStrategyAndPriorities();
+testDecisionModeAssignsBottleRolesAndTradeoffs();
+testOccasionModeExtractsScenarioSignals();
+testRiskModeHasTriageRolesAndDoesNotRecommendOpeningReadyBottleFirst();
 
 console.log("bottle-brain tests passed");

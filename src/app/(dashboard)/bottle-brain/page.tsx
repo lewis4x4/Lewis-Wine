@@ -38,7 +38,8 @@ type BottleBrainResponse = Partial<BottleBrainAnswer> & {
 
 const starterQuestions = [
   "What should I open tonight with high Brian-Fit?",
-  "For guests at dinner, compare the Cabernet vs Pinot and give me the safe pick",
+  "For guests, compare the Cabernet vs Pinot and give me the safe pick",
+  "Steak dinner celebration tonight — give me a safe pick and an interesting alternate",
   "Audit what Bottle Brain knows and where it is guessing",
   "Which bottles need tasting memory next?",
   "What is at risk or past peak?",
@@ -181,6 +182,8 @@ export default function BottleBrainPage() {
                   </div>
                 )}
 
+                <ModeStrategy answer={answer} />
+
                 <EvidenceSummary answer={answer} />
 
                 <div className="space-y-3">
@@ -209,6 +212,54 @@ export default function BottleBrainPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function ModeStrategy({ answer }: { answer: BottleBrainResponse }) {
+  if (!answer.modeProfile) return null;
+
+  return (
+    <div className="rounded-3xl border border-border/60 bg-background p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Decision strategy</div>
+          <div className="mt-1 text-lg font-semibold text-foreground">{answer.modeProfile.label}</div>
+          <p className="mt-1 text-sm text-muted-foreground">{answer.modeProfile.promise}</p>
+        </div>
+        <Badge variant="secondary" className="rounded-full">{answer.modeProfile.primaryQuestion}</Badge>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Priorities</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {answer.modeProfile.priorities.map((priority) => (
+              <Badge key={priority} variant="outline" className="rounded-full capitalize">{priority.replaceAll("_", " ")}</Badge>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Guardrails</div>
+          <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+            {answer.modeProfile.guardrails.slice(0, 2).map((guardrail) => <li key={guardrail}>{guardrail}</li>)}
+          </ul>
+        </div>
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Tradeoffs</div>
+          {answer.tradeoffs?.length ? (
+            <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+              {answer.tradeoffs.map((tradeoff) => <li key={`${tradeoff.winnerCitationId}-${tradeoff.label}`}>{tradeoff.label}: {tradeoff.reason}</li>)}
+            </ul>
+          ) : (
+            <p className="mt-2 text-sm text-muted-foreground">No tradeoff needed yet.</p>
+          )}
+        </div>
+      </div>
+      {answer.occasionSignals?.length ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {answer.occasionSignals.map((signal) => <Badge key={signal} className="rounded-full bg-primary/10 text-primary hover:bg-primary/10">Occasion: {signal}</Badge>)}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -291,6 +342,9 @@ function EvidencePacketCard({ packet }: { packet: BottleBrainEvidencePacket }) {
         </div>
         <Badge variant="outline" className="rounded-full capitalize">
           {packet.evidenceStrength} evidence
+        </Badge>
+        <Badge variant="secondary" className="rounded-full capitalize">
+          {packet.modeRole.replace("_", " ")}
         </Badge>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">

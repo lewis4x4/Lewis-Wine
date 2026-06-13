@@ -72,13 +72,26 @@ export async function POST(request: Request) {
 
     const cellar = cellarRow as { id: string } | null;
     if (!cellar) {
+      const retrieval = retrieveBottleBrainContext(question, [], { limit: 5 });
+      const answer = buildBottleBrainAnswer(question, retrieval);
       return NextResponse.json({
         success: true,
         question,
+        intent: retrieval.intent,
+        decisionMode: retrieval.decisionMode,
+        modeProfile: answer.modeProfile,
+        occasionSignals: answer.occasionSignals,
+        tradeoffs: answer.tradeoffs,
         answer: "I cannot answer from the cellar yet because no cellar exists for this account.",
         confidenceNote: "No cellar record found.",
         citations: [],
-        intent: "general",
+        evidencePackets: [],
+        groundedClaims: [],
+        knownFromCellar: [],
+        inferredFromBrianFit: [],
+        needsMoreSignal: [],
+        nextSignals: [],
+        searchedRecords: 0,
       });
     }
 
@@ -116,6 +129,9 @@ export async function POST(request: Request) {
       question,
       intent: retrieval.intent,
       decisionMode: retrieval.decisionMode,
+      modeProfile: answer.modeProfile,
+      occasionSignals: answer.occasionSignals,
+      tradeoffs: answer.tradeoffs,
       answer: answer.answer,
       confidenceNote: answer.confidenceNote,
       citations: answer.citations,

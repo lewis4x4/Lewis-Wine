@@ -12,6 +12,43 @@ export type BottleBrainDecisionMode =
   | "audit"
   | "general";
 
+export type BottleBrainModePriority =
+  | "drinkability"
+  | "brian_fit"
+  | "evidence_strength"
+  | "crowd_confidence"
+  | "risk_urgency"
+  | "learning_value"
+  | "replacement_value"
+  | "portfolio_value"
+  | "occasion_fit";
+
+export type BottleBrainModeProfile = {
+  id: BottleBrainDecisionMode;
+  label: string;
+  promise: string;
+  primaryQuestion: string;
+  priorities: BottleBrainModePriority[];
+  guardrails: string[];
+};
+
+export type BottleBrainModeRole =
+  | "safe_pick"
+  | "interesting_pick"
+  | "triage_now"
+  | "learning_pick"
+  | "replacement_pick"
+  | "value_pick"
+  | "hold_pick"
+  | "supporting_citation";
+
+export type BottleBrainTradeoff = {
+  winnerCitationId: string;
+  loserCitationId?: string;
+  label: string;
+  reason: string;
+};
+
 export type BottleBrainWineDoc = {
   id: string;
   displayName: string;
@@ -57,6 +94,7 @@ export type BottleBrainEvidencePacket = {
     label: string;
   };
   recommendedAction: BottleBrainRecommendedAction;
+  modeRole: BottleBrainModeRole;
   evidenceStrength: BottleBrainEvidenceStrength;
   knownFromCellar: BottleBrainEvidenceClaim[];
   inferredFromBrianFit: BottleBrainEvidenceClaim[];
@@ -70,12 +108,15 @@ export type BottleBrainCitation = BottleBrainWineDoc & {
   readinessState: BottleBrainReadinessState;
   evidenceStrength: BottleBrainEvidenceStrength;
   recommendedAction: BottleBrainRecommendedAction;
+  modeRole: BottleBrainModeRole;
 };
 
 export type BottleBrainRetrieval = {
   question: string;
   intent: BottleBrainIntent;
   decisionMode: BottleBrainDecisionMode;
+  modeProfile: BottleBrainModeProfile;
+  occasionSignals: string[];
   citations: BottleBrainCitation[];
   evidencePackets: BottleBrainEvidencePacket[];
   searchedRecords: number;
@@ -86,6 +127,9 @@ export type BottleBrainAnswer = {
   confidenceNote: string;
   citations: BottleBrainCitation[];
   decisionMode: BottleBrainDecisionMode;
+  modeProfile: BottleBrainModeProfile;
+  occasionSignals: string[];
+  tradeoffs: BottleBrainTradeoff[];
   evidencePackets: BottleBrainEvidencePacket[];
   groundedClaims: BottleBrainEvidenceClaim[];
   knownFromCellar: BottleBrainEvidenceClaim[];
@@ -122,14 +166,92 @@ function plural(count: number, singular: string, pluralWord = `${singular}s`) {
   return `${count} ${count === 1 ? singular : pluralWord}`;
 }
 
+const MODE_PROFILES: Record<BottleBrainDecisionMode, BottleBrainModeProfile> = {
+  tonight: {
+    id: "tonight",
+    label: "Tonight",
+    promise: "Pick the best bottle to open now without overthinking the cellar.",
+    primaryQuestion: "What is ready, trusted, and satisfying tonight?",
+    priorities: ["drinkability", "brian_fit", "evidence_strength"],
+    guardrails: ["Do not recommend hold bottles as the primary open-now pick.", "Call out thin evidence before sounding certain."],
+  },
+  guest: {
+    id: "guest",
+    label: "Guest",
+    promise: "Choose something Brian can confidently serve to other people.",
+    primaryQuestion: "What is the safest crowd-facing pick, and what is the more interesting alternate?",
+    priorities: ["crowd_confidence", "drinkability", "evidence_strength", "brian_fit"],
+    guardrails: ["Avoid thin-signal bottles as the safe pick.", "Make tradeoffs explicit so Brian can choose between safe and interesting."],
+  },
+  cellar_risk: {
+    id: "cellar_risk",
+    label: "Cellar Risk",
+    promise: "Triage bottles that may be drifting, stale, or incorrectly windowed.",
+    primaryQuestion: "What needs attention before it becomes a missed bottle?",
+    priorities: ["risk_urgency", "drinkability", "evidence_strength"],
+    guardrails: ["Do not treat a ready bottle as a past-peak bottle.", "Recommend open, gift, or update-window instead of vague concern."],
+  },
+  buying: {
+    id: "buying",
+    label: "Buying",
+    promise: "Protect the cellar from regrettable gaps and lazy rebuys.",
+    primaryQuestion: "What deserves a replacement slot, and what should be skipped until there is more evidence?",
+    priorities: ["replacement_value", "brian_fit", "evidence_strength"],
+    guardrails: ["Do not recommend buying more without fit or tasting evidence.", "Separate replacement candidates from learning gaps."],
+  },
+  learning: {
+    id: "learning",
+    label: "Learning",
+    promise: "Choose the next bottle that will teach the taste model the most.",
+    primaryQuestion: "What single bottle would most improve future recommendations?",
+    priorities: ["learning_value", "evidence_strength", "brian_fit"],
+    guardrails: ["Prefer weak-memory bottles for learning, not necessarily for serving.", "State exactly what note would improve the model."],
+  },
+  occasion: {
+    id: "occasion",
+    label: "Occasion",
+    promise: "Match the bottle to the meal, mood, and stakes of the moment.",
+    primaryQuestion: "What fits this specific occasion while staying grounded in cellar evidence?",
+    priorities: ["occasion_fit", "drinkability", "brian_fit", "evidence_strength"],
+    guardrails: ["Use occasion words only as ranking hints, not uncited flavour claims.", "Offer a safe pick and an interesting alternate when possible."],
+  },
+  audit: {
+    id: "audit",
+    label: "Audit",
+    promise: "Show what Bottle Brain knows, what it can prove, and where it is guessing.",
+    primaryQuestion: "Which recommendations are trustworthy and which need more signal?",
+    priorities: ["evidence_strength", "learning_value", "risk_urgency"],
+    guardrails: ["Do not invent missing bottle data.", "Separate hard cellar facts from Brian-Fit inference and gaps."],
+  },
+  general: {
+    id: "general",
+    label: "General",
+    promise: "Answer from the strongest available cellar evidence.",
+    primaryQuestion: "What can the current cellar records support?",
+    priorities: ["evidence_strength", "drinkability", "brian_fit"],
+    guardrails: ["Stay citation-constrained.", "Say when the question needs more cellar context."],
+  },
+};
+
+function modeProfileFor(mode: BottleBrainDecisionMode) {
+  return MODE_PROFILES[mode];
+}
+
+function extractOccasionSignals(question: string) {
+  const text = question.toLowerCase();
+  const candidates = ["steak", "salmon", "mushrooms", "dinner", "celebration", "gift", "casual", "guests", "guest", "spicy", "pizza"];
+  return candidates.filter((signal) => text.includes(signal));
+}
+
 function getDecisionMode(question: string): BottleBrainDecisionMode {
   const text = question.toLowerCase();
   if (/audit|what.*knows|where.*guessing|system knowledge|confidence/.test(text)) return "audit";
+  if (/steak|salmon|celebration|gift|pair|pairing|mushroom|pizza|spicy/.test(text)) return "occasion";
   if (/guest|serve|people|safe pick|crowd|company/.test(text)) return "guest";
+  if (/dinner|occasion/.test(text)) return "occasion";
   if (/past|risk|peak|old|urgent|too late|drift/.test(text)) return "cellar_risk";
   if (/replace|restock|buy again|low stock|replenish|buy|buying/.test(text)) return "buying";
   if (/learn|memory|rating|taste|note|signal|unknown/.test(text)) return "learning";
-  if (/dinner|occasion|steak|salmon|celebration|gift|pair|pairing/.test(text)) return "occasion";
   if (/open|drink|tonight|now/.test(text)) return "tonight";
   return "general";
 }
@@ -241,6 +363,11 @@ function scoreDoc(
     if (readyState === "ready") score += 10;
   }
   if (decisionMode === "occasion" && readyState === "ready") score += 16;
+  if (decisionMode === "occasion") {
+    if (queryTokens.includes("steak") && /cabernet|bordeaux|tannin|structured|red/.test(text)) score += 18;
+    if ((queryTokens.includes("salmon") || queryTokens.includes("mushrooms")) && /pinot|burgundy|willamette|silky/.test(text)) score += 18;
+    if (queryTokens.includes("celebration") && (doc.brian_fit_score ?? 0) >= 92) score += 10;
+  }
 
   score += Math.min(doc.quantity, 4);
   return { score, readyState };
@@ -259,6 +386,20 @@ function chooseAction(
   if (readyState === "hold") return "hold";
   if (readyState === "ready") return "open";
   return "taste";
+}
+
+function modeRoleFor(doc: BottleBrainCitation, decisionMode: BottleBrainDecisionMode, index: number): BottleBrainModeRole {
+  if (decisionMode === "cellar_risk" && doc.readinessState === "past_peak") return "triage_now";
+  if (decisionMode === "learning" || doc.recommendedAction === "taste") return "learning_pick";
+  if (decisionMode === "buying" || doc.recommendedAction === "replace") return "replacement_pick";
+  if (decisionMode === "audit") return index === 0 ? "safe_pick" : "supporting_citation";
+  if (doc.recommendedAction === "add_value") return "value_pick";
+  if (doc.recommendedAction === "hold") return "hold_pick";
+  if (decisionMode === "guest" || decisionMode === "occasion" || decisionMode === "tonight") {
+    if (index === 0 && doc.evidenceStrength !== "weak" && doc.readinessState === "ready") return "safe_pick";
+    if (index === 1) return "interesting_pick";
+  }
+  return index === 0 ? "safe_pick" : "supporting_citation";
 }
 
 function evidenceStrength(doc: BottleBrainWineDoc, readyState: BottleBrainReadinessState): BottleBrainEvidenceStrength {
@@ -395,6 +536,7 @@ function toEvidencePacket(doc: BottleBrainCitation): BottleBrainEvidencePacket {
       label: readinessLabel(doc.readinessState),
     },
     recommendedAction: doc.recommendedAction,
+    modeRole: doc.modeRole,
     evidenceStrength: doc.evidenceStrength,
     knownFromCellar: buildKnownClaims(doc),
     inferredFromBrianFit: buildBrianFitClaims(doc),
@@ -412,9 +554,11 @@ export function retrieveBottleBrainContext(
   const limit = options.limit ?? 5;
   const intent = getIntent(question);
   const decisionMode = getDecisionMode(question);
+  const modeProfile = modeProfileFor(decisionMode);
+  const occasionSignals = extractOccasionSignals(question);
   const queryTokens = tokenize(question);
 
-  const citations = docs
+  const ranked = docs
     .filter((doc) => doc.quantity > 0)
     .map((doc) => {
       const scored = scoreDoc(doc, intent, decisionMode, queryTokens, asOf);
@@ -435,10 +579,17 @@ export function retrieveBottleBrainContext(
     .sort((a, b) => b.retrievalScore - a.retrievalScore || (b.brian_fit_score ?? 0) - (a.brian_fit_score ?? 0))
     .slice(0, limit);
 
+  const citations: BottleBrainCitation[] = ranked.map((doc, index) => ({
+    ...doc,
+    modeRole: modeRoleFor(doc as BottleBrainCitation, decisionMode, index),
+  }));
+
   return {
     question,
     intent,
     decisionMode,
+    modeProfile,
+    occasionSignals,
     citations,
     evidencePackets: citations.map(toEvidencePacket),
     searchedRecords: docs.length,
@@ -492,6 +643,31 @@ function formatEvidenceSummary(packets: BottleBrainEvidencePacket[]) {
   return sections.length ? ` ${sections.join(" ")}` : "";
 }
 
+function buildTradeoffs(retrieval: BottleBrainRetrieval): BottleBrainTradeoff[] {
+  const [primary, secondary] = retrieval.citations;
+  if (!primary || !secondary) return [];
+
+  const labelByMode: Record<BottleBrainDecisionMode, string> = {
+    tonight: "Best open-now choice",
+    guest: "Safe pick versus interesting alternate",
+    cellar_risk: "Highest triage priority",
+    buying: "Replacement priority",
+    learning: "Learning value",
+    occasion: "Occasion fit",
+    audit: "Evidence strength",
+    general: "Best grounded answer",
+  };
+
+  return [
+    {
+      winnerCitationId: primary.id,
+      loserCitationId: secondary.id,
+      label: labelByMode[retrieval.decisionMode],
+      reason: `${primary.displayName} leads because it is ${primary.whyRetrieved}; ${secondary.displayName} remains useful as ${secondary.modeRole.replace("_", " ")}.`,
+    },
+  ];
+}
+
 export function buildBottleBrainAnswer(question: string, retrieval: BottleBrainRetrieval): BottleBrainAnswer {
   const [primary, secondary] = retrieval.citations;
   if (!primary) {
@@ -500,6 +676,9 @@ export function buildBottleBrainAnswer(question: string, retrieval: BottleBrainR
       confidenceNote: `No matching cellar records found across ${plural(retrieval.searchedRecords, "record")}.`,
       citations: [],
       decisionMode: retrieval.decisionMode,
+      modeProfile: retrieval.modeProfile,
+      occasionSignals: retrieval.occasionSignals,
+      tradeoffs: [],
       evidencePackets: [],
       groundedClaims: [],
       knownFromCellar: [],
@@ -517,12 +696,16 @@ export function buildBottleBrainAnswer(question: string, retrieval: BottleBrainR
   const groundedClaims = [...knownFromCellar, ...inferredFromBrianFit];
   const evidenceSummary = formatEvidenceSummary(evidencePackets);
   const nextSignal = nextSignals[0] ? ` Next signal: ${nextSignals[0].text}` : "";
+  const tradeoffs = buildTradeoffs(retrieval);
 
   return {
     answer: `${primaryLine(question, retrieval, primary, secondary)}${evidenceSummary}${nextSignal}`,
     confidenceNote: `Answer grounded in ${plural(retrieval.citations.length, "cellar record")} retrieved from ${plural(retrieval.searchedRecords, "active bottle record")}. Evidence strength: ${evidencePackets.map((packet) => `${packet.displayName} is ${packet.evidenceStrength}`).join("; ")}.`,
     citations: retrieval.citations,
     decisionMode: retrieval.decisionMode,
+    modeProfile: retrieval.modeProfile,
+    occasionSignals: retrieval.occasionSignals,
+    tradeoffs,
     evidencePackets,
     groundedClaims,
     knownFromCellar,
