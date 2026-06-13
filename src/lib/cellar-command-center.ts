@@ -1,4 +1,5 @@
 import { getWineReadiness, parseWineWindowYear, type WineReadinessState } from "./wine-readiness";
+import { buildPortfolioTruth, type PortfolioTruth } from "./portfolio-truth";
 import { buildTasteBottleActions, type TasteBottleActionPlan } from "./taste-action-planner";
 import type { TasteGenome } from "./taste-genome";
 
@@ -70,6 +71,7 @@ export type CellarCommandCenter = {
   executiveBrief: string;
   bestNextMove: string;
   tasteActions: TasteBottleActionPlan;
+  portfolioTruth: PortfolioTruth;
 };
 
 const HIGH_BRIAN_FIT = 92;
@@ -297,13 +299,17 @@ export function buildCellarCommandCenter(
     recentUnreviewed: recentUnreviewedItems.length,
   };
 
+  const portfolioTruth = buildPortfolioTruth(wines);
+
   const executiveBrief = metrics.totalBottles === 0
     ? "No bottles are in the cellar yet. The command center will come alive after the first capture."
     : [
         metrics.pastPeak > 0 ? `${plural(metrics.pastPeak, "bottle")} needs a decision before it drifts further` : null,
         metrics.readyNow > 0 ? `${plural(metrics.readyNow, "bottle")} can be opened with confidence now` : null,
+        portfolioTruth.confidence.level === "thin" ? "valuation confidence is thin" : null,
+        portfolioTruth.totals.unknownBottles > 0 ? `${plural(portfolioTruth.totals.unknownBottles, "bottle")} has no value basis` : null,
         metrics.unlovedValueCents > 0 ? `${formatCurrency(metrics.unlovedValueCents)} of value has no tasting memory` : null,
-        metrics.missingMarketValues > 0 ? `${plural(metrics.missingMarketValues, "bottle")} needs market value coverage` : null,
+        portfolioTruth.updateNext.length > 0 ? `${plural(portfolioTruth.updateNext.length, "valuation action")} should be updated next` : null,
         metrics.recentUnreviewed > 0 ? `${plural(metrics.recentUnreviewed, "recent bottle")} still needs review` : null,
         metrics.replace > 0 ? `${plural(metrics.replace, "bottle")} should be considered for replacement` : null,
         metrics.needsSignal > 0 ? `${plural(metrics.needsSignal, "bottle")} still needs first-party taste signal` : null,
@@ -324,5 +330,6 @@ export function buildCellarCommandCenter(
     executiveBrief,
     bestNextMove,
     tasteActions,
+    portfolioTruth,
   };
 }

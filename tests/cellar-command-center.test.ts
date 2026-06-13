@@ -111,9 +111,47 @@ function testCommandCenterFindsPortfolioAndDataQualityRails() {
   assert.match(center.executiveBrief, /\$370 of value has no tasting memory/);
 }
 
+function testCommandCenterCarriesPortfolioTruthForExecutiveValuationRail() {
+  const center = buildCellarCommandCenter([
+    wine({
+      id: "market-known",
+      name: "Known Napa Cab",
+      quantity: 2,
+      purchase_price_cents: 12000,
+      current_market_value_cents: 18000,
+      ratings_count: 1,
+    }),
+    wine({
+      id: "update-next",
+      name: "Unpriced First Growth",
+      quantity: 1,
+      purchase_price_cents: 60000,
+      current_market_value_cents: null,
+      ratings_count: 1,
+    }),
+    wine({
+      id: "unknown-value",
+      name: "Mystery Allocation",
+      quantity: 1,
+      purchase_price_cents: null,
+      current_market_value_cents: null,
+      ratings_count: 0,
+    }),
+  ], { asOf });
+
+  assert.equal(center.portfolioTruth.totals.displayValueCents, 96000);
+  assert.equal(center.portfolioTruth.totals.knownValueCents, 36000);
+  assert.equal(center.portfolioTruth.totals.estimatedValueCents, 60000);
+  assert.equal(center.portfolioTruth.totals.unknownBottles, 1);
+  assert.equal(center.portfolioTruth.confidence.level, "thin");
+  assert.equal(center.portfolioTruth.updateNext[0].id, "update-next");
+  assert.match(center.executiveBrief, /valuation confidence is thin/i);
+}
+
 testWineNameUsesVintageProducerAndFallbacks();
 testCommandCenterBuildsActionLanes();
 testExecutiveBriefNamesTheSharpestMove();
 testCommandCenterFindsPortfolioAndDataQualityRails();
+testCommandCenterCarriesPortfolioTruthForExecutiveValuationRail();
 
 console.log("cellar-command-center tests passed");

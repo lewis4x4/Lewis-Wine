@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, Brain, CircleAlert, Clock3, RefreshCw, Sparkles, Wine } from "lucide-react";
+import { ArrowUpRight, Brain, CircleAlert, CircleDollarSign, Clock3, RefreshCw, ShieldCheck, Sparkles, Wine } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -53,6 +53,8 @@ export function CellarCommandCenter({ center, compact = false }: CellarCommandCe
             </div>
           ))}
         </div>
+
+        <PortfolioTruthRail center={center} />
 
         <div className={cn("mt-6 grid gap-4", compact ? "lg:grid-cols-2" : "xl:grid-cols-4")}>
           <CommandLane
@@ -144,6 +146,73 @@ export function CellarCommandCenter({ center, compact = false }: CellarCommandCe
         </div>
       </div>
     </section>
+  );
+}
+
+function PortfolioTruthRail({ center }: { center: CellarCommandCenterModel }) {
+  const truth = center.portfolioTruth;
+  const updateNext = truth.updateNext[0];
+  const concentration = truth.concentration.regions[0];
+  const formatCurrency = (cents: number) => new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(cents / 100);
+  const formatPercent = (value: number) => `${Math.round(value * 100)}%`;
+
+  if (truth.totals.totalBottles === 0) return null;
+
+  return (
+    <div className="mt-4 rounded-[28px] border border-emerald-500/20 bg-emerald-500/5 p-4 shadow-sm">
+      <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1.25fr]">
+        <div className="flex gap-3 rounded-3xl border border-border/60 bg-background/80 p-4">
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+            <CircleDollarSign className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Portfolio truth</div>
+            <div className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(truth.totals.displayValueCents)}</div>
+            <div className="mt-1 text-xs leading-5 text-muted-foreground">
+              {formatCurrency(truth.totals.knownValueCents)} market-known · {formatCurrency(truth.totals.estimatedValueCents)} estimated
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3 rounded-3xl border border-border/60 bg-background/80 p-4">
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/5 text-primary">
+            <ShieldCheck className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Confidence</div>
+            <div className="mt-1 text-sm font-semibold">{truth.confidence.label}</div>
+            <div className="mt-1 text-xs leading-5 text-muted-foreground">
+              {formatPercent(truth.coverage.valueCoverage)} value coverage · {truth.totals.unknownBottles} unpriced
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-border/60 bg-background/80 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Valuation move</div>
+              {updateNext ? (
+                <Link href={updateNext.href} className="group mt-1 block">
+                  <div className="line-clamp-1 text-sm font-semibold group-hover:text-primary">Update {updateNext.displayName}</div>
+                  <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{updateNext.reason}</div>
+                </Link>
+              ) : (
+                <div className="mt-1 text-sm text-muted-foreground">No obvious valuation gap. Watch concentration next.</div>
+              )}
+            </div>
+            {concentration && (
+              <Badge variant="outline" className="shrink-0 rounded-full px-2.5 py-1 text-[11px]">
+                {concentration.name} {formatPercent(concentration.shareOfValue)}
+              </Badge>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
