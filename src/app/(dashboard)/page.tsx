@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Progress } from "@/components/ui/progress";
 import { CellarCommandCenter } from "@/components/cellar/cellar-command-center";
 import { buildCellarCommandCenter } from "@/lib/cellar-command-center";
+import { buildTasteGenome } from "@/lib/taste-genome";
 import { isWineReadyNow } from "@/lib/wine-readiness";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -67,15 +68,18 @@ export default async function DashboardPage() {
       wine_reference (
         name,
         region,
-        producer
+        producer,
+        wine_type
       ),
       ratings (
         id,
-        score
+        score,
+        rating_signals (*)
       ),
       custom_name,
       custom_producer,
-      custom_region
+      custom_region,
+      custom_wine_type
     `)
         .eq("cellar_id", cellar.id)
         .eq("status", "in_cellar");
@@ -96,11 +100,28 @@ export default async function DashboardPage() {
             name: string;
             region: string | null;
             producer: string | null;
+            wine_type: string | null;
         } | null;
-        ratings: Array<{ id: string; score: number | null }> | null;
+        ratings: Array<{
+            id: string;
+            score: number | null;
+            rating_signals?: Array<{
+                smoothness?: number | null;
+                boldness?: number | null;
+                earthiness?: number | null;
+                spiciness?: number | null;
+                fruit_forward?: number | null;
+                dryness?: number | null;
+                tannin_level?: number | null;
+                acidity?: number | null;
+                finish_length?: number | null;
+                richness?: number | null;
+            }> | null;
+        }> | null;
         custom_name: string | null;
         custom_producer: string | null;
         custom_region: string | null;
+        custom_wine_type: string | null;
     }
 
     const inventory = rawInventory as unknown as InventoryItem[] | null;
@@ -147,7 +168,7 @@ export default async function DashboardPage() {
         ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format((totalValueCents / totalBottles) / 100)
         : "$0.00";
 
-    const commandCenter = buildCellarCommandCenter((inventory || []).map((item) => ({
+    const commandWines = (inventory || []).map((item) => ({
         id: item.id,
         name: item.wine_reference?.name,
         custom_name: item.custom_name,
@@ -155,6 +176,8 @@ export default async function DashboardPage() {
         custom_producer: item.custom_producer,
         region: item.wine_reference?.region,
         custom_region: item.custom_region,
+        wine_type: item.wine_reference?.wine_type,
+        custom_wine_type: item.custom_wine_type,
         quantity: item.quantity,
         drink_after: item.drink_after,
         drink_before: item.drink_before,
@@ -163,9 +186,27 @@ export default async function DashboardPage() {
         low_stock_threshold: item.low_stock_threshold,
         low_stock_alert_enabled: item.low_stock_alert_enabled,
         ratings_count: item.ratings?.length ?? 0,
+        rating_signal_count: item.ratings?.reduce((sum, rating) => sum + (rating.rating_signals?.length ?? 0), 0) ?? 0,
         tags: item.tags,
         created_at: item.created_at,
-    })), { laneLimit: 4 });
+    }));
+
+    const tasteGenome = buildTasteGenome((inventory || []).flatMap((item) =>
+        (item.ratings || [])
+            .filter((rating) => rating.score != null)
+            .map((rating) => ({
+                id: rating.id,
+                score: rating.score ?? 0,
+                wine_type: item.wine_reference?.wine_type || item.custom_wine_type,
+                region: item.wine_reference?.region || item.custom_region,
+                producer: item.wine_reference?.producer || item.custom_producer,
+                vintage: null,
+                purchase_price_cents: item.purchase_price_cents,
+                rating_signal: rating.rating_signals?.[0] ?? null,
+            }))
+    ));
+
+    const commandCenter = buildCellarCommandCenter(commandWines, { laneLimit: 4, tasteGenome });
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">

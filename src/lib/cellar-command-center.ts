@@ -1,4 +1,6 @@
 import { getWineReadiness, parseWineWindowYear, type WineReadinessState } from "./wine-readiness";
+import { buildTasteBottleActions, type TasteBottleActionPlan } from "./taste-action-planner";
+import type { TasteGenome } from "./taste-genome";
 
 export type CellarCommandWine = {
   id: string;
@@ -8,6 +10,8 @@ export type CellarCommandWine = {
   custom_producer?: string | null;
   region?: string | null;
   custom_region?: string | null;
+  wine_type?: string | null;
+  custom_wine_type?: string | null;
   vintage?: number | null;
   custom_vintage?: number | null;
   quantity: number;
@@ -18,6 +22,7 @@ export type CellarCommandWine = {
   low_stock_threshold?: number | null;
   low_stock_alert_enabled?: boolean | null;
   ratings_count?: number | null;
+  rating_signal_count?: number | null;
   brian_fit_score?: number | null;
   brian_fit_confidence?: number | null;
   brian_fit_reason?: string | null;
@@ -64,11 +69,19 @@ export type CellarCommandCenter = {
   };
   executiveBrief: string;
   bestNextMove: string;
+  tasteActions: TasteBottleActionPlan;
 };
 
 const HIGH_BRIAN_FIT = 92;
 const EXPENSIVE_UNLOVED_CENTS = 10000;
 const RECENT_UNREVIEWED_DAYS = 14;
+
+const EMPTY_TASTE_ACTIONS: TasteBottleActionPlan = {
+  tasteNext: [],
+  replaceProven: [],
+  retasteResolve: [],
+  captureSignal: [],
+};
 
 type CommandReadiness = Exclude<WineReadinessState, "unknown"> | "unknown";
 
@@ -226,7 +239,7 @@ function byCommandPriority(a: CellarCommandItem, b: CellarCommandItem) {
 
 export function buildCellarCommandCenter(
   wines: CellarCommandWine[],
-  options: { asOf?: Date; laneLimit?: number } = {}
+  options: { asOf?: Date; laneLimit?: number; tasteGenome?: TasteGenome | null } = {}
 ): CellarCommandCenter {
   const asOf = options.asOf ?? new Date();
   const laneLimit = options.laneLimit ?? 6;
@@ -301,10 +314,15 @@ export function buildCellarCommandCenter(
     ? `${firstPriority.action}: ${firstPriority.reason}`
     : "Add a bottle or scan a label to give the system something useful to command.";
 
+  const tasteActions = options.tasteGenome
+    ? buildTasteBottleActions({ genome: options.tasteGenome, bottles: wines, laneLimit })
+    : EMPTY_TASTE_ACTIONS;
+
   return {
     metrics,
     lanes,
     executiveBrief,
     bestNextMove,
+    tasteActions,
   };
 }
