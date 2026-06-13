@@ -115,9 +115,16 @@ export async function POST(request: Request) {
       success: true,
       question,
       intent: retrieval.intent,
+      decisionMode: retrieval.decisionMode,
       answer: answer.answer,
       confidenceNote: answer.confidenceNote,
       citations: answer.citations,
+      evidencePackets: answer.evidencePackets,
+      groundedClaims: answer.groundedClaims,
+      knownFromCellar: answer.knownFromCellar,
+      inferredFromBrianFit: answer.inferredFromBrianFit,
+      needsMoreSignal: answer.needsMoreSignal,
+      nextSignals: answer.nextSignals,
       searchedRecords: retrieval.searchedRecords,
     });
   } catch (error) {

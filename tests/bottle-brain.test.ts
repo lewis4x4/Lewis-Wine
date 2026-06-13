@@ -57,6 +57,23 @@ const docs: BottleBrainWineDoc[] = [
     tags: [],
     href: "/cellar/old-bordeaux",
   },
+  {
+    id: "market-pinot",
+    displayName: "2020 Market Pinot Noir",
+    producer: "Example Vineyard",
+    region: "Willamette Valley",
+    wineType: "red",
+    quantity: 1,
+    drink_after: "2023",
+    drink_before: "2027",
+    brian_fit_score: 93,
+    brian_fit_reason: "bright cherry, savoury spice, and silky texture match Brian's pinot lane",
+    ratings_count: 1,
+    latest_rating_score: 95,
+    notes: "Market value: $85. Great dinner wine with salmon or mushrooms.",
+    tags: ["market-value", "pinot"],
+    href: "/cellar/market-pinot",
+  },
 ];
 
 function testRetrievalFindsDrinkNowAndBrianFit() {
@@ -66,6 +83,7 @@ function testRetrievalFindsDrinkNowAndBrianFit() {
   });
 
   assert.equal(result.intent, "drink_now");
+  assert.equal(result.decisionMode, "tonight");
   assert.equal(result.citations[0].id, "cab-ready");
   assert.match(result.citations[0].whyRetrieved, /Brian-Fit/);
 }
@@ -76,6 +94,7 @@ function testRetrievalFindsLearningGaps() {
   });
 
   assert.equal(result.intent, "learn");
+  assert.equal(result.decisionMode, "learning");
   assert.equal(result.citations[0].id, "mystery-burgundy");
   assert.match(result.citations[0].whyRetrieved, /no first-party tasting memory/);
 }
@@ -92,8 +111,85 @@ function testAnswerUsesCitationsAndUncertainty() {
   assert.match(answer.confidenceNote, /grounded in 1 cellar record/);
 }
 
+function testTrustLayerBuildsEvidencePacketsForEveryCitation() {
+  const retrieval = retrieveBottleBrainContext("What should I open tonight with high Brian-Fit?", docs, {
+    asOf: new Date("2026-06-12T12:00:00Z"),
+    limit: 2,
+  });
+
+  assert.ok(retrieval.evidencePackets.length >= 1);
+  assert.equal(retrieval.evidencePackets[0].id, retrieval.citations[0].id);
+  assert.equal(retrieval.evidencePackets[0].readiness.state, "ready");
+  assert.equal(retrieval.evidencePackets[0].recommendedAction, "open");
+  assert.equal(retrieval.evidencePackets[0].evidenceStrength, "strong");
+  assert.ok(retrieval.evidencePackets[0].knownFromCellar.some((claim) => claim.citationId === "cab-ready"));
+  assert.ok(retrieval.evidencePackets[0].inferredFromBrianFit.some((claim) => claim.text.includes("96 Brian-Fit")));
+  assert.ok(retrieval.evidencePackets[0].nextSignal.text.includes("Capture"));
+}
+
+function testAnswerIsCitationConstrainedAndSeparatesEvidenceTypes() {
+  const retrieval = retrieveBottleBrainContext("What should I open tonight with high Brian-Fit?", docs, {
+    asOf: new Date("2026-06-12T12:00:00Z"),
+    limit: 2,
+  });
+  const answer = buildBottleBrainAnswer("What should I open tonight with high Brian-Fit?", retrieval);
+
+  assert.equal(answer.decisionMode, "tonight");
+  assert.ok(answer.evidencePackets.length > 0);
+  assert.ok(answer.groundedClaims.length > 0);
+  assert.ok(answer.groundedClaims.every((claim) => claim.citationId));
+  assert.ok(answer.knownFromCellar.length > 0);
+  assert.ok(answer.inferredFromBrianFit.length > 0);
+  assert.ok(answer.needsMoreSignal.length > 0);
+  assert.ok(answer.nextSignals.length > 0);
+}
+
+function testAuditModeShowsSystemKnowledgeAndGapsWithoutInventingBottles() {
+  const retrieval = retrieveBottleBrainContext("Audit what Bottle Brain knows and where it is guessing", docs, {
+    asOf: new Date("2026-06-12T12:00:00Z"),
+    limit: 5,
+  });
+  const answer = buildBottleBrainAnswer("Audit what Bottle Brain knows and where it is guessing", retrieval);
+
+  assert.equal(retrieval.decisionMode, "audit");
+  assert.equal(answer.decisionMode, "audit");
+  assert.ok(answer.answer.includes("I can prove"));
+  assert.ok(answer.answer.includes("thin"));
+  assert.equal(answer.citations.length, docs.length);
+  assert.ok(answer.groundedClaims.every((claim) => docs.some((doc) => doc.id === claim.citationId)));
+}
+
+function testGuestAndComparisonModesProduceTradeoffLanguage() {
+  const retrieval = retrieveBottleBrainContext("For guests at dinner, compare the Cabernet vs Pinot and give me the safe pick", docs, {
+    asOf: new Date("2026-06-12T12:00:00Z"),
+    limit: 3,
+  });
+  const answer = buildBottleBrainAnswer("For guests at dinner, compare the Cabernet vs Pinot and give me the safe pick", retrieval);
+
+  assert.equal(retrieval.decisionMode, "guest");
+  assert.ok(answer.answer.includes("Tradeoff"));
+  assert.ok(answer.answer.includes("safe pick"));
+  assert.ok(answer.citations.length >= 2);
+}
+
+function testEmptyRetrievalReturnsNoUncitedClaims() {
+  const retrieval = retrieveBottleBrainContext("Tell me about orange wine", [], {
+    asOf: new Date("2026-06-12T12:00:00Z"),
+  });
+  const answer = buildBottleBrainAnswer("Tell me about orange wine", retrieval);
+
+  assert.deepEqual(answer.groundedClaims, []);
+  assert.deepEqual(answer.evidencePackets, []);
+  assert.match(answer.answer, /do not have enough cellar context/i);
+}
+
 testRetrievalFindsDrinkNowAndBrianFit();
 testRetrievalFindsLearningGaps();
 testAnswerUsesCitationsAndUncertainty();
+testTrustLayerBuildsEvidencePacketsForEveryCitation();
+testAnswerIsCitationConstrainedAndSeparatesEvidenceTypes();
+testAuditModeShowsSystemKnowledgeAndGapsWithoutInventingBottles();
+testGuestAndComparisonModesProduceTradeoffLanguage();
+testEmptyRetrievalReturnsNoUncitedClaims();
 
 console.log("bottle-brain tests passed");
