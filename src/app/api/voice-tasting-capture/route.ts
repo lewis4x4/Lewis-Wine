@@ -6,6 +6,7 @@ import type { CellarInventory, RatingInsert, RatingSignalInsert, WineReference }
 type VoiceTastingRequest = {
   transcript?: string;
   save?: boolean;
+  idempotencyKey?: string;
 };
 
 type InventoryForVoice = CellarInventory & {
@@ -34,6 +35,11 @@ export async function POST(request: Request) {
 
     if (!transcript) {
       return NextResponse.json({ success: false, error: "Transcript is required." }, { status: 400 });
+    }
+
+    const idempotencyKey = body.idempotencyKey?.trim();
+    if (idempotencyKey && idempotencyKey.length > 160) {
+      return NextResponse.json({ success: false, error: "Invalid idempotency key." }, { status: 400 });
     }
 
     const supabase = await createClient();
@@ -83,23 +89,40 @@ export async function POST(request: Request) {
       );
     }
 
+    let ratingRow: { id: string } | null = null;
+
+    if (idempotencyKey) {
+      const { data: existingRating, error: existingRatingError } = await supabase
+        .from("ratings")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("voice_capture_idempotency_key", idempotencyKey)
+        .maybeSingle();
+
+      if (existingRatingError) throw existingRatingError;
+      ratingRow = existingRating as { id: string } | null;
+    }
+
     const ratingInsert: RatingInsert = {
       ...draft.rating,
       user_id: user.id,
       inventory_id: draft.matchedWine.id,
       wine_reference_id: draft.matchedWine.wine_reference_id ?? null,
+      voice_capture_idempotency_key: idempotencyKey || null,
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: rating, error: ratingError } = await (supabase as any)
-      .from("ratings")
-      .insert(ratingInsert)
-      .select("id")
-      .single();
+    if (!ratingRow) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rating, error: ratingError } = await (supabase as any)
+        .from("ratings")
+        .insert(ratingInsert)
+        .select("id")
+        .single();
 
-    if (ratingError) throw ratingError;
+      if (ratingError) throw ratingError;
+      ratingRow = rating as { id: string };
+    }
 
-    const ratingRow = rating as { id: string };
     const signalInsert: RatingSignalInsert = {
       ...draft.ratingSignal,
       user_id: user.id,

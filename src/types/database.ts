@@ -318,6 +318,7 @@ export type Database = {
           companions: string[] | null;
           occasion_tags: string[] | null;
           venue: string | null;
+          voice_capture_idempotency_key: string | null;
         };
         Insert: {
           id?: string;
@@ -345,6 +346,7 @@ export type Database = {
           companions?: string[] | null;
           occasion_tags?: string[] | null;
           venue?: string | null;
+          voice_capture_idempotency_key?: string | null;
         };
         Update: {
           id?: string;
@@ -372,6 +374,7 @@ export type Database = {
           companions?: string[] | null;
           occasion_tags?: string[] | null;
           venue?: string | null;
+          voice_capture_idempotency_key?: string | null;
         };
         Relationships: [];
       };

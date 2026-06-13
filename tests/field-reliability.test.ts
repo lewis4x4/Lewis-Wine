@@ -9,6 +9,10 @@ import {
   saveOfflineTastingDraft,
   type OfflineDraftStorage,
 } from "../src/lib/offline-tasting-drafts";
+import {
+  shouldQueueVoiceTastingFailure,
+  voiceTastingFailureMessage,
+} from "../src/lib/voice-tasting-sync";
 
 class MemoryStorage implements OfflineDraftStorage {
   private values = new Map<string, string>();
@@ -51,6 +55,7 @@ const draft = createOfflineTastingDraft({
 assert.equal(draft.status, "queued");
 assert.equal(draft.attempts, 0);
 assert.ok(draft.id.startsWith("offline-tasting-"));
+assert.equal(draft.idempotencyKey, draft.id);
 assert.ok(draft.transcript.includes("Ridge Monte Bello"));
 
 saveOfflineTastingDraft(storage, draft);
@@ -62,5 +67,14 @@ assert.deepEqual(getOfflineTastingDrafts(storage), [{ ...draft, status: "syncing
 const drained = drainSavedOfflineTastingDrafts(storage, [draft.id]);
 assert.deepEqual(drained, []);
 assert.deepEqual(getOfflineTastingDrafts(storage), []);
+
+assert.equal(shouldQueueVoiceTastingFailure({ isOnline: false }), true);
+assert.equal(shouldQueueVoiceTastingFailure({ isOnline: true }), true);
+assert.equal(shouldQueueVoiceTastingFailure({ isOnline: true, status: 0 }), true);
+assert.equal(shouldQueueVoiceTastingFailure({ isOnline: true, status: 500 }), true);
+assert.equal(shouldQueueVoiceTastingFailure({ isOnline: true, status: 503 }), true);
+assert.equal(shouldQueueVoiceTastingFailure({ isOnline: true, status: 422 }), false);
+assert.equal(shouldQueueVoiceTastingFailure({ isOnline: true, status: 401 }), false);
+assert.ok(voiceTastingFailureMessage(422).includes("clearer bottle match"));
 
 console.log("field-reliability tests passed");

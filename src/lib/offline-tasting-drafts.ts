@@ -2,6 +2,7 @@ export type OfflineDraftStatus = "queued" | "syncing" | "failed";
 
 export type OfflineTastingDraft = {
   id: string;
+  idempotencyKey: string;
   transcript: string;
   createdAt: string;
   updatedAt: string;
@@ -21,17 +22,25 @@ function safeParseDrafts(raw: string | null): OfflineTastingDraft[] {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
 
-    return parsed.filter((draft): draft is OfflineTastingDraft => {
-      if (!draft || typeof draft !== "object") return false;
+    return parsed.flatMap((draft): OfflineTastingDraft[] => {
+      if (!draft || typeof draft !== "object") return [];
       const candidate = draft as Partial<OfflineTastingDraft>;
-      return Boolean(
+      if (
         typeof candidate.id === "string" &&
-          typeof candidate.transcript === "string" &&
-          typeof candidate.createdAt === "string" &&
-          typeof candidate.updatedAt === "string" &&
-          typeof candidate.status === "string" &&
-          typeof candidate.attempts === "number",
-      );
+        typeof candidate.transcript === "string" &&
+        typeof candidate.createdAt === "string" &&
+        typeof candidate.updatedAt === "string" &&
+        typeof candidate.status === "string" &&
+        typeof candidate.attempts === "number"
+      ) {
+        return [
+          {
+            idempotencyKey: candidate.idempotencyKey || candidate.id,
+            ...candidate,
+          } as OfflineTastingDraft,
+        ];
+      }
+      return [];
     });
   } catch {
     return [];
@@ -60,9 +69,11 @@ function makeDraftId(transcript: string, createdAt: string) {
 export function createOfflineTastingDraft(input: { transcript: string; createdAt?: string }): OfflineTastingDraft {
   const createdAt = input.createdAt ?? new Date().toISOString();
   const transcript = input.transcript.trim();
+  const id = makeDraftId(transcript, createdAt);
 
   return {
-    id: makeDraftId(transcript, createdAt),
+    id,
+    idempotencyKey: id,
     transcript,
     createdAt,
     updatedAt: createdAt,
@@ -81,6 +92,7 @@ export function saveOfflineTastingDraft(storage: OfflineDraftStorage, draft: Off
   const existingIndex = drafts.findIndex((candidate) => candidate.id === draft.id);
   const nextDraft = {
     ...draft,
+    idempotencyKey: draft.idempotencyKey || draft.id,
     transcript: draft.transcript.trim(),
     updatedAt: draft.updatedAt || new Date().toISOString(),
   };

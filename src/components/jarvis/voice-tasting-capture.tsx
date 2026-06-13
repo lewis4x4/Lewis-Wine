@@ -18,6 +18,7 @@ import {
   type OfflineTastingDraft,
 } from "@/lib/offline-tasting-drafts";
 import type { VoiceTastingDraft } from "@/lib/voice-tasting-capture";
+import { shouldQueueVoiceTastingFailure, voiceTastingFailureMessage } from "@/lib/voice-tasting-sync";
 
 type VoiceTastingResponse = {
   success: boolean;
@@ -58,16 +59,16 @@ type BrowserWithSpeech = Window & {
 const example =
   "Jarvis, log the 2018 Ridge Monte Bello. 96 points. Black cherry, cedar, graphite, firm tannins, bright acidity, long finish. Had it with steak at home. Definitely buy again; value feels strong.";
 
-async function runVoiceCapture(transcript: string, save: boolean) {
+async function runVoiceCapture(transcript: string, save: boolean, idempotencyKey?: string) {
   const response = await fetch("/api/voice-tasting-capture", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ transcript, save }),
+    body: JSON.stringify({ transcript, save, idempotencyKey }),
   });
   const data = (await response.json()) as VoiceTastingResponse;
   if (!response.ok || !data.success) {
     const error = new Error(data.error || "Voice tasting capture failed.");
-    Object.assign(error, { draft: data.draft });
+    Object.assign(error, { draft: data.draft, status: response.status });
     throw error;
   }
   return data;
@@ -174,19 +175,31 @@ export function VoiceTastingCapture() {
       return;
     }
 
+    const saveDraft = createOfflineTastingDraft({ transcript: clean });
+
     setIsBusy(true);
     try {
-      const data = await runVoiceCapture(clean, true);
+      const data = await runVoiceCapture(clean, true, saveDraft.idempotencyKey);
       setDraft(data.draft || null);
       toast.success(data.message || "Tasting saved.");
     } catch (error) {
-      const maybeDraft = error as Error & { draft?: VoiceTastingDraft };
+      const maybeDraft = error as Error & { draft?: VoiceTastingDraft; status?: number };
       if (maybeDraft.draft) setDraft(maybeDraft.draft);
-      if (typeof window !== "undefined") {
-        saveOfflineTastingDraft(window.localStorage, createOfflineTastingDraft({ transcript: clean }));
+
+      const shouldQueue = shouldQueueVoiceTastingFailure({
+        isOnline: typeof window === "undefined" ? true : window.navigator.onLine,
+        status: maybeDraft.status,
+      });
+
+      if (shouldQueue && typeof window !== "undefined") {
+        saveOfflineTastingDraft(window.localStorage, saveDraft);
         refreshOfflineDrafts();
       }
-      toast.error(error instanceof Error ? `${error.message} Saved as an offline draft.` : "Tasting saved as an offline draft.");
+
+      const fallback = shouldQueue
+        ? voiceTastingFailureMessage(maybeDraft.status)
+        : voiceTastingFailureMessage(maybeDraft.status);
+      toast.error(error instanceof Error ? (shouldQueue ? `${error.message} ${fallback}` : fallback) : fallback);
     } finally {
       setIsBusy(false);
     }
@@ -209,7 +222,11 @@ export function VoiceTastingCapture() {
         markOfflineTastingDraftSyncing(window.localStorage, offlineDraft.id);
         refreshOfflineDrafts();
         try {
-          await runVoiceCapture(offlineDraft.transcript, true);
+          await runVoiceCapture(
+            offlineDraft.transcript,
+            true,
+            offlineDraft.idempotencyKey || offlineDraft.id,
+          );
           savedIds.push(offlineDraft.id);
         } catch (error) {
           markOfflineTastingDraftFailed(
