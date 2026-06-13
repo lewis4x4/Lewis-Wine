@@ -328,6 +328,7 @@ function scoreDoc(
   }
 
   if (intent === "drink_now") {
+    if (readyState === "hold" || readyState === "past_peak") score -= 80;
     if (readyState === "ready") score += 42;
     if ((doc.brian_fit_score ?? 0) >= 92) score += 24;
     if ((doc.ratings_count ?? 0) > 0) score += 8;

@@ -61,6 +61,7 @@ export type TonightRecommendation = {
   reason: string;
   best_for: string;
   caution: string;
+  readiness_status: WineReadinessState;
   recommendation_type: "best-now" | "alternate";
   score_breakdown: TonightScoreBreakdown;
 };
@@ -255,6 +256,7 @@ function scoreBottle(item: TonightEngineBottle, context: TonightContext, asOf: D
     reason: `${mealFit.reason} ${tasteFit.reason}`,
     best_for: bestFor,
     caution: buildCaution(item, readiness),
+    readiness_status: readiness,
     recommendation_type: "alternate",
     score_breakdown: breakdown,
     sortScore,
@@ -268,7 +270,8 @@ export function buildTonightRecommendations(
   options: { asOf?: Date } = {}
 ): RecommendationsResponse {
   const asOf = options.asOf ?? new Date();
-  if (bottles.length === 0) {
+  const activeBottles = bottles.filter((item) => item.quantity > 0);
+  if (activeBottles.length === 0) {
     return {
       success: true,
       context,
@@ -281,13 +284,15 @@ export function buildTonightRecommendations(
     };
   }
 
-  const ranked = bottles
-    .filter((item) => item.quantity > 0)
+  const ranked = activeBottles
     .map((item) => scoreBottle(item, context, asOf))
     .sort((a, b) => b.sortScore - a.sortScore || b.confidence - a.confidence || a.name.localeCompare(b.name));
-  const [first, ...rest] = ranked;
-  const primary = first ? { ...first, recommendation_type: "best-now" as const } : null;
-  const alternates = rest.slice(0, 2).map((item) => ({ ...item, recommendation_type: "alternate" as const }));
+  const primaryCandidate = ranked.find((item) => item.readiness_status === "ready" || item.readiness_status === "drink_soon") ?? null;
+  const primary = primaryCandidate ? { ...primaryCandidate, recommendation_type: "best-now" as const } : null;
+  const alternates = ranked
+    .filter((item) => item.inventory_id !== primary?.inventory_id)
+    .slice(0, 2)
+    .map((item) => ({ ...item, recommendation_type: "alternate" as const }));
   const displayedPicks: ScoredBottle[] = [primary, ...alternates].filter((item): item is ScoredBottle => item !== null);
   const sparseCount = ranked.filter((item) => item.sparseSignals >= 3).length;
   const hasSparseDisplayedPick = displayedPicks.some((item) => item.sparseSignals >= 3);

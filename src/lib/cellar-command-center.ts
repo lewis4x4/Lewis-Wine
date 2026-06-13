@@ -284,19 +284,20 @@ export function buildCellarCommandCenter(
     recentUnreviewed: recentUnreviewedItems.slice(0, laneLimit),
   };
 
+  const bottleCount = (wines: CellarCommandItem[]) => wines.reduce((sum, wine) => sum + wine.quantity, 0);
   const metrics = {
-    totalBottles: items.reduce((sum, wine) => sum + wine.quantity, 0),
+    totalBottles: bottleCount(items),
     uniqueWines: items.length,
-    readyNow: items.filter((wine) => wine.readiness === "ready" || wine.readiness === "drink_soon").length,
-    drinkSoon: items.filter((wine) => wine.readiness === "drink_soon").length,
-    pastPeak: items.filter((wine) => wine.readiness === "past_peak").length,
-    replace: replaceItems.length,
-    needsSignal: learnItems.length,
-    highBrianFit: items.filter((wine) => (wine.brian_fit_score ?? 0) >= HIGH_BRIAN_FIT).length,
+    readyNow: bottleCount(items.filter((wine) => wine.readiness === "ready" || wine.readiness === "drink_soon")),
+    drinkSoon: bottleCount(items.filter((wine) => wine.readiness === "drink_soon")),
+    pastPeak: bottleCount(items.filter((wine) => wine.readiness === "past_peak")),
+    replace: bottleCount(replaceItems),
+    needsSignal: bottleCount(learnItems),
+    highBrianFit: bottleCount(items.filter((wine) => (wine.brian_fit_score ?? 0) >= HIGH_BRIAN_FIT)),
     estimatedValueCents: items.reduce((sum, wine) => sum + (wine.estimatedValueCents ?? 0), 0),
     unlovedValueCents: learnItems.reduce((sum, wine) => sum + (wine.estimatedValueCents ?? 0), 0),
-    missingMarketValues: missingMarketValueItems.length,
-    recentUnreviewed: recentUnreviewedItems.length,
+    missingMarketValues: bottleCount(missingMarketValueItems),
+    recentUnreviewed: bottleCount(recentUnreviewedItems),
   };
 
   const portfolioTruth = buildPortfolioTruth(wines);

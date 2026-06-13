@@ -111,9 +111,33 @@ function testEmptyCellarReturnsActionableFallback() {
   assert.match(response.fallback_prompt ?? "", /Add your first bottle|restore/i);
 }
 
+function testEmptyActiveCellarReturnsActionableFallback() {
+  const response = buildTonightRecommendations([
+    { ...bottles[0], id: "consumed", quantity: 0 },
+  ], context, { asOf: new Date("2026-06-13T12:00:00Z") });
+
+  assert.equal(response.primary, null);
+  assert.deepEqual(response.alternates, []);
+  assert.match(response.fallback_prompt ?? "", /Add your first bottle|restore/i);
+  assert.match(response.confidence_note, /No inventory/i);
+}
+
+function testTonightEngineWillNotPrimaryHoldOrPastPeakBottle() {
+  const response = buildTonightRecommendations([
+    { ...bottles[0], id: "hold-cab", drink_after: "2030", drink_before: "2035", brian_fit_score: 99 },
+    { ...bottles[1], id: "past-pinot", drink_after: "2018", drink_before: "2024", brian_fit_score: 99 },
+    { ...bottles[2], id: "ready-modest", drink_after: "2024", drink_before: "2028", brian_fit_score: 75 },
+  ], context, { asOf: new Date("2026-06-13T12:00:00Z") });
+
+  assert.equal(response.primary?.inventory_id, "ready-modest");
+  assert.doesNotMatch(response.headline, /hold-cab|past-pinot/i);
+}
+
 testBuildsPrimaryAndTwoAlternatesFromActualCellar();
 testScoringExposesTransparentCategoriesAndCautions();
 testAdventurousModeElevatesLearningBottleWithoutInventingConfidence();
 testEmptyCellarReturnsActionableFallback();
+testEmptyActiveCellarReturnsActionableFallback();
+testTonightEngineWillNotPrimaryHoldOrPastPeakBottle();
 
 console.log("tonight-engine tests passed");

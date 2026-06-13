@@ -24,6 +24,17 @@ function testReadinessUsesSingleCanonicalStateMachine() {
   assert.equal(getWineReadiness({ drink_after: null, drink_before: null }, { asOf }), "unknown");
 }
 
+function testReadinessRespectsExactIsoDatesWhenAvailable() {
+  assert.equal(getWineReadiness({ drink_after: "2026-12-31", drink_before: "2032-12-31" }, { asOf }), "hold");
+  assert.equal(getWineReadiness({ drink_after: "2024-01-01", drink_before: "2026-06-01" }, { asOf }), "past_peak");
+  assert.equal(getWineReadiness({ drink_after: "2024-01-01", drink_before: "2026-07-01" }, { asOf }), "drink_soon");
+}
+
+function testReadinessFlagsInvertedWindowsAsUnknown() {
+  assert.equal(getWineReadiness({ drink_after: "2030", drink_before: "2028" }, { asOf }), "unknown");
+  assert.equal(getWineWindowDisplay({ drink_after: "2030", drink_before: "2028" }, { asOf }), null);
+}
+
 function testReadyNowRequiresARealWindow() {
   assert.equal(isWineReadyNow({ drink_after: null, drink_before: null }, { asOf }), false);
   assert.equal(isWineReadyNow({ drink_after: "2024", drink_before: "2028" }, { asOf }), true);
@@ -61,6 +72,8 @@ function testApproachingPeakIsDerivedFromSameWindowParsing() {
 
 testParsesYearsFromDatesAndLabels();
 testReadinessUsesSingleCanonicalStateMachine();
+testReadinessRespectsExactIsoDatesWhenAvailable();
+testReadinessFlagsInvertedWindowsAsUnknown();
 testReadyNowRequiresARealWindow();
 testWindowDisplayFeedsCardsWithoutReinventingLogic();
 testApproachingPeakIsDerivedFromSameWindowParsing();

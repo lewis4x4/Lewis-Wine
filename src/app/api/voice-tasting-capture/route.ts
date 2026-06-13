@@ -103,6 +103,14 @@ export async function POST(request: Request) {
 
       if (existingRatingError) throw existingRatingError;
       ratingRow = existingRating as { id: string } | null;
+      if (ratingRow) {
+        return NextResponse.json({
+          success: true,
+          mode: "saved",
+          ratingId: ratingRow.id,
+          message: "Already saved this voice tasting.",
+        }, { status: 200 });
+      }
     }
 
     const ratingInsert: RatingInsert = {
@@ -121,7 +129,27 @@ export async function POST(request: Request) {
         .select("id")
         .single();
 
-      if (ratingError) throw ratingError;
+      if (ratingError) {
+        if (idempotencyKey && (ratingError as { code?: string }).code === "23505") {
+          const { data: replayedRating, error: replayedRatingError } = await supabase
+            .from("ratings")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("voice_capture_idempotency_key", idempotencyKey)
+            .maybeSingle();
+
+          if (replayedRatingError) throw replayedRatingError;
+          if (replayedRating) {
+            return NextResponse.json({
+              success: true,
+              mode: "saved",
+              ratingId: (replayedRating as { id: string }).id,
+              message: "Already saved this voice tasting.",
+            }, { status: 200 });
+          }
+        }
+        throw ratingError;
+      }
       ratingRow = rating as { id: string };
     }
 

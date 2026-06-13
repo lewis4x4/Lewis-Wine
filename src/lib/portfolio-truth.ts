@@ -26,7 +26,7 @@ export type PortfolioUpdateAction = {
   id: string;
   displayName: string;
   reason: string;
-  missing: "market-value" | "purchase-and-market";
+  missing: "market-value" | "purchase-basis" | "purchase-and-market";
   estimatedValueCents: number;
   href: string;
 };
@@ -164,14 +164,23 @@ function buildUpdateNext(wines: PortfolioTruthWine[]): PortfolioUpdateAction[] {
     .filter((wine) => wine.current_market_value_cents == null || wine.purchase_price_cents == null)
     .map((wine) => {
       const estimatedValueCents = valueForDisplay(wine) * Math.max(wine.quantity, 0);
-      const missingBoth = wine.current_market_value_cents == null && wine.purchase_price_cents == null;
+      const missingMarket = wine.current_market_value_cents == null;
+      const missingPurchase = wine.purchase_price_cents == null;
+      const missing = missingMarket && missingPurchase
+        ? "purchase-and-market" as const
+        : missingMarket
+          ? "market-value" as const
+          : "purchase-basis" as const;
+      const reason = missing === "purchase-and-market"
+        ? "Missing purchase and market value, so portfolio truth cannot price it."
+        : missing === "market-value"
+          ? "Missing market value on meaningful estimated value."
+          : "Missing purchase basis, so performance and gain/loss cannot be trusted.";
       return {
         id: wine.id,
         displayName: displayName(wine),
-        reason: missingBoth
-          ? "Missing purchase and market value, so portfolio truth cannot price it."
-          : "Missing market value on meaningful estimated value.",
-        missing: missingBoth ? "purchase-and-market" as const : "market-value" as const,
+        reason,
+        missing,
         estimatedValueCents,
         href: `/cellar/${wine.id}`,
       };

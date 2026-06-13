@@ -168,14 +168,13 @@ export function useSpendingStats() {
   return useQuery({
     queryKey: ["analytics", "spending"],
     queryFn: async () => {
-      // Get all active inventory with valuation fields
+      // Get all inventory for purchase history; Portfolio Truth filters to active cellar value separately.
       const { data: inventory, error } = await supabase
         .from("cellar_inventory")
         .select(`
           *,
           wine_reference (*)
-        `)
-        .eq("status", "in_cellar");
+        `);
 
       if (error) throw error;
 
@@ -269,7 +268,8 @@ export function useSpendingStats() {
       );
       const mostExpensive = sortedByPrice[0];
 
-      const portfolioTruth = buildPortfolioTruth(wines.map((w) => ({
+      const activeWines = wines.filter((w) => w.status === "in_cellar");
+      const portfolioTruth = buildPortfolioTruth(activeWines.map((w) => ({
         id: w.id,
         name: w.wine_reference?.name,
         custom_name: w.custom_name,

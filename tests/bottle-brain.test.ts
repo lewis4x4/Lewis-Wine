@@ -237,6 +237,32 @@ function testRiskModeHasTriageRolesAndDoesNotRecommendOpeningReadyBottleFirst() 
   assert.equal(retrieval.evidencePackets[0].recommendedAction, "update_window");
 }
 
+function testDrinkNowDoesNotOpenHoldBottleEvenWithHighBrianFit() {
+  const retrieval = retrieveBottleBrainContext("What should I open tonight with high Brian-Fit?", [
+    {
+      ...docs[1],
+      id: "future-cab",
+      displayName: "2030 Future Cabernet",
+      producer: "Patience Estate",
+      region: "Napa Valley",
+      brian_fit_score: 99,
+      ratings_count: 2,
+      drink_after: "2030",
+      drink_before: "2038",
+      notes: "Great Cabernet, but not in window yet.",
+    },
+    docs[0],
+  ], {
+    asOf: new Date("2026-06-12T12:00:00Z"),
+    limit: 2,
+  });
+  const answer = buildBottleBrainAnswer("What should I open tonight with high Brian-Fit?", retrieval);
+
+  assert.equal(retrieval.citations[0].id, "cab-ready");
+  assert.equal(retrieval.evidencePackets[0].recommendedAction, "open");
+  assert.doesNotMatch(answer.answer, /Open 2030 Future Cabernet/i);
+}
+
 testRetrievalFindsDrinkNowAndBrianFit();
 testRetrievalFindsLearningGaps();
 testAnswerUsesCitationsAndUncertainty();
@@ -249,5 +275,6 @@ testModeProfileExplainsStrategyAndPriorities();
 testDecisionModeAssignsBottleRolesAndTradeoffs();
 testOccasionModeExtractsScenarioSignals();
 testRiskModeHasTriageRolesAndDoesNotRecommendOpeningReadyBottleFirst();
+testDrinkNowDoesNotOpenHoldBottleEvenWithHighBrianFit();
 
 console.log("bottle-brain tests passed");

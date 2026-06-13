@@ -62,6 +62,16 @@ function testPortfolioFindsConcentrationAndUpdateNextActions() {
   assert.match(truth.bestNextMove, /market-gap|Bordeaux|market value/i);
 }
 
+function testPortfolioDistinguishesPurchaseBasisFromMarketGaps() {
+  const truth = buildPortfolioTruth([
+    wine({ id: "basis-gap", quantity: 1, purchase_price_cents: null, current_market_value_cents: 50000 }),
+  ]);
+
+  assert.equal(truth.updateNext[0].id, "basis-gap");
+  assert.equal(truth.updateNext[0].missing, "purchase-basis");
+  assert.match(truth.updateNext[0].reason, /purchase basis/i);
+}
+
 function testPortfolioEmptyStateIsHonest() {
   const truth = buildPortfolioTruth([]);
 
@@ -73,6 +83,7 @@ function testPortfolioEmptyStateIsHonest() {
 testPortfolioSeparatesKnownEstimatedAndUnknownValue();
 testPortfolioCalculatesGainLossOnlyWhereMarketAndPurchaseExist();
 testPortfolioFindsConcentrationAndUpdateNextActions();
+testPortfolioDistinguishesPurchaseBasisFromMarketGaps();
 testPortfolioEmptyStateIsHonest();
 
 console.log("portfolio-truth tests passed");

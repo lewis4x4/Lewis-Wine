@@ -49,11 +49,11 @@ function testCommandCenterBuildsActionLanes() {
   ], { asOf });
 
   assert.equal(center.metrics.totalBottles, 6);
-  assert.equal(center.metrics.readyNow, 2);
+  assert.equal(center.metrics.readyNow, 3);
   assert.equal(center.metrics.pastPeak, 1);
   assert.equal(center.metrics.replace, 1);
   assert.equal(center.metrics.needsSignal, 1);
-  assert.equal(center.metrics.highBrianFit, 2);
+  assert.equal(center.metrics.highBrianFit, 3);
 
   assert.equal(center.lanes.drinkNow[0].id, "ready-fit");
   assert.match(center.lanes.drinkNow[0].action, /Open|Prioritize/);
@@ -103,7 +103,7 @@ function testCommandCenterFindsPortfolioAndDataQualityRails() {
   ], { asOf });
 
   assert.equal(center.metrics.unlovedValueCents, 37000);
-  assert.equal(center.metrics.missingMarketValues, 2);
+  assert.equal(center.metrics.missingMarketValues, 3);
   assert.equal(center.metrics.recentUnreviewed, 1);
   assert.equal(center.lanes.unlovedExpensive[0].id, "expensive-unloved");
   assert.equal(center.lanes.missingMarketValue[0].id, "missing-market");

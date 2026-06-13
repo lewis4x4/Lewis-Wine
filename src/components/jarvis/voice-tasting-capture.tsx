@@ -328,6 +328,8 @@ export function VoiceTastingCapture() {
     toast.success(`Selected ${match.displayName} for this tasting.`);
   };
 
+  const canSave = Boolean(transcript.trim()) && draft?.status === "ready_to_save" && Boolean(selectedInventoryId || draft.matchedWine?.id);
+
   return (
     <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
       <Card className="rounded-[28px] border-border/70 bg-background/90 shadow-sm">
@@ -377,7 +379,7 @@ export function VoiceTastingCapture() {
               <Sparkles className="h-4 w-4" />
               {isBusy ? "Structuring..." : "Preview draft"}
             </Button>
-            <Button className="h-11 rounded-full" variant="outline" onClick={save} disabled={isBusy || !transcript.trim()}>
+            <Button className="h-11 rounded-full" variant="outline" onClick={save} disabled={isBusy || !canSave}>
               <Save className="h-4 w-4" />
               Save tasting
             </Button>
