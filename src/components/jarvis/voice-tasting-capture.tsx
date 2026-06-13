@@ -1,13 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, Mic, MicOff, Save, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  createOfflineTastingDraft,
+  drainSavedOfflineTastingDrafts,
+  getOfflineTastingDrafts,
+  markOfflineTastingDraftFailed,
+  markOfflineTastingDraftSyncing,
+  saveOfflineTastingDraft,
+  type OfflineTastingDraft,
+} from "@/lib/offline-tasting-drafts";
 import type { VoiceTastingDraft } from "@/lib/voice-tasting-capture";
 
 type VoiceTastingResponse = {
@@ -69,6 +78,8 @@ export function VoiceTastingCapture() {
   const [draft, setDraft] = useState<VoiceTastingDraft | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [offlineDrafts, setOfflineDrafts] = useState<OfflineTastingDraft[]>([]);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const speechSupported = useMemo(() => {
@@ -76,6 +87,30 @@ export function VoiceTastingCapture() {
     const speechWindow = window as BrowserWithSpeech;
     return Boolean(speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const refreshState = () => {
+      setIsOnline(window.navigator.onLine);
+      setOfflineDrafts(getOfflineTastingDrafts(window.localStorage));
+    };
+
+    refreshState();
+    window.addEventListener("online", refreshState);
+    window.addEventListener("offline", refreshState);
+
+    return () => {
+      window.removeEventListener("online", refreshState);
+      window.removeEventListener("offline", refreshState);
+    };
+  }, []);
+
+  const refreshOfflineDrafts = () => {
+    if (typeof window === "undefined") return;
+    setIsOnline(window.navigator.onLine);
+    setOfflineDrafts(getOfflineTastingDrafts(window.localStorage));
+  };
 
   const startListening = () => {
     if (typeof window === "undefined") return;
@@ -131,6 +166,14 @@ export function VoiceTastingCapture() {
   const save = async () => {
     const clean = transcript.trim();
     if (!clean) return;
+
+    if (typeof window !== "undefined" && !window.navigator.onLine) {
+      const offlineDraft = saveOfflineTastingDraft(window.localStorage, createOfflineTastingDraft({ transcript: clean }));
+      refreshOfflineDrafts();
+      toast.info(`Queued tasting offline: ${offlineDraft.id}`);
+      return;
+    }
+
     setIsBusy(true);
     try {
       const data = await runVoiceCapture(clean, true);
@@ -139,7 +182,47 @@ export function VoiceTastingCapture() {
     } catch (error) {
       const maybeDraft = error as Error & { draft?: VoiceTastingDraft };
       if (maybeDraft.draft) setDraft(maybeDraft.draft);
-      toast.error(error instanceof Error ? error.message : "Tasting could not be saved.");
+      if (typeof window !== "undefined") {
+        saveOfflineTastingDraft(window.localStorage, createOfflineTastingDraft({ transcript: clean }));
+        refreshOfflineDrafts();
+      }
+      toast.error(error instanceof Error ? `${error.message} Saved as an offline draft.` : "Tasting saved as an offline draft.");
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const syncOfflineDrafts = async () => {
+    if (typeof window === "undefined") return;
+    if (!window.navigator.onLine) {
+      toast.error("You are offline. Sync when the cellar is back online.");
+      return;
+    }
+
+    const queued = getOfflineTastingDrafts(window.localStorage);
+    if (!queued.length) return;
+
+    setIsBusy(true);
+    const savedIds: string[] = [];
+    try {
+      for (const offlineDraft of queued) {
+        markOfflineTastingDraftSyncing(window.localStorage, offlineDraft.id);
+        refreshOfflineDrafts();
+        try {
+          await runVoiceCapture(offlineDraft.transcript, true);
+          savedIds.push(offlineDraft.id);
+        } catch (error) {
+          markOfflineTastingDraftFailed(
+            window.localStorage,
+            offlineDraft.id,
+            error instanceof Error ? error.message : "Sync failed.",
+          );
+        }
+      }
+      drainSavedOfflineTastingDrafts(window.localStorage, savedIds);
+      refreshOfflineDrafts();
+      if (savedIds.length > 0) toast.success(`Synced ${savedIds.length} offline tasting ${savedIds.length === 1 ? "draft" : "drafts"}.`);
+      if (savedIds.length < queued.length) toast.error("Some offline drafts still need attention.");
     } finally {
       setIsBusy(false);
     }
@@ -158,6 +241,9 @@ export function VoiceTastingCapture() {
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="flex flex-wrap gap-2">
+            <Badge variant={isOnline ? "secondary" : "outline"} className="rounded-full">
+              {isOnline ? "Online" : "Offline queue active"}
+            </Badge>
             <Button
               type="button"
               variant={isListening ? "destructive" : "outline"}
@@ -190,6 +276,8 @@ export function VoiceTastingCapture() {
               Save tasting
             </Button>
           </div>
+
+          <OfflineQueue drafts={offlineDrafts} isBusy={isBusy} onSync={syncOfflineDrafts} />
         </CardContent>
       </Card>
 
@@ -208,6 +296,49 @@ export function VoiceTastingCapture() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function OfflineQueue({
+  drafts,
+  isBusy,
+  onSync,
+}: {
+  drafts: OfflineTastingDraft[];
+  isBusy: boolean;
+  onSync: () => void;
+}) {
+  if (!drafts.length) {
+    return (
+      <div className="rounded-3xl border border-border/70 bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+        Offline queue empty. If the cellar signal drops, failed saves will wait here instead of vanishing.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-3xl border border-border/70 bg-muted/20 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium text-foreground">Offline tasting drafts</div>
+          <div className="text-xs text-muted-foreground">{drafts.length} waiting to sync into ratings.</div>
+        </div>
+        <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={onSync} disabled={isBusy}>
+          Sync now
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {drafts.slice(0, 3).map((offlineDraft) => (
+          <div key={offlineDraft.id} className="rounded-2xl border border-border/70 bg-background/70 p-3 text-xs leading-5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-medium text-foreground">{offlineDraft.status}</span>
+              <span className="text-muted-foreground">attempts {offlineDraft.attempts}</span>
+            </div>
+            <p className="mt-1 line-clamp-2 text-muted-foreground">{offlineDraft.transcript}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
