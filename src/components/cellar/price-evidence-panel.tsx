@@ -169,7 +169,10 @@ export function PriceEvidencePanel({ inventoryId, wineReferenceId, onApplyMarket
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => setShowManualDialog(true)}>Add price evidence</Button>
               <Button onClick={() => refreshIntelligence("quick")} disabled={isRefreshing}>
-                <RefreshCw className="h-4 w-4" /> {isRefreshing ? "Refreshing..." : "Refresh intelligence"}
+                <RefreshCw className="h-4 w-4" /> {isRefreshing ? "Refreshing..." : "Quick refresh"}
+              </Button>
+              <Button variant="outline" onClick={() => refreshIntelligence("deep")} disabled={isRefreshing}>
+                Deep search
               </Button>
             </div>
           </div>
@@ -247,6 +250,10 @@ export function PriceEvidencePanel({ inventoryId, wineReferenceId, onApplyMarket
           <div className="space-y-4">
             {refreshResult?.gaps?.length ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{refreshResult.gaps.map((gap) => <p key={gap}>{gap}</p>)}</div> : null}
             <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Price observations</p>
+                <Button size="sm" variant="outline" onClick={() => setShowManualDialog(true)}>Add manually</Button>
+              </div>
               {refreshResult?.observations?.length ? refreshResult.observations.map((observation, index) => (
                 <div key={`${observation.sourceName}-${index}`} className="flex items-start justify-between gap-3 rounded-lg border p-3">
                   <div>
@@ -256,7 +263,20 @@ export function PriceEvidencePanel({ inventoryId, wineReferenceId, onApplyMarket
                   </div>
                   <Button size="sm" onClick={() => acceptRefreshObservation(observation)}><CheckCircle2 className="h-4 w-4" /> Accept</Button>
                 </div>
-              )) : <p className="text-sm text-muted-foreground">No price observations were produced. Save manual evidence or import CellarTracker data.</p>}
+              )) : <p className="text-sm text-muted-foreground">No price observations were produced. Market value remains Unknown until you save manual, CellarTracker, WMJ, auction, or provider evidence.</p>}
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Source-backed findings</p>
+              {refreshResult?.evidence?.length ? refreshResult.evidence.map((item, index) => (
+                <div key={`${item.title}-${index}`} className="rounded-lg border p-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{item.title}</span>
+                    <Badge variant="secondary">confidence {item.confidence}%</Badge>
+                  </div>
+                  {item.detail ? <p className="mt-1 text-muted-foreground">{item.detail}</p> : null}
+                  {item.sourceUrl ? <a className="mt-2 inline-block text-xs underline" href={item.sourceUrl} target="_blank" rel="noreferrer">Open source</a> : null}
+                </div>
+              )) : <p className="text-sm text-muted-foreground">No source-backed findings were returned. Try Deep refresh, add manual evidence, or import CellarTracker export data.</p>}
             </div>
             <div className="rounded-lg border p-3 text-sm">
               <div className="flex items-center gap-2 font-medium"><ShieldCheck className="h-4 w-4" /> Trust policy</div>

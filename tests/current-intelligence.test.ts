@@ -66,19 +66,38 @@ const bottle = {
       confidence: 78,
     },
     {
-      title: "Forum guess",
+      title: "AI-found retailer page",
+      url: "https://shop.example/lewis-cab-2019",
       sourceType: "ai_search",
-      extractedText: "Likely worth around $150",
-      priceCents: 15000,
+      extractedText: "$140 current retailer replacement price",
+      priceCents: 14000,
       currency: "USD",
-      confidence: 45,
+      vintage: 2019,
+      confidence: 70,
     },
   ];
   const normalized = normalizeAiEvidenceCandidates(candidates, buildRefreshPlan(bottle, "pricing", [], "2026-06-13T00:00:00.000Z"));
   assert.equal(normalized.observations[0].observationKind, "replacement_price");
   assert.equal(normalized.observations[0].truthLabel, "estimated");
-  assert.equal(normalized.observations[1].truthLabel, "ai_inferred");
+  assert.equal(normalized.observations[1].observationKind, "replacement_price");
+  assert.equal(normalized.observations[1].truthLabel, "estimated");
   assert.equal(normalized.gaps.length, 0);
+}
+
+{
+  const normalized = normalizeAiEvidenceCandidates([
+    {
+      title: "Producer tech sheet",
+      url: "https://winery.example/2019-cabernet-tech-sheet",
+      sourceType: "ai_search",
+      extractedText: "Producer lists Napa Valley fruit and recommended drinking window through 2030.",
+      vintage: 2019,
+      confidence: 82,
+    },
+  ], buildRefreshPlan(bottle, "deep", [], "2026-06-13T00:00:00.000Z"));
+  assert.equal(normalized.evidence.length, 1);
+  assert.equal(normalized.observations.length, 0);
+  assert.equal(normalized.evidence[0].truthLabel, "estimated");
 }
 
 {

@@ -29,13 +29,23 @@ const requestSchema = z.object({
 async function synthesizeWithAnthropic(record: BottleSearchRecord, scope: RefreshScope): Promise<AiEvidenceCandidate[]> {
   if (!process.env.ANTHROPIC_API_KEY) return [];
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const prompt = `You are Pourfolio's wine intelligence analyst. Return ONLY JSON array. Do not invent prices. If you cannot cite a public source URL, mark sourceType ai_inferred and omit priceCents unless the user supplied evidence. Scope: ${scope}. Wine record: ${JSON.stringify(record)}. Desired object fields: title,url,sourceType,extractedText,priceCents,currency,vintage,bottleSizeMl,confidence. Retail listings are replacement price, not market value. Prefer winery/producer facts and public retailer replacement signals. If no current source is available, return [].`;
-  const response = await anthropic.messages.create({
+  const prompt = `You are Pourfolio's wine intelligence analyst. Use web search when available. Return ONLY JSON array, no markdown. Do not invent prices. If a price is found on a retailer/winery page, include it as replacement-price evidence only. If a source describes producer facts, vintage notes, drink window, or serving guidance without price, still return it as evidence with no priceCents. If you cannot cite a public source URL, mark sourceType ai_inferred and omit priceCents unless the user supplied evidence. Scope: ${scope}. Wine record: ${JSON.stringify(record)}. Desired object fields: title,url,sourceType,extractedText,priceCents,currency,vintage,bottleSizeMl,confidence. Valid sourceType values: retailer, winery, auction, public_web, ai_inferred, provider, unknown. Avoid protected/login-gated sources such as Vivino, CellarTracker, and Wine-Searcher unless the user provided export/API evidence. Prefer 2-4 concise, source-backed findings.`;
+  const baseRequest = {
     model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929",
-    max_tokens: 1200,
+    max_tokens: 1800,
     temperature: 0,
-    messages: [{ role: "user", content: prompt }],
-  });
+    messages: [{ role: "user" as const, content: prompt }],
+  };
+  let response;
+  try {
+    response = await anthropic.messages.create({
+      ...baseRequest,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }] as any,
+    });
+  } catch {
+    response = await anthropic.messages.create(baseRequest);
+  }
   const text = response.content.map((part) => part.type === "text" ? part.text : "").join("\n").trim();
   const jsonText = text.match(/\[[\s\S]*\]/)?.[0] ?? "[]";
   const parsed = JSON.parse(jsonText) as AiEvidenceCandidate[];

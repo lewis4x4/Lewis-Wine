@@ -144,13 +144,13 @@ export function normalizeAiEvidenceCandidates(candidates: AiEvidenceCandidate[],
   const gaps: string[] = [];
   for (const candidate of candidates) {
     const policy = classifySourcePolicy(candidate.url ?? candidate.title);
-    const sourceType = candidate.sourceType ?? policy.sourceType;
+    const sourceType = candidate.sourceType === "ai_search" || candidate.sourceType === "unknown" ? policy.sourceType : candidate.sourceType ?? policy.sourceType;
     let confidence = Math.max(0, Math.min(100, candidate.confidence));
     if (plan.identity.vintage && candidate.vintage && candidate.vintage !== plan.identity.vintage) {
       confidence -= 25;
       gaps.push(`Candidate vintage ${candidate.vintage} does not match ${plan.identity.vintage}.`);
     }
-    const truthLabel = !candidate.url || sourceType === "ai_search" || sourceType === "ai_inferred" ? "ai_inferred" : policy.extractionAllowed ? "estimated" : "rejected";
+    const truthLabel = !candidate.url || sourceType === "ai_inferred" ? "ai_inferred" : policy.extractionAllowed ? "estimated" : "rejected";
     evidence.push({ title: candidate.title, sourceType, truthLabel, confidence, sourceUrl: candidate.url ?? null, detail: candidate.extractedText });
     if (candidate.priceCents && truthLabel !== "rejected") {
       observations.push(normalizePriceObservation({
