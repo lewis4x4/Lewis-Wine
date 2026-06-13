@@ -48,20 +48,52 @@ CREATE TABLE IF NOT EXISTS rating_signals (
 ALTER TABLE brian_taste_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rating_signals ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can manage own brian taste profile" ON brian_taste_profiles
-  FOR ALL USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'brian_taste_profiles'
+      AND policyname = 'Users can manage own brian taste profile'
+  ) THEN
+    CREATE POLICY "Users can manage own brian taste profile" ON brian_taste_profiles
+      FOR ALL USING (user_id = auth.uid())
+      WITH CHECK (user_id = auth.uid());
+  END IF;
 
-CREATE POLICY "Users can manage own rating signals" ON rating_signals
-  FOR ALL USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'rating_signals'
+      AND policyname = 'Users can manage own rating signals'
+  ) THEN
+    CREATE POLICY "Users can manage own rating signals" ON rating_signals
+      FOR ALL USING (user_id = auth.uid())
+      WITH CHECK (user_id = auth.uid());
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_rating_signals_user ON rating_signals(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_rating_signals_tags ON rating_signals USING GIN(decision_tags);
 CREATE INDEX IF NOT EXISTS idx_rating_signals_phrases ON rating_signals USING GIN(brian_phrases);
 
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON brian_taste_profiles
-FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = 'brian_taste_profiles'::regclass
+      AND tgname IN ('set_updated_at', 'set_brian_taste_profiles_updated_at')
+  ) THEN
+    CREATE TRIGGER set_brian_taste_profiles_updated_at BEFORE UPDATE ON brian_taste_profiles
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+  END IF;
 
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON rating_signals
-FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = 'rating_signals'::regclass
+      AND tgname IN ('set_updated_at', 'set_rating_signals_updated_at')
+  ) THEN
+    CREATE TRIGGER set_rating_signals_updated_at BEFORE UPDATE ON rating_signals
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+  END IF;
+END $$;

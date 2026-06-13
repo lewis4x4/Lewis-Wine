@@ -1,8 +1,10 @@
 -- JARVIS Memory OS phase 1 schema
 -- Core executive memory tables for capture, commitments, decisions, timeline, and briefing.
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE IF NOT EXISTS capture_events (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   source_type TEXT NOT NULL
     CHECK (source_type IN ('manual', 'note', 'transcript', 'meeting', 'email', 'document')),
@@ -18,7 +20,7 @@ CREATE TABLE IF NOT EXISTS capture_events (
 );
 
 CREATE TABLE IF NOT EXISTS artifacts (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   capture_event_id UUID REFERENCES capture_events(id) ON DELETE CASCADE,
   artifact_type TEXT NOT NULL
@@ -35,7 +37,7 @@ CREATE TABLE IF NOT EXISTS artifacts (
 );
 
 CREATE TABLE IF NOT EXISTS timeline_events (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   event_type TEXT NOT NULL
     CHECK (event_type IN ('capture', 'commitment', 'decision', 'brief')),
@@ -52,7 +54,7 @@ CREATE TABLE IF NOT EXISTS timeline_events (
 );
 
 CREATE TABLE IF NOT EXISTS commitments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   business_lane TEXT NOT NULL
     CHECK (business_lane IN ('executive', 'product', 'commercial', 'finance', 'operations', 'talent', 'relationships', 'personal')),
@@ -77,7 +79,7 @@ CREATE TABLE IF NOT EXISTS commitments (
 );
 
 CREATE TABLE IF NOT EXISTS decisions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   business_lane TEXT NOT NULL
     CHECK (business_lane IN ('executive', 'product', 'commercial', 'finance', 'operations', 'talent', 'relationships', 'personal')),
@@ -96,7 +98,7 @@ CREATE TABLE IF NOT EXISTS decisions (
 );
 
 CREATE TABLE IF NOT EXISTS daily_briefs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   brief_date DATE NOT NULL,
   title TEXT NOT NULL CHECK (char_length(trim(title)) > 0),

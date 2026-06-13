@@ -45,6 +45,9 @@ public/workbox-*.js.map
 public/worker-*.js
 public/worker-*.js.map
 
+# Supabase local link/cache
+supabase/.temp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
