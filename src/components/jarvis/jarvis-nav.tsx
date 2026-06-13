@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/jarvis", label: "Overview" },
   { href: "/jarvis/capture", label: "Capture" },
+  { href: "/jarvis/voice", label: "Voice" },
   { href: "/jarvis/commitments", label: "Commitments" },
   { href: "/jarvis/timeline", label: "Timeline" },
   { href: "/jarvis/briefing", label: "Briefing" },

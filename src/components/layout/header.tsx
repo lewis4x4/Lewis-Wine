@@ -78,6 +78,12 @@ export function Header() {
               Bottle Brain
             </Link>
             <Link
+              href="/jarvis/voice"
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Voice Capture
+            </Link>
+            <Link
               href="/recommendations"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
@@ -100,6 +106,9 @@ export function Header() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/bottle-brain">Bottle Brain</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/jarvis/voice">Voice Capture</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/recommendations">Tonight Engine</Link>
