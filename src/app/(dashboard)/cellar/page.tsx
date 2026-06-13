@@ -4,9 +4,11 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useCellar, useCellarInventory, useUpdateInventory } from "@/lib/hooks/use-cellar";
 import { getBrianFitForRatings, useBrianTasteProfile } from "@/lib/hooks/use-brian-fit";
+import { buildCellarCommandCenter } from "@/lib/cellar-command-center";
 import { useCellarValue } from "@/lib/hooks/use-portfolio-value";
 import { WineCard, type WineCardInventory } from "@/components/wine/wine-card";
 import { AlertsDashboard } from "@/components/cellar/alerts-dashboard";
+import { CellarCommandCenter } from "@/components/cellar/cellar-command-center";
 import { PortfolioDashboard } from "@/components/financial";
 import { SearchFilter, filterAndSortWines, type FilterState, type SortState } from "@/components/cellar/search-filter";
 import { Button } from "@/components/ui/button";
@@ -68,6 +70,35 @@ export default function CellarPage() {
       };
     });
   }, [brianTasteProfile, inventory]);
+
+  const commandCenter = useMemo(() => {
+    return buildCellarCommandCenter(
+      inventoryWithBrianFit.map((wine) => ({
+        id: wine.id,
+        name: wine.wine_reference?.name,
+        custom_name: wine.custom_name,
+        producer: wine.wine_reference?.producer,
+        custom_producer: wine.custom_producer,
+        region: wine.wine_reference?.region,
+        custom_region: wine.custom_region,
+        vintage: wine.vintage,
+        custom_vintage: wine.custom_vintage,
+        quantity: wine.quantity,
+        drink_after: wine.drink_after,
+        drink_before: wine.drink_before,
+        purchase_price_cents: wine.purchase_price_cents,
+        current_market_value_cents: wine.current_market_value_cents,
+        low_stock_threshold: wine.low_stock_threshold,
+        low_stock_alert_enabled: wine.low_stock_alert_enabled,
+        ratings_count: wine.ratings?.length ?? 0,
+        brian_fit_score: wine.brian_fit?.score ?? null,
+        brian_fit_confidence: wine.brian_fit?.confidence ?? null,
+        brian_fit_reason: wine.brian_fit?.reason ?? null,
+        tags: wine.tags,
+        created_at: wine.created_at,
+      }))
+    );
+  }, [inventoryWithBrianFit]);
 
   // Get unique regions for filter dropdown
   const availableRegions = useMemo(() => {
@@ -170,6 +201,10 @@ export default function CellarPage() {
           </div>
         </div>
       </section>
+
+      {!isLoading && inventory && inventory.length > 0 && (
+        <CellarCommandCenter center={commandCenter} />
+      )}
 
       {/* Stats Cards with Financial Summary */}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

@@ -12,6 +12,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { CellarCommandCenter } from "@/components/cellar/cellar-command-center";
+import { buildCellarCommandCenter } from "@/lib/cellar-command-center";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -55,6 +57,9 @@ export default async function DashboardPage() {
       quantity,
       purchase_price_cents,
       current_market_value_cents,
+      low_stock_threshold,
+      low_stock_alert_enabled,
+      tags,
       drink_after,
       drink_before,
       created_at,
@@ -76,6 +81,9 @@ export default async function DashboardPage() {
         quantity: number;
         purchase_price_cents: number | null;
         current_market_value_cents: number | null;
+        low_stock_threshold: number | null;
+        low_stock_alert_enabled: boolean;
+        tags: string[] | null;
         drink_after: string | null;
         drink_before: string | null;
         created_at: string;
@@ -139,6 +147,25 @@ export default async function DashboardPage() {
     const avgPrice = totalBottles > 0
         ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format((totalValueCents / totalBottles) / 100)
         : "$0.00";
+
+    const commandCenter = buildCellarCommandCenter((inventory || []).map((item) => ({
+        id: item.id,
+        name: item.wine_reference?.name,
+        custom_name: item.custom_name,
+        producer: item.wine_reference?.producer,
+        custom_producer: item.custom_producer,
+        region: item.wine_reference?.region,
+        custom_region: item.custom_region,
+        quantity: item.quantity,
+        drink_after: item.drink_after,
+        drink_before: item.drink_before,
+        purchase_price_cents: item.purchase_price_cents,
+        current_market_value_cents: item.current_market_value_cents,
+        low_stock_threshold: item.low_stock_threshold,
+        low_stock_alert_enabled: item.low_stock_alert_enabled,
+        tags: item.tags,
+        created_at: item.created_at,
+    })), { laneLimit: 4 });
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -207,6 +234,8 @@ export default async function DashboardPage() {
                     </div>
                 </div>
             </section>
+
+            {totalBottles > 0 && <CellarCommandCenter center={commandCenter} compact />}
 
             {/* KPI Cards */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
