@@ -740,6 +740,12 @@ function TasteGenomeCard({ genome }: { genome: TasteGenome }) {
   const topRegions = genome.affinities.regions.slice(0, 3);
   const topStructures = genome.structureProfile.slice(0, 5);
   const underperformer = genome.valuePattern.underperformers[0];
+  const actionGroups = [
+    { title: "Buy more", items: genome.actionPlan.buyMore },
+    { title: "Compare next", items: genome.actionPlan.compareNext },
+    { title: "Watchlist", items: genome.actionPlan.watchlist },
+    { title: "Improve confidence", items: genome.actionPlan.improveConfidence },
+  ];
 
   return (
     <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-background to-background">
@@ -824,6 +830,28 @@ function TasteGenomeCard({ genome }: { genome: TasteGenome }) {
             ))}
           </div>
         )}
+
+        <div className="rounded-2xl border bg-background/80 p-4">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Action layer</div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-4">
+            {actionGroups.map((group) => (
+              <div key={group.title} className="rounded-xl border bg-background/70 p-3">
+                <div className="text-sm font-semibold">{group.title}</div>
+                <div className="mt-3 space-y-3">
+                  {group.items.length > 0 ? group.items.slice(0, 2).map((item) => (
+                    <div key={`${group.title}-${item.target}`} className="text-sm">
+                      <div className="font-medium">{item.target}</div>
+                      <div className="text-xs text-muted-foreground">{item.evidence}</div>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.rationale}</p>
+                    </div>
+                  )) : (
+                    <p className="text-xs leading-5 text-muted-foreground">No strong signal yet. Keep collecting first-party ratings.</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

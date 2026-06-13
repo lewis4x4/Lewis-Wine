@@ -50,6 +50,20 @@ export type TasteGenomeBottlePattern = {
   valueIndex: number;
 };
 
+export type TasteGenomeAction = {
+  action: string;
+  target: string;
+  evidence: string;
+  rationale: string;
+};
+
+export type TasteGenomeActionPlan = {
+  buyMore: TasteGenomeAction[];
+  watchlist: TasteGenomeAction[];
+  compareNext: TasteGenomeAction[];
+  improveConfidence: TasteGenomeAction[];
+};
+
 export type TasteGenome = {
   sampleSize: number;
   averageRating: number | null;
@@ -69,6 +83,7 @@ export type TasteGenome = {
     underperformers: TasteGenomeBottlePattern[];
     summary: string;
   };
+  actionPlan: TasteGenomeActionPlan;
   insights: string[];
 };
 
@@ -208,6 +223,79 @@ function buildValuePattern(ratings: TasteGenomeRating[]) {
   };
 }
 
+function actionFromAffinity(action: string, affinity: TasteGenomeAffinity): TasteGenomeAction {
+  return {
+    action,
+    target: affinity.name,
+    evidence: `${affinity.count} ratings · ${affinity.averageRating.toFixed(1)} avg`,
+    rationale: `${affinity.confidence} taste signal, ${affinity.lift >= 0 ? "+" : ""}${affinity.lift.toFixed(1)} versus baseline.`,
+  };
+}
+
+function buildActionPlan(params: {
+  ratings: TasteGenomeRating[];
+  affinities: TasteGenome["affinities"];
+  structureProfile: TasteGenomeStructurePoint[];
+  valuePattern: TasteGenome["valuePattern"];
+  confidence: TasteGenome["confidence"];
+}): TasteGenomeActionPlan {
+  const { ratings, affinities, structureProfile, valuePattern, confidence } = params;
+  const buyMore = [
+    ...affinities.regions.filter((affinity) => affinity.confidence === "proven" && affinity.averageRating >= 92),
+    ...affinities.types.filter((affinity) => affinity.confidence === "proven" && affinity.averageRating >= 92),
+    ...affinities.producers.filter((affinity) => affinity.confidence === "proven" && affinity.averageRating >= 92),
+  ]
+    .sort((a, b) => b.averageRating - a.averageRating || b.count - a.count)
+    .slice(0, 3)
+    .map((affinity) => actionFromAffinity("Buy more", affinity));
+
+  const watchlist = valuePattern.underperformers.map((pattern) => ({
+    action: "Avoid or retaste before replacing",
+    target: pattern.label,
+    evidence: `${pattern.score} pts · ${pattern.priceCents ? `$${Math.round(pattern.priceCents / 100)}` : "price unknown"}`,
+    rationale: "Expensive bottle underperformed; do not treat this lane as a replenishment target without another confirming taste.",
+  }));
+
+  const compareNext = [
+    ...affinities.regions.filter((affinity) => affinity.confidence === "thin" && affinity.averageRating >= 94),
+    ...affinities.types.filter((affinity) => affinity.confidence === "thin" && affinity.averageRating >= 94),
+  ]
+    .sort((a, b) => b.averageRating - a.averageRating || a.name.localeCompare(b.name))
+    .slice(0, 3)
+    .map((affinity) => ({
+      ...actionFromAffinity("Compare next", affinity),
+      rationale: "High score but thin sample; taste one adjacent bottle before calling it a real preference.",
+    }));
+
+  const improveConfidence: TasteGenomeAction[] = [];
+  if (confidence.level === "empty") {
+    improveConfidence.push({
+      action: "Rate bottles",
+      target: "First three rated bottles",
+      evidence: "0 ratings",
+      rationale: "The genome should not make preference claims until first-party ratings exist.",
+    });
+  }
+  if (ratings.length > 0 && structureProfile.length < 3) {
+    improveConfidence.push({
+      action: "Capture rating signals",
+      target: "Next tasting note",
+      evidence: `${structureProfile.length} structural dimensions detected`,
+      rationale: "Ratings alone say what scored well; structure signals explain why it worked for Brian.",
+    });
+  }
+  if (ratings.length > 0 && ratings.length < 10) {
+    improveConfidence.push({
+      action: "Add more ratings",
+      target: "Ten-rating baseline",
+      evidence: `${ratings.length}/10 ratings`,
+      rationale: "A ten-rating baseline is the first useful threshold for durable taste lanes.",
+    });
+  }
+
+  return { buyMore, watchlist, compareNext, improveConfidence };
+}
+
 function buildHeadline(genome: Pick<TasteGenome, "sampleSize" | "affinities" | "structureProfile">) {
   if (genome.sampleSize === 0) return "Taste Genome needs ratings before it can make a serious claim.";
   const region = genome.affinities.regions[0];
@@ -262,6 +350,7 @@ export function buildTasteGenome(ratings: TasteGenomeRating[]): TasteGenome {
   };
   const structureProfile = buildStructureProfile(ratings);
   const valuePattern = buildValuePattern(ratings);
+  const actionPlan = buildActionPlan({ ratings, affinities, structureProfile, valuePattern, confidence });
   const headline = buildHeadline({ sampleSize, affinities, structureProfile });
   const insights = buildInsights({ affinities, structureProfile, valuePattern, confidence });
 
@@ -273,6 +362,7 @@ export function buildTasteGenome(ratings: TasteGenomeRating[]): TasteGenome {
     affinities,
     structureProfile,
     valuePattern,
+    actionPlan,
     insights,
   };
 }

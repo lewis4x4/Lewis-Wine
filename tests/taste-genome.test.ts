@@ -93,6 +93,23 @@ function testGenomeFindsValuePatternAndOverUnderperformers() {
   assert.match(genome.valuePattern.summary, /Willamette Valley|value-star/i);
 }
 
+function testGenomeBuildsActionLayer() {
+  const genome = buildTasteGenome([
+    rating({ id: "napa-1", score: 96, region: "Napa Valley", wine_type: "cabernet sauvignon", producer: "Lewis Cellars" }),
+    rating({ id: "napa-2", score: 94, region: "Napa Valley", wine_type: "cabernet sauvignon", producer: "Lewis Cellars" }),
+    rating({ id: "napa-3", score: 93, region: "Napa Valley", wine_type: "cabernet sauvignon", producer: "Ridge" }),
+    rating({ id: "thin-star", score: 97, region: "Burgundy", wine_type: "pinot noir", producer: "DRC" }),
+    rating({ id: "expensive-miss", score: 84, region: "Bordeaux", wine_type: "red blend", purchase_price_cents: 18000 }),
+  ]);
+
+  assert.equal(genome.actionPlan.buyMore[0].target, "Napa Valley");
+  assert.equal(genome.actionPlan.buyMore[0].evidence, "3 ratings · 94.3 avg");
+  assert.match(genome.actionPlan.buyMore[0].rationale, /proven/);
+  assert.equal(genome.actionPlan.watchlist[0].target, "2021 Lewis Cellars Bordeaux");
+  assert.equal(genome.actionPlan.compareNext[0].target, "Burgundy");
+  assert.equal(genome.actionPlan.improveConfidence[0].action, "Capture rating signals");
+}
+
 function testGenomeEmptyStateIsHonest() {
   const genome = buildTasteGenome([]);
 
@@ -100,11 +117,13 @@ function testGenomeEmptyStateIsHonest() {
   assert.equal(genome.confidence.level, "empty");
   assert.equal(genome.headline, "Taste Genome needs ratings before it can make a serious claim.");
   assert.deepEqual(genome.affinities.regions, []);
+  assert.equal(genome.actionPlan.improveConfidence[0].target, "First three rated bottles");
 }
 
 testGenomeSeparatesProvenPreferencesFromThinSignal();
 testGenomeBuildsStructureProfileFromRatingSignals();
 testGenomeFindsValuePatternAndOverUnderperformers();
+testGenomeBuildsActionLayer();
 testGenomeEmptyStateIsHonest();
 
 console.log("taste-genome tests passed");
