@@ -12,10 +12,11 @@ const importSchema = z.object({ csv: z.string().min(1), acceptMatched: z.boolean
 
 export async function POST(request: Request) {
   try {
-    const input = importSchema.parse(await request.json());
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
+    const input = importSchema.parse(await request.json());
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: inventory, error } = await (supabase as any)
