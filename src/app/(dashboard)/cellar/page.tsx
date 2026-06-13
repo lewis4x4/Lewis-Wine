@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCellar, useCellarInventory, useUpdateInventory } from "@/lib/hooks/use-cellar";
 import { getBrianFitForRatings, useBrianTasteProfile } from "@/lib/hooks/use-brian-fit";
 import { buildCellarCommandCenter } from "@/lib/cellar-command-center";
+import { isWineReadyNow } from "@/lib/wine-readiness";
 import { useCellarValue } from "@/lib/hooks/use-portfolio-value";
 import { WineCard, type WineCardInventory } from "@/components/wine/wine-card";
 import { AlertsDashboard } from "@/components/cellar/alerts-dashboard";
@@ -243,13 +244,7 @@ export default function CellarPage() {
         </Card>
         <StatCard
           label="Ready now"
-          value={inventory?.filter((w) => {
-            if (!w.drink_after && !w.drink_before) return true;
-            const now = new Date();
-            const after = w.drink_after ? new Date(w.drink_after) : null;
-            const before = w.drink_before ? new Date(w.drink_before) : null;
-            return (!after || now >= after) && (!before || now <= before);
-          }).length.toString() || "0"}
+          value={inventory?.filter((w) => isWineReadyNow(w)).length.toString() || "0"}
           tone="success"
         />
         <StatCard

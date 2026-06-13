@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { MapPin } from "lucide-react";
 import { getLocationDisplayString } from "@/lib/hooks/use-cellar-locations";
 import { cn } from "@/lib/utils";
+import { getWineWindowDisplay } from "@/lib/wine-readiness";
 import type { CellarInventory, WineReference, Rating, CellarLocation, LocationMode } from "@/types/database";
 import type { BrianFitSummary } from "@/lib/brian-fit";
 
@@ -66,40 +67,7 @@ export function WineCard({ wine, locationMode = "simple", brianFit, onQuantityCh
     return "bg-gray-400 text-white";
   };
 
-  // Drinking window calculation
-  const getDrinkingWindow = () => {
-    if (!wine.drink_after && !wine.drink_before) return null;
-
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const drinkAfterYear = wine.drink_after ? parseInt(wine.drink_after) : currentYear;
-    const drinkBeforeYear = wine.drink_before ? parseInt(wine.drink_before) : currentYear + 20;
-
-    // Calculate progress through drinking window
-    const windowStart = drinkAfterYear;
-    const windowEnd = drinkBeforeYear;
-    const windowLength = windowEnd - windowStart;
-    const yearsIntoWindow = currentYear - windowStart;
-    const progress = windowLength > 0 ? Math.min(100, Math.max(0, (yearsIntoWindow / windowLength) * 100)) : 50;
-
-    let status: "early" | "ready" | "late";
-    let label: string;
-
-    if (currentYear < drinkAfterYear) {
-      status = "early";
-      label = `Ready ${drinkAfterYear}`;
-    } else if (currentYear > drinkBeforeYear) {
-      status = "late";
-      label = "Past peak";
-    } else {
-      status = "ready";
-      label = `${drinkAfterYear}-${drinkBeforeYear}`;
-    }
-
-    return { progress, status, label, windowStart, windowEnd };
-  };
-
-  const drinkingWindow = getDrinkingWindow();
+  const drinkingWindow = getWineWindowDisplay(wine);
   const hasNotes = ratings.length > 0;
   const hasValue = wine.current_market_value_cents != null || wine.purchase_price_cents != null;
   const whatMattersNow = drinkingWindow?.status === "ready"

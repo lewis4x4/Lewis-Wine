@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Progress } from "@/components/ui/progress";
 import { CellarCommandCenter } from "@/components/cellar/cellar-command-center";
 import { buildCellarCommandCenter } from "@/lib/cellar-command-center";
+import { isWineReadyNow } from "@/lib/wine-readiness";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -99,9 +100,6 @@ export default async function DashboardPage() {
 
     const inventory = rawInventory as unknown as InventoryItem[] | null;
 
-    // Calculate Metrics
-    const currentYear = new Date().getFullYear();
-
     let totalBottles = 0;
     let totalValueCents = 0;
     let readyToDrinkCount = 0;
@@ -129,11 +127,7 @@ export default async function DashboardPage() {
         const unitValue = item.current_market_value_cents ?? item.purchase_price_cents ?? 0;
         totalValueCents += unitValue * item.quantity;
 
-        // Ready to Drink Logic (Simple Year check)
-        const startYear = item.drink_after ? parseInt(item.drink_after) : 0;
-        const endYear = item.drink_before ? parseInt(item.drink_before) : 9999;
-
-        if (currentYear >= startYear && currentYear <= endYear) {
+        if (isWineReadyNow(item)) {
             readyToDrinkCount += item.quantity;
         }
     });

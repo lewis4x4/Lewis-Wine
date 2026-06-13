@@ -1,3 +1,5 @@
+import { getWineReadiness, parseWineWindowYear, type WineReadinessState } from "./wine-readiness";
+
 export type CellarCommandWine = {
   id: string;
   name?: string | null;
@@ -59,18 +61,11 @@ export type CellarCommandCenter = {
 };
 
 const HIGH_BRIAN_FIT = 92;
-const DRINK_SOON_YEARS = 2;
+
+type CommandReadiness = Exclude<WineReadinessState, "unknown"> | "unknown";
 
 function plural(count: number, singular: string, pluralWord = `${singular}s`) {
   return `${count} ${count === 1 ? singular : pluralWord}`;
-}
-
-function parseCellarYear(value: string | null | undefined): number | null {
-  if (!value) return null;
-  const yearMatch = value.match(/\d{4}/);
-  if (!yearMatch) return null;
-  const year = Number.parseInt(yearMatch[0], 10);
-  return Number.isFinite(year) ? year : null;
 }
 
 function getCurrentYear(asOf: Date) {
@@ -96,24 +91,14 @@ function getEstimatedValueCents(wine: CellarCommandWine) {
   return unitValue == null ? null : unitValue * Math.max(wine.quantity, 0);
 }
 
-function getReadiness(wine: CellarCommandWine, asOf: Date): CellarCommandItem["readiness"] {
-  const currentYear = getCurrentYear(asOf);
-  const drinkAfterYear = parseCellarYear(wine.drink_after);
-  const drinkBeforeYear = parseCellarYear(wine.drink_before);
-
-  if (drinkBeforeYear != null && currentYear > drinkBeforeYear) return "past_peak";
-  if (drinkBeforeYear != null && currentYear <= drinkBeforeYear && drinkBeforeYear - currentYear <= DRINK_SOON_YEARS) {
-    return "drink_soon";
-  }
-  if (drinkAfterYear != null && currentYear < drinkAfterYear) return "hold";
-  if (drinkAfterYear != null || drinkBeforeYear != null) return "ready";
-  return "unknown";
+function getReadiness(wine: CellarCommandWine, asOf: Date): CommandReadiness {
+  return getWineReadiness(wine, { asOf });
 }
 
 function getUrgency(wine: CellarCommandWine, readiness: CellarCommandItem["readiness"], asOf: Date) {
   const currentYear = getCurrentYear(asOf);
   const fitScore = wine.brian_fit_score ?? 0;
-  const drinkBeforeYear = parseCellarYear(wine.drink_before);
+  const drinkBeforeYear = parseWineWindowYear(wine.drink_before);
   const ratingsCount = wine.ratings_count ?? 0;
   const lowStock = isReplaceCandidate(wine);
 

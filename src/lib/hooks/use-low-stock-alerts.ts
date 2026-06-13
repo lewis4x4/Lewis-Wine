@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { isWineApproachingPeak, isWineReadyNow } from "@/lib/wine-readiness";
 
 const supabase = createClient();
 
@@ -108,25 +109,12 @@ export function useDrinkingWindowWines(cellarId: string | undefined) {
 
       if (error) throw error;
 
-      // Filter to wines that have drinking window set and are within it
-      const readyTodrink = (data || []).filter((item: {
+      const readyToDrink = (data || []).filter((item: {
         drink_after: string | null;
         drink_before: string | null;
-      }) => {
-        // Must have at least one date set
-        if (!item.drink_after && !item.drink_before) return false;
+      }) => isWineReadyNow(item));
 
-        const nowDate = new Date();
-        const drinkAfter = item.drink_after ? new Date(item.drink_after) : null;
-        const drinkBefore = item.drink_before ? new Date(item.drink_before) : null;
-
-        const isAfterStart = !drinkAfter || nowDate >= drinkAfter;
-        const isBeforeEnd = !drinkBefore || nowDate <= drinkBefore;
-
-        return isAfterStart && isBeforeEnd;
-      });
-
-      return readyTodrink;
+      return readyToDrink;
     },
     enabled: !!cellarId,
   });
@@ -151,18 +139,9 @@ export function useApproachingPeakWines(cellarId: string | undefined) {
 
       if (error) throw error;
 
-      const thirtyDaysFromNow = new Date();
-      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-
-      // Filter to wines approaching their drink_before date
       const approachingPeak = (data || []).filter((item: {
         drink_before: string | null;
-      }) => {
-        if (!item.drink_before) return false;
-        const drinkBefore = new Date(item.drink_before);
-        const now = new Date();
-        return drinkBefore > now && drinkBefore <= thirtyDaysFromNow;
-      });
+      }) => isWineApproachingPeak(item));
 
       return approachingPeak;
     },

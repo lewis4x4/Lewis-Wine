@@ -1,3 +1,5 @@
+import { getWineReadiness } from "./wine-readiness";
+
 export type BottleBrainIntent = "drink_now" | "learn" | "risk" | "replace" | "value" | "brian_fit" | "general";
 
 export type BottleBrainWineDoc = {
@@ -62,12 +64,6 @@ function plural(count: number, singular: string, pluralWord = `${singular}s`) {
   return `${count} ${count === 1 ? singular : pluralWord}`;
 }
 
-function parseYear(value: string | null | undefined) {
-  if (!value) return null;
-  const match = value.match(/\d{4}/);
-  return match ? Number.parseInt(match[0], 10) : null;
-}
-
 function getIntent(question: string): BottleBrainIntent {
   const text = question.toLowerCase();
   if (/past|risk|peak|old|urgent|too late|drift/.test(text)) return "risk";
@@ -87,13 +83,13 @@ function tokenize(text: string) {
     .filter((token) => token.length > 2 && !STOP_WORDS.has(token));
 }
 
-function readiness(doc: BottleBrainWineDoc, asOf: Date) {
-  const year = asOf.getFullYear();
-  const after = parseYear(doc.drink_after);
-  const before = parseYear(doc.drink_before);
-  if (before != null && year > before) return "past";
-  if (after != null && year < after) return "hold";
-  if (after != null || before != null) return "ready";
+type BottleBrainReadyState = "past" | "hold" | "ready" | "unknown";
+
+function readiness(doc: BottleBrainWineDoc, asOf: Date): BottleBrainReadyState {
+  const state = getWineReadiness(doc, { asOf });
+  if (state === "past_peak") return "past";
+  if (state === "hold") return "hold";
+  if (state === "ready" || state === "drink_soon") return "ready";
   return "unknown";
 }
 
