@@ -164,7 +164,7 @@ export function FieldCaptureExperience() {
             </CardHeader>
             <CardContent className="grid gap-3">
               <div className="flex items-center gap-3 rounded-2xl border p-3"><Camera className="h-5 w-5 text-primary" /> Bottle label capture</div>
-              <Link href="/intelligence" className="flex items-center gap-3 rounded-2xl border p-3 transition-colors hover:bg-accent"><ClipboardList className="h-5 w-5 text-primary" /> Restaurant list advisor</Link>
+              <Link href="/intelligence#restaurant-mode" className="flex items-center gap-3 rounded-2xl border p-3 transition-colors hover:bg-accent"><ClipboardList className="h-5 w-5 text-primary" /> Restaurant Mode</Link>
               <Link href="/intelligence#buy-again" className="flex items-center gap-3 rounded-2xl border p-3 transition-colors hover:bg-accent"><Search className="h-5 w-5 text-primary" /> Buy Again evidence lane</Link>
             </CardContent>
           </Card>

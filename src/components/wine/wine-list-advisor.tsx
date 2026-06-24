@@ -140,7 +140,7 @@ export function WineListAdvisor() {
   }
 
   return (
-    <Card className="rounded-[28px] border-primary/30 bg-gradient-to-br from-primary/10 via-background to-background shadow-sm">
+    <Card id="restaurant-mode" className="rounded-[28px] border-primary/30 bg-gradient-to-br from-primary/10 via-background to-background shadow-sm">
       <CardHeader>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>

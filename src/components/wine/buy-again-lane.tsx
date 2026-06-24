@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ExternalLink, RefreshCw, ShoppingBag, TimerReset, Trophy, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -181,7 +182,11 @@ export function BuyAgainLane() {
         {!isLoading && rows.length === 0 ? (
           <div className="rounded-3xl border border-dashed bg-muted/20 p-8 text-center">
             <h3 className="font-semibold">No Buy Again targets yet.</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Run Find More from a benchmark bottle or save a 94+ capture to populate this command center.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Save a 94+ capture or use Restaurant Mode to create the benchmark memory that feeds this command center.</p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Button variant="secondary" size="sm" asChild><Link href="/capture">Capture benchmark</Link></Button>
+              <Button variant="outline" size="sm" asChild><Link href="/intelligence#restaurant-mode">Open Restaurant Mode</Link></Button>
+            </div>
           </div>
         ) : null}
         {!isLoading && rows.length ? (

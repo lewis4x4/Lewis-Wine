@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BuyAgainLane } from "@/components/wine/buy-again-lane";
 import { GreatWineCapture } from "@/components/wine/great-wine-capture";
 import { TasteGenomeDashboard } from "@/components/wine/taste-genome-dashboard";
@@ -15,6 +16,12 @@ export default function PourfolioIntelligencePage() {
         <div className="mt-3 max-w-4xl space-y-3">
           <h1 className="font-playfair text-4xl font-semibold tracking-tight md:text-5xl">Taste, remember, buy, and choose wine better.</h1>
           <p className="text-lg leading-8 text-muted-foreground">Capture why Brian loves a bottle, mark 94+ wines as benchmarks, find more with sourced evidence, and rank restaurant lists against his real palate.</p>
+          <div className="flex flex-wrap gap-2 pt-3 text-sm">
+            <Link href="/capture" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Capture bottle</Link>
+            <Link href="#buy-again" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Buy Again</Link>
+            <Link href="#taste-genome" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Taste Genome</Link>
+            <Link href="#restaurant-mode" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Restaurant Mode</Link>
+          </div>
         </div>
       </section>
       <GreatWineCapture />
