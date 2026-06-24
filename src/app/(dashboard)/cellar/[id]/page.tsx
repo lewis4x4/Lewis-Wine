@@ -9,7 +9,7 @@ import { useConsumeWine, useRestoreWine, useCellar, useUpdateInventory } from "@
 import { getBrianFitForRatings, useBrianTasteProfile, type RatingWithSignals } from "@/lib/hooks/use-brian-fit";
 import { useAddRating, useRecentCompanions } from "@/lib/hooks/use-ratings";
 import { getLocationDisplayString } from "@/lib/hooks/use-cellar-locations";
-import { buildBottleIntelligence, type BottleIntelligence } from "@/lib/bottle-intelligence";
+import { buildBottleIntelligence, buildBottlePriceEvidenceFromObservations, type BottleIntelligence, type BottlePriceObservationRow } from "@/lib/bottle-intelligence";
 import { useUpdateLowStockSettings } from "@/lib/hooks/use-low-stock-alerts";
 import { LocationSelector } from "@/components/cellar/location-selector";
 import { EnhancedTastingForm, EnhancedTastingData } from "@/components/tasting";
@@ -77,6 +77,7 @@ type WineWithDetails = CellarInventory & {
   opened_date?: string | null;
   glasses_poured?: number;
   glasses_per_bottle?: number;
+  wine_price_observations?: BottlePriceObservationRow[] | null;
 };
 
 function getInitialTonightSelection(inventoryId: string) {
@@ -141,6 +142,18 @@ export default function WineDetailPage() {
           ratings (
             *,
             rating_signals (*)
+          ),
+          wine_price_observations (
+            id,
+            review_status,
+            truth_label,
+            observed_at,
+            observation_kind,
+            observed_price_cents,
+            source_type,
+            source_name,
+            source_url,
+            confidence
           ),
           location:cellar_locations (*)
         `)
@@ -361,6 +374,27 @@ export default function WineDetailPage() {
     ratings: wine.ratings,
     fallbackScore: avgRating,
   });
+  const dossierPriceEvidence = buildBottlePriceEvidenceFromObservations(wine.wine_price_observations ?? []) ?? (
+    wine.current_market_value_cents != null || wine.purchase_price_cents != null
+      ? {
+          acceptedCount: wine.current_market_value_cents != null ? 1 : 0,
+          staleCount: 0,
+          bestMarketValueCents: wine.current_market_value_cents ?? null,
+          bestReplacementPriceCents: null,
+          sourceLabel: wine.market_value_source
+            ? wine.market_value_source === "manual"
+              ? "Manual value"
+              : wine.market_value_source === "estimate"
+                ? "Estimated value"
+                : wine.market_value_source === "vivino"
+                  ? "Vivino value"
+                  : "Wine-Searcher value"
+            : null,
+          sourceUrl: null,
+          confidence: wine.current_market_value_cents != null ? 72 : null,
+        }
+      : undefined
+  );
   const bottleIntelligence = buildBottleIntelligence({
     id: wine.id,
     name,
@@ -382,6 +416,17 @@ export default function WineDetailPage() {
     brianFit,
     isOpened: wine.is_opened,
     criticScores: wineRef?.critic_scores,
+    benchmarkWines: wine.ratings
+      .filter((rating) => rating.score >= 94)
+      .map((rating) => ({
+        id: rating.id,
+        label: `${vintage ? `${vintage} ` : ""}${producer ? `${producer} ` : ""}${name}`,
+        producer,
+        varietal: wineRef?.grape_varieties?.[0] ?? null,
+        region,
+        score: rating.score,
+      })),
+    priceEvidence: dossierPriceEvidence,
     ratings: wine.ratings.map((rating) => ({
       score: rating.score,
       tastingDate: rating.tasting_date,
@@ -705,7 +750,7 @@ export default function WineDetailPage() {
       <BottleIntelligencePanel intelligence={bottleIntelligence} formatPrice={formatPrice} />
 
       {/* Readiness rail */}
-      <Card className="border-muted/80 bg-muted/30">
+      <Card id="readiness" className="border-muted/80 bg-muted/30">
         <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -860,7 +905,7 @@ export default function WineDetailPage() {
       </Card>
 
       {/* Storage Location Card */}
-      <Card>
+      <Card id="location">
         <CardHeader>
           <CardTitle className="text-base font-medium">Storage Location</CardTitle>
         </CardHeader>
@@ -1209,15 +1254,17 @@ export default function WineDetailPage() {
         </DialogContent>
       </Dialog>
 
-      <PriceEvidencePanel
-        inventoryId={id}
-        wineReferenceId={wine.wine_reference_id}
-        onApplyMarketValue={async (patch) => {
-          await updateInventory.mutateAsync({ id, ...patch });
-          toast.success("Current market value updated from accepted evidence.");
-          await refetchWine();
-        }}
-      />
+      <div id="current-intelligence">
+        <PriceEvidencePanel
+          inventoryId={id}
+          wineReferenceId={wine.wine_reference_id}
+          onApplyMarketValue={async (patch) => {
+            await updateInventory.mutateAsync({ id, ...patch });
+            toast.success("Current market value updated from accepted evidence.");
+            await refetchWine();
+          }}
+        />
+      </div>
 
       {/* Record posture */}
       <Card>
@@ -1493,6 +1540,56 @@ function BottleIntelligencePanel({
         </div>
       </CardHeader>
       <CardContent className="space-y-5 p-5">
+        <div className="rounded-[2rem] border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-background p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="rounded-full">Dossier</Badge>
+                <Badge variant="outline" className="capitalize">{intelligence.dossier.benchmark.status.replace(/_/g, " ")}</Badge>
+                <Badge variant="outline" className="capitalize">{intelligence.dossier.priceEvidence.status.replace(/_/g, " ")}</Badge>
+              </div>
+              <h2 className="mt-3 text-2xl font-semibold tracking-tight">{intelligence.dossier.headline}</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{intelligence.dossier.drinkPlan.reason}</p>
+            </div>
+            <div className="rounded-2xl border bg-background/80 p-4 lg:min-w-[220px]">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Best action</p>
+              <p className="mt-2 text-lg font-semibold">{intelligence.dossier.drinkPlan.primaryAction}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{intelligence.dossier.drinkPlan.timing}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border bg-background/80 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Benchmark lane</p>
+              <p className="mt-2 font-semibold">{intelligence.dossier.benchmark.label}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{intelligence.dossier.benchmark.reason}</p>
+            </div>
+            <div className="rounded-2xl border bg-background/80 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Price evidence</p>
+              <p className="mt-2 font-semibold">{intelligence.dossier.priceEvidence.bestAvailableCents != null ? formatPrice(intelligence.dossier.priceEvidence.bestAvailableCents) : "Unknown"}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {intelligence.dossier.priceEvidence.sourceLabel ?? intelligence.dossier.priceEvidence.label}
+                {intelligence.dossier.priceEvidence.confidence != null ? ` · ${intelligence.dossier.priceEvidence.confidence}% confidence` : ""}
+              </p>
+            </div>
+            <div className="rounded-2xl border bg-background/80 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Next move</p>
+              <p className="mt-2 font-semibold">{intelligence.dossier.actions[0]?.label ?? "Keep building context"}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{intelligence.dossier.actions[0]?.reason ?? "This dossier will sharpen as more evidence lands."}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            {intelligence.dossier.actions.slice(0, 4).map((action) => (
+              <Link key={action.id} href={action.href}>
+                <Button variant={action.primary ? "default" : "outline"} size="sm" className="rounded-full">
+                  {action.label}
+                </Button>
+              </Link>
+            ))}
+          </div>
+        </div>
+
         <div className="grid gap-4 md:grid-cols-4">
           <div className={cn("rounded-2xl border p-4", readinessTone)}>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide opacity-80">

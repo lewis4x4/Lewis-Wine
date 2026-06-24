@@ -1,3 +1,5 @@
+import { summarizePricePosture, type ObservationKind, type PriceObservation, type SourceType, type TruthLabel } from "./current-intelligence/price-observations";
+import type { ReviewStatus } from "./current-intelligence/types";
 import { getWineReadiness, getWineWindowDisplay, type WineReadinessState } from "./wine-readiness";
 
 export type BottleStructureProfileSource = "tasting_memory" | "reference_default" | "unknown";
@@ -32,6 +34,46 @@ export type BottleBrianFitInput = {
   reason: string;
 } | null;
 
+export type BottleBenchmarkInput = {
+  id: string;
+  label: string;
+  producer?: string | null;
+  varietal?: string | null;
+  region?: string | null;
+  score: number;
+};
+
+export type BottlePriceEvidenceInput = {
+  acceptedCount: number;
+  staleCount: number;
+  bestMarketValueCents?: number | null;
+  bestReplacementPriceCents?: number | null;
+  sourceLabel?: string | null;
+  sourceUrl?: string | null;
+  confidence?: number | null;
+};
+
+export type BottlePriceObservationRow = {
+  id?: string | null;
+  review_status?: string | null;
+  truth_label?: string | null;
+  observed_at?: string | null;
+  observation_kind?: string | null;
+  observed_price_cents?: number | null;
+  source_type?: string | null;
+  source_name?: string | null;
+  source_url?: string | null;
+  confidence?: number | null;
+};
+
+export type BottleDossierAction = {
+  id: "find-more" | "capture-tasting" | "add-location" | "set-readiness" | "add-price-evidence" | "view-intelligence";
+  label: string;
+  href: string;
+  reason: string;
+  primary?: boolean;
+};
+
 export type BottleIntelligenceInput = {
   id: string;
   name: string;
@@ -55,6 +97,8 @@ export type BottleIntelligenceInput = {
   ratings?: BottleRatingInput[];
   criticScores?: unknown;
   isOpened?: boolean | null;
+  benchmarkWines?: BottleBenchmarkInput[];
+  priceEvidence?: BottlePriceEvidenceInput;
 };
 
 export type BottleStructureTrait = {
@@ -123,6 +167,29 @@ export type BottleIntelligence = {
   };
   criticScores: BottleCriticScore[];
   nextSignals: BottleNextSignal[];
+  dossier: {
+    headline: string;
+    benchmark: {
+      status: "matches_benchmark" | "self_benchmark" | "adjacent" | "no_signal";
+      label: string;
+      reason: string;
+      score: number | null;
+    };
+    priceEvidence: {
+      status: "source_backed" | "thin" | "missing" | "stale";
+      label: string;
+      bestAvailableCents: number | null;
+      sourceLabel: string | null;
+      sourceUrl: string | null;
+      confidence: number | null;
+    };
+    drinkPlan: {
+      primaryAction: string;
+      timing: string;
+      reason: string;
+    };
+    actions: BottleDossierAction[];
+  };
 };
 
 const REFERENCE_PROFILES: Record<string, Partial<Record<BottleStructureTrait["key"], string>>> = {
@@ -286,6 +353,173 @@ function buildNextSignals(input: BottleIntelligenceInput, readiness: WineReadine
   return signals;
 }
 
+function textIncludes(haystack: string | null | undefined, needle: string | null | undefined) {
+  return !!haystack && !!needle && haystack.toLowerCase().includes(needle.toLowerCase());
+}
+
+function chooseBenchmark(input: BottleIntelligenceInput, averageScore: number | null) {
+  const benchmarks = input.benchmarkWines ?? [];
+  const exact = benchmarks.find((benchmark) =>
+    textIncludes(input.producer, benchmark.producer) ||
+    textIncludes(input.grapeVarieties?.join(" "), benchmark.varietal) ||
+    textIncludes(input.region, benchmark.region)
+  );
+  if (exact) {
+    return {
+      status: "matches_benchmark" as const,
+      label: exact.label,
+      reason: `Tracks against Brian's ${exact.score}-point ${exact.label} benchmark${exact.producer ? ` in the ${exact.producer} lane` : ""}.`,
+      score: exact.score,
+    };
+  }
+  if ((averageScore ?? 0) >= 94) {
+    return {
+      status: "self_benchmark" as const,
+      label: "Self benchmark",
+      reason: "Brian scored this bottle 94+, so it becomes a reference point for future decisions.",
+      score: averageScore,
+    };
+  }
+  if (benchmarks.length) {
+    const adjacent = [...benchmarks].sort((a, b) => b.score - a.score)[0];
+    return {
+      status: "adjacent" as const,
+      label: adjacent.label,
+      reason: `Closest available reference is ${adjacent.label}; use it as context, not certainty.`,
+      score: adjacent.score,
+    };
+  }
+  return {
+    status: "no_signal" as const,
+    label: "No benchmark yet",
+    reason: "No benchmark bottle is close enough yet; capture tasting memory before claiming a lane.",
+    score: null,
+  };
+}
+
+const VALID_SOURCE_TYPES = new Set<SourceType>(["manual", "cellartracker", "wine_market_journal", "provider", "wine_searcher_trial", "auction", "retailer", "winery", "public_web", "ai_search", "ai_inferred", "unknown"]);
+const VALID_OBSERVATION_KINDS = new Set<ObservationKind>(["purchase_price", "market_value", "replacement_price", "auction_comp", "estimate"]);
+const VALID_TRUTH_LABELS = new Set<TruthLabel>(["verified", "estimated", "ai_inferred", "unknown", "stale", "rejected"]);
+const VALID_REVIEW_STATUSES = new Set<ReviewStatus>(["draft", "accepted", "rejected", "superseded"]);
+
+function normalizeObservationRow(row: BottlePriceObservationRow): PriceObservation {
+  return {
+    id: row.id ?? `dossier:${row.source_name ?? "source"}:${row.observed_at ?? "unknown"}`,
+    inventoryId: "dossier",
+    wineReferenceId: null,
+    sourceType: VALID_SOURCE_TYPES.has(row.source_type as SourceType) ? row.source_type as SourceType : "unknown",
+    sourceName: row.source_name ?? null,
+    sourceUrl: row.source_url ?? null,
+    observationKind: VALID_OBSERVATION_KINDS.has(row.observation_kind as ObservationKind) ? row.observation_kind as ObservationKind : "estimate",
+    truthLabel: VALID_TRUTH_LABELS.has(row.truth_label as TruthLabel) ? row.truth_label as TruthLabel : "unknown",
+    reviewStatus: VALID_REVIEW_STATUSES.has(row.review_status as ReviewStatus) ? row.review_status as ReviewStatus : "draft",
+    observedPriceCents: row.observed_price_cents ?? null,
+    currency: "USD",
+    bottleSizeMl: null,
+    vintage: null,
+    confidence: row.confidence ?? 0,
+    observedAt: row.observed_at ?? new Date(0).toISOString(),
+    notes: null,
+    rawPayload: null,
+  };
+}
+
+export function buildBottlePriceEvidenceFromObservations(rows: BottlePriceObservationRow[], asOf = new Date().toISOString()): BottlePriceEvidenceInput | undefined {
+  const observations = rows.map(normalizeObservationRow);
+  const posture = summarizePricePosture(observations, asOf);
+  if (posture.acceptedCount === 0) return undefined;
+  const preferred = posture.replacement.observation ?? posture.market.observation;
+  return {
+    acceptedCount: posture.acceptedCount,
+    staleCount: posture.staleCount,
+    bestMarketValueCents: posture.market.valueCents,
+    bestReplacementPriceCents: posture.replacement.valueCents,
+    sourceLabel: preferred?.sourceName ?? null,
+    sourceUrl: preferred?.sourceUrl ?? null,
+    confidence: preferred?.confidence ?? null,
+  };
+}
+
+function buildPriceEvidence(input: BottleIntelligenceInput) {
+  const evidence = input.priceEvidence;
+  const bestAvailableCents = evidence?.bestReplacementPriceCents ?? evidence?.bestMarketValueCents ?? input.currentMarketValueCents ?? input.purchasePriceCents ?? null;
+  if (!evidence && bestAvailableCents == null) {
+    return {
+      status: "missing" as const,
+      label: "No source-backed price evidence",
+      bestAvailableCents: null,
+      sourceLabel: null,
+      sourceUrl: null,
+      confidence: null,
+    };
+  }
+  if (evidence && evidence.acceptedCount > 0) {
+    return {
+      status: evidence.staleCount >= evidence.acceptedCount ? "stale" as const : "source_backed" as const,
+      label: `${evidence.acceptedCount} accepted source${evidence.acceptedCount === 1 ? "" : "s"}`,
+      bestAvailableCents,
+      sourceLabel: evidence.sourceLabel ?? valueSourceLabel(input.marketValueSource) ?? "Accepted evidence",
+      sourceUrl: evidence.sourceUrl ?? null,
+      confidence: evidence.confidence ?? null,
+    };
+  }
+  return {
+    status: "thin" as const,
+    label: input.currentMarketValueCents != null ? "Cellar value tracked, source evidence thin" : "Purchase value only",
+    bestAvailableCents,
+    sourceLabel: valueSourceLabel(input.marketValueSource),
+    sourceUrl: null,
+    confidence: null,
+  };
+}
+
+function buildDrinkPlan(readiness: WineReadinessState, benchmark: ReturnType<typeof chooseBenchmark>, brianFit: BottleBrianFitInput) {
+  if (readiness === "hold") {
+    return { primaryAction: "Do not open yet", timing: "Hold", reason: "The readiness window says patience beats preference right now." };
+  }
+  if (readiness === "past_peak") {
+    return { primaryAction: "Open or audit now", timing: "Triage", reason: "The bottle may be past peak; decide now rather than letting it disappear in the rack." };
+  }
+  if (readiness === "ready" || readiness === "drink_soon") {
+    if (benchmark.status === "matches_benchmark" || benchmark.status === "self_benchmark") {
+      return { primaryAction: "Open with intent", timing: readiness === "drink_soon" ? "Soon" : "Ready now", reason: "Readiness and benchmark context are aligned; make it an intentional pour, not a random opening." };
+    }
+    if ((brianFit?.score ?? 0) >= 90) {
+      return { primaryAction: "Strong candidate", timing: readiness === "drink_soon" ? "Soon" : "Ready now", reason: "Readiness and Brian-Fit are strong enough to consider for the right meal or occasion." };
+    }
+    return { primaryAction: "Consider with context", timing: readiness === "drink_soon" ? "Soon" : "Ready now", reason: "The wine is ready, but the palate evidence should drive the final call." };
+  }
+  return { primaryAction: "Confirm window", timing: "Unknown", reason: "Readiness is unknown; add a drink window before turning this into a confident recommendation." };
+}
+
+function dossierHeadline(readiness: WineReadinessState, memory: BottleMemoryDensityState, benchmark: ReturnType<typeof chooseBenchmark>) {
+  if (readiness === "hold") return "Hold intentionally";
+  if (readiness === "past_peak") return "Triage now";
+  if (readiness === "ready" || readiness === "drink_soon") {
+    if (benchmark.status === "matches_benchmark" || benchmark.status === "self_benchmark") return "Pour with confidence";
+    return "Ready with context";
+  }
+  if (memory === "thin") return "Build the dossier";
+  return "Dossier needs a window";
+}
+
+function buildDossierActions(input: BottleIntelligenceInput, memory: BottleMemoryDensityState, hasLocation: boolean, hasValue: boolean, readiness: WineReadinessState, benchmark: ReturnType<typeof chooseBenchmark>): BottleDossierAction[] {
+  const actions: BottleDossierAction[] = [];
+  if (benchmark.status === "matches_benchmark" || benchmark.status === "self_benchmark" || (input.brianFit?.score ?? 0) >= 90) {
+    actions.push({ id: "find-more", label: "Find more like this", href: `/intelligence?inventory_id=${encodeURIComponent(input.id)}&action=find-more`, reason: "High-fit or benchmark-linked bottles should feed Buy Again intelligence.", primary: true });
+  }
+  if (memory === "thin") {
+    actions.push({ id: "capture-tasting", label: "Capture first tasting", href: `/capture?inventory_id=${encodeURIComponent(input.id)}`, reason: "Turn cellar inventory into memory before making a recommendation." });
+  } else {
+    actions.push({ id: "capture-tasting", label: "Add tasting memory", href: `/capture?inventory_id=${encodeURIComponent(input.id)}`, reason: "Refresh Brian's actual palate signal." });
+  }
+  if (!hasLocation) actions.push({ id: "add-location", label: "Set location", href: `#location`, reason: "Findability matters at the moment of use." });
+  if (!hasValue) actions.push({ id: "add-price-evidence", label: "Add price evidence", href: `#current-intelligence`, reason: "Price evidence makes buy-again and portfolio decisions honest." });
+  if (readiness === "unknown") actions.push({ id: "set-readiness", label: "Set drink window", href: `#readiness`, reason: "Unknown readiness blocks confident recommendations." });
+  actions.push({ id: "view-intelligence", label: "Open intelligence workbench", href: `/intelligence?inventory_id=${encodeURIComponent(input.id)}`, reason: "Use the active intelligence layer for deeper comparisons and list decisions." });
+  return actions;
+}
+
 export function buildBottleIntelligence(input: BottleIntelligenceInput, options: { asOf?: Date } = {}): BottleIntelligence {
   const ratings = input.ratings ?? [];
   const latest = latestRating(ratings);
@@ -309,6 +543,10 @@ export function buildBottleIntelligence(input: BottleIntelligenceInput, options:
   ].filter(Boolean) as string[];
   const role = chooseRole(input, readinessState, memoryDensityState);
   const nextSignals = buildNextSignals(input, readinessState, memoryDensityState, hasLocation, hasValue, structure.profileSource);
+  const benchmark = chooseBenchmark(input, averageScore);
+  const priceEvidence = buildPriceEvidence(input);
+  const drinkPlan = buildDrinkPlan(readinessState, benchmark, input.brianFit ?? null);
+  const actions = buildDossierActions(input, memoryDensityState, hasLocation, hasValue, readinessState, benchmark);
 
   return {
     identity: {
@@ -348,5 +586,12 @@ export function buildBottleIntelligence(input: BottleIntelligenceInput, options:
     },
     criticScores: parseCriticScores(input.criticScores),
     nextSignals,
+    dossier: {
+      headline: dossierHeadline(readinessState, memoryDensityState, benchmark),
+      benchmark,
+      priceEvidence,
+      drinkPlan,
+      actions,
+    },
   };
 }
