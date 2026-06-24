@@ -33,6 +33,8 @@
     "test:voice-capture": "tsx tests/voice-tasting-capture.test.ts",
     "test:field-reliability": "tsx tests/field-reliability.test.ts",
     "test:p0-security": "tsx tests/p0-security.test.ts",
+    "test:pourfolio-intelligence": "tsx tests/pourfolio-intelligence.test.ts",
+    "test": "npm run test:capture && npm run test:pourfolio-intelligence",
     "wine:capture": "tsx scripts/capture-wine-rating.ts"
   },
   "dependencies": {

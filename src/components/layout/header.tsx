@@ -78,6 +78,12 @@ export function Header() {
               Bottle Brain
             </Link>
             <Link
+              href="/intelligence"
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Intelligence
+            </Link>
+            <Link
               href="/jarvis/voice"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
