@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AcquisitionEnginePanel } from "@/components/wine/acquisition-engine-panel";
 import { BuyAgainLane } from "@/components/wine/buy-again-lane";
 import { GreatWineCapture } from "@/components/wine/great-wine-capture";
 import { TasteGenomeDashboard } from "@/components/wine/taste-genome-dashboard";
@@ -19,6 +20,7 @@ export default function PourfolioIntelligencePage() {
           <div className="flex flex-wrap gap-2 pt-3 text-sm">
             <Link href="/capture" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Capture bottle</Link>
             <Link href="#buy-again" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Buy Again</Link>
+            <Link href="#acquisition-engine" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Acquisition Engine</Link>
             <Link href="#taste-genome" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Taste Genome</Link>
             <Link href="#restaurant-mode" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Restaurant Mode</Link>
           </div>
@@ -26,6 +28,7 @@ export default function PourfolioIntelligencePage() {
       </section>
       <GreatWineCapture />
       <BuyAgainLane />
+      <AcquisitionEnginePanel />
       <TasteGenomeDashboard />
       <WineListAdvisor />
     </div>
