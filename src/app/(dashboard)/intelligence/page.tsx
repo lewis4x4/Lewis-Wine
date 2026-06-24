@@ -1,5 +1,6 @@
 import { BuyAgainLane } from "@/components/wine/buy-again-lane";
 import { GreatWineCapture } from "@/components/wine/great-wine-capture";
+import { TasteGenomeDashboard } from "@/components/wine/taste-genome-dashboard";
 import { WineListAdvisor } from "@/components/wine/wine-list-advisor";
 
 export const metadata = {
@@ -18,6 +19,7 @@ export default function PourfolioIntelligencePage() {
       </section>
       <GreatWineCapture />
       <BuyAgainLane />
+      <TasteGenomeDashboard />
       <WineListAdvisor />
     </div>
   );
