@@ -67,7 +67,10 @@ function score(item: LineItem, profile: Record<string, unknown>, cuisine?: strin
   let brianFit = Math.round(descriptorScore + identityScore + producerScore + valueScore);
   const reasons: string[] = [];
   if (descriptorMatches.length) reasons.push(`Matches Brian's loved descriptors: ${descriptorMatches.join(", ")}.`);
-  if (identityScore) reasons.push("Region/varietal matches prior high-scoring bottles.");
+  if (identityScore) {
+    const benchmark = producers.length ? `, including the ${producers[0]} benchmark lane` : "";
+    reasons.push(`Region/varietal matches prior high-scoring bottles${benchmark}.`);
+  }
   if (producerScore) reasons.push(`${item.producer} is a benchmark-linked producer.`);
   if (valueScore >= 15) reasons.push("Price sits inside Brian's proven comfort band.");
   if (avoidHit) {

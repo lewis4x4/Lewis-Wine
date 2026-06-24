@@ -37,8 +37,18 @@ const fixture: FindMoreResult = {
   searched_at: new Date("2026-06-23T00:00:00.000Z").toISOString(),
 };
 
+function normalizeAvailability(value: string | undefined): Observation["availability"] {
+  const text = (value ?? "unknown").toLowerCase();
+  if (text.includes("out") || text === "oos") return "oos";
+  if (text.includes("limited") || text.includes("low stock")) return "limited";
+  if (text.includes("stock") || text.includes("available") || text.includes("merchant")) return "in_stock";
+  return "unknown";
+}
+
 function validObservations(rows: Observation[]) {
-  return rows.filter((row) => row.source_url && row.confidence >= 0 && row.confidence <= 1 && row.price >= 0);
+  return rows
+    .filter((row) => row.source_url && typeof row.price === "number" && Number.isFinite(row.price) && row.confidence >= 0 && row.confidence <= 1 && row.price >= 0)
+    .map((row) => ({ ...row, availability: normalizeAvailability(row.availability) }));
 }
 
 function best(rows: Observation[]) {
@@ -81,7 +91,18 @@ Deno.serve(async (req) => {
     }
     const bestObservation = best(observations);
     const bestIndex = bestObservation ? observations.indexOf(bestObservation) : -1;
-    const bestId = bestIndex >= 0 ? insertedIds[bestIndex] : null;
+    let bestId = bestIndex >= 0 ? insertedIds[bestIndex] : null;
+    const { data: lowestExisting } = await client
+      .from("price_observations")
+      .select("id")
+      .eq("owner_id", ownerId)
+      .eq("wine_id", wine_id)
+      .in("availability", ["in_stock", "limited"])
+      .order("price", { ascending: true })
+      .order("confidence", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    bestId = lowestExisting?.id ?? bestId;
     const { error: queueError } = await client.from("buy_again_queue").upsert({
       owner_id: ownerId,
       wine_id,
@@ -92,7 +113,7 @@ Deno.serve(async (req) => {
     if (queueError) throw queueError;
     return jsonResponse({ ok: true, wine, observations, best_observation_id: bestId, summary: result.summary, searched_at: result.searched_at });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = error instanceof Error ? error.message : JSON.stringify(error);
     const status = message.startsWith("[BLOCKED") ? 424 : 500;
     return jsonResponse({ ok: false, error: message }, status);
   }

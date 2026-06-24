@@ -48,9 +48,17 @@ export async function anthropicJson<T>(input: {
     .map((part: Json) => String(part.text ?? ""))
     .join("\n")
     .trim();
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error("Anthropic returned no JSON object");
-  return JSON.parse(match[0]) as T;
+  const cleaned = text.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    const arrayStart = cleaned.indexOf("[");
+    const objectStart = cleaned.indexOf("{");
+    const start = arrayStart >= 0 && (objectStart < 0 || arrayStart < objectStart) ? arrayStart : objectStart;
+    const end = arrayStart >= 0 && (objectStart < 0 || arrayStart < objectStart) ? cleaned.lastIndexOf("]") : cleaned.lastIndexOf("}");
+    if (start < 0 || end < start) throw new Error("Anthropic returned no JSON payload");
+    return JSON.parse(cleaned.slice(start, end + 1)) as T;
+  }
 }
 
 export function fixtureEnabled() {
