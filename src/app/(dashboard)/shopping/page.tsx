@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { ShoppingModePanel } from "@/components/wine/shopping-mode-panel";
 import { useShoppingList, useUpdateShoppingList, useDeleteShoppingItem, useShoppingListStats } from "@/lib/hooks/use-shopping-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -116,6 +117,8 @@ export default function ShoppingListPage() {
           <Button>+ Add Item</Button>
         </Link>
       </div>
+
+      <ShoppingModePanel />
 
       <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
         <CardHeader>

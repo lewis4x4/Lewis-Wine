@@ -21,6 +21,7 @@ export default function PourfolioIntelligencePage() {
             <Link href="/capture" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Capture bottle</Link>
             <Link href="#buy-again" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Buy Again</Link>
             <Link href="#acquisition-engine" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Acquisition Engine</Link>
+            <Link href="/shopping#shopping-mode" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Shopping Mode</Link>
             <Link href="#taste-genome" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Taste Genome</Link>
             <Link href="#restaurant-mode" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Restaurant Mode</Link>
           </div>
