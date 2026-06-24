@@ -1,5 +1,6 @@
 import { BuyAgainLane } from "@/components/wine/buy-again-lane";
 import { GreatWineCapture } from "@/components/wine/great-wine-capture";
+import { WineListAdvisor } from "@/components/wine/wine-list-advisor";
 
 export const metadata = {
   title: "Intelligence | Pourfolio",
@@ -17,6 +18,7 @@ export default function PourfolioIntelligencePage() {
       </section>
       <GreatWineCapture />
       <BuyAgainLane />
+      <WineListAdvisor />
     </div>
   );
 }
