@@ -1,3 +1,4 @@
+import { BuyAgainLane } from "@/components/wine/buy-again-lane";
 import { GreatWineCapture } from "@/components/wine/great-wine-capture";
 
 export const metadata = {
@@ -15,6 +16,7 @@ export default function PourfolioIntelligencePage() {
         </div>
       </section>
       <GreatWineCapture />
+      <BuyAgainLane />
     </div>
   );
 }
