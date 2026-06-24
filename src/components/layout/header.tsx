@@ -54,10 +54,10 @@ export function Header() {
               Cellar
             </Link>
             <Link
-              href="/scan"
+              href="/capture"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              Scan
+              Capture
             </Link>
             <Link
               href="/ratings"

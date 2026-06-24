@@ -34,7 +34,8 @@
     "test:field-reliability": "tsx tests/field-reliability.test.ts",
     "test:p0-security": "tsx tests/p0-security.test.ts",
     "test:pourfolio-intelligence": "tsx tests/pourfolio-intelligence.test.ts",
-    "test": "npm run test:capture && npm run test:pourfolio-intelligence",
+    "test:field-capture": "tsx tests/field-capture.test.ts",
+    "test": "npm run test:capture && npm run test:pourfolio-intelligence && npm run test:field-capture",
     "wine:capture": "tsx scripts/capture-wine-rating.ts"
   },
   "dependencies": {
