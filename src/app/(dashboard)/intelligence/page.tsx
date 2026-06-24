@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AcquisitionEnginePanel } from "@/components/wine/acquisition-engine-panel";
+import { AcquisitionReceiptPanel } from "@/components/wine/acquisition-receipt-panel";
 import { BuyAgainLane } from "@/components/wine/buy-again-lane";
 import { GreatWineCapture } from "@/components/wine/great-wine-capture";
 import { TasteGenomeDashboard } from "@/components/wine/taste-genome-dashboard";
@@ -22,6 +23,7 @@ export default function PourfolioIntelligencePage() {
             <Link href="#buy-again" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Buy Again</Link>
             <Link href="#acquisition-engine" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Acquisition Engine</Link>
             <Link href="/shopping#shopping-mode" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Shopping Mode</Link>
+            <Link href="#acquisition-receipt" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Receipt Capture</Link>
             <Link href="#taste-genome" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Taste Genome</Link>
             <Link href="#restaurant-mode" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Restaurant Mode</Link>
           </div>
@@ -30,6 +32,7 @@ export default function PourfolioIntelligencePage() {
       <GreatWineCapture />
       <BuyAgainLane />
       <AcquisitionEnginePanel />
+      <AcquisitionReceiptPanel />
       <TasteGenomeDashboard />
       <WineListAdvisor />
     </div>
