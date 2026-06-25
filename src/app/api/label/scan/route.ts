@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { getAnthropicApiKey } from "@/lib/anthropic-config";
 import { createClient } from "@/lib/supabase/server";
 import {
   checkRateLimit,
@@ -11,7 +12,8 @@ import type { LabelScanResult } from "@/types/database";
 export async function POST(request: NextRequest) {
   try {
     // Verify API key is configured
-    if (!process.env.ANTHROPIC_API_KEY) {
+    const apiKey = getAnthropicApiKey();
+    if (!apiKey) {
       console.error("ANTHROPIC_API_KEY is not configured");
       return NextResponse.json(
         { success: false, error: "Service not configured", wine: null, raw_text: "" },
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
+      apiKey,
     });
 
     const formData = await request.formData();

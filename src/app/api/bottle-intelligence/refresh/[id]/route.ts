@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getAnthropicApiKey } from "@/lib/anthropic-config";
 import { createClient } from "@/lib/supabase/server";
 import {
   buildRefreshPlan,
@@ -27,8 +28,9 @@ const requestSchema = z.object({
 });
 
 async function synthesizeWithAnthropic(record: BottleSearchRecord, scope: RefreshScope): Promise<AiEvidenceCandidate[]> {
-  if (!process.env.ANTHROPIC_API_KEY) return [];
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const apiKey = getAnthropicApiKey();
+  if (!apiKey) return [];
+  const anthropic = new Anthropic({ apiKey });
   const prompt = `You are Pourfolio's wine intelligence analyst. Use web search when available. Return ONLY JSON array, no markdown. Do not invent prices. If a price is found on a retailer/winery page, include it as replacement-price evidence only. If a source describes producer facts, vintage notes, drink window, or serving guidance without price, still return it as evidence with no priceCents. If you cannot cite a public source URL, mark sourceType ai_inferred and omit priceCents unless the user supplied evidence. Scope: ${scope}. Wine record: ${JSON.stringify(record)}. Desired object fields: title,url,sourceType,extractedText,priceCents,currency,vintage,bottleSizeMl,confidence. Valid sourceType values: retailer, winery, auction, public_web, ai_inferred, provider, unknown. Avoid protected/login-gated sources such as Vivino, CellarTracker, and Wine-Searcher unless the user provided export/API evidence. Prefer 2-4 concise, source-backed findings.`;
   const baseRequest = {
     model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929",
@@ -92,7 +94,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const candidates = [...(input.candidates ?? []), ...(await synthesizeWithAnthropic(wine as BottleSearchRecord, input.scope))];
     const normalized = normalizeAiEvidenceCandidates(candidates, plan);
     const gaps = [...normalized.gaps];
-    if (!process.env.ANTHROPIC_API_KEY) gaps.push("AI search is unavailable because ANTHROPIC_API_KEY is not configured in this runtime.");
+    const anthropicConfigured = Boolean(getAnthropicApiKey());
+    if (!anthropicConfigured) gaps.push("AI search is unavailable because ANTHROPIC_API_KEY is missing or still set to a placeholder in this runtime.");
     if (candidates.length === 0) gaps.push("No source-backed current info was found; manual evidence or CellarTracker import is recommended.");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,7 +104,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       scope: input.scope,
       status: "completed",
       plan,
-      provider_status: { anthropicConfigured: Boolean(process.env.ANTHROPIC_API_KEY), paidPricingProvider: false },
+      provider_status: { anthropicConfigured, paidPricingProvider: false },
       gaps,
       completed_at: new Date().toISOString(),
     });

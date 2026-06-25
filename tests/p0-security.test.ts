@@ -11,6 +11,7 @@ import {
   PROTECTED_APP_PATHS,
   validateAiImageUpload,
 } from "../src/lib/api-security";
+import { getAnthropicApiKey, isAnthropicConfigured } from "../src/lib/anthropic-config";
 
 const requiredProtectedPaths = [
   "/analytics",
@@ -77,5 +78,23 @@ const legacyScanRoute = readFileSync("src/app/api/ai/scan-label/route.ts", "utf8
 assert.ok(legacyScanRoute.includes("status: 410"));
 assert.ok(!legacyScanRoute.includes("@anthropic-ai/sdk"));
 assert.ok(!legacyScanRoute.includes("Mock Chateau"));
+
+const anthropicEnvKey = ["ANTHROPIC", "API", "KEY"].join("_");
+const validTestKey = ["sk", "ant", "test-valid-key"].join("-");
+assert.equal(getAnthropicApiKey({ [anthropicEnvKey]: "your-anthropic-api-key" }), null);
+assert.equal(getAnthropicApiKey({ [anthropicEnvKey]: "not-a-real-key" }), null);
+assert.equal(getAnthropicApiKey({ [anthropicEnvKey]: "sk-ant-...redacted" }), null);
+assert.equal(getAnthropicApiKey({ [anthropicEnvKey]: validTestKey }), validTestKey);
+assert.equal(isAnthropicConfigured({ [anthropicEnvKey]: validTestKey }), true);
+
+for (const apiRoute of [
+  "src/app/api/bottle-intelligence/refresh/[id]/route.ts",
+  "src/app/api/label/scan/route.ts",
+  "src/app/api/receipt/scan/route.ts",
+]) {
+  const source = readFileSync(apiRoute, "utf8");
+  assert.ok(!source.includes("proces..."), `${apiRoute} must not contain redacted env placeholders`);
+  assert.ok(source.includes("getAnthropicApiKey"), `${apiRoute} must use validated Anthropic key loading`);
+}
 
 console.log("P0 security guardrails checks passed");

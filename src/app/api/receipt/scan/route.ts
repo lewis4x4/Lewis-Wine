@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { getAnthropicApiKey } from "@/lib/anthropic-config";
 import { createClient } from "@/lib/supabase/server";
 import {
   checkRateLimit,
@@ -8,13 +9,10 @@ import {
 } from "@/lib/api-security";
 import type { ExtractedWine, ReceiptScanResult } from "@/types/database";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.ANTHROPIC_API_KEY) {
+    const apiKey = getAnthropicApiKey();
+    if (!apiKey) {
       console.error("ANTHROPIC_API_KEY is not configured");
       return NextResponse.json(
         {
@@ -110,6 +108,7 @@ export async function POST(request: NextRequest) {
     // Convert file to base64 after validation
     const bytes = await file.arrayBuffer();
     const base64 = Buffer.from(bytes).toString("base64");
+    const anthropic = new Anthropic({ apiKey });
 
     // Call Claude Vision API
     const response = await anthropic.messages.create({
