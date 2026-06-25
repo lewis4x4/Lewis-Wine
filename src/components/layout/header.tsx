@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { BOUGHT_WINE_INTAKE, boughtWineIntakeHref } from "@/lib/purchase-intake";
 
 export function Header() {
   const { user } = useAuth();
@@ -58,6 +59,13 @@ export function Header() {
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               Capture
+            </Link>
+            <Link
+              href={boughtWineIntakeHref()}
+              className="rounded-full border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary shadow-sm transition-colors hover:bg-primary/15"
+              title={BOUGHT_WINE_INTAKE.shortDescription}
+            >
+              {BOUGHT_WINE_INTAKE.primaryLabel}
             </Link>
             <Link
               href="/ratings"

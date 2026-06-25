@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, Camera, CheckCircle2, Repeat2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BOUGHT_WINE_INTAKE, boughtWineIntakeHref } from "@/lib/purchase-intake";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function CaptureCommandCard() {
@@ -20,12 +21,19 @@ export function CaptureCommandCard() {
               benchmark detection, and immediate downstream actions. This replaces the old demo-only capture panel.
             </CardDescription>
           </div>
-          <Button asChild className="rounded-full">
-            <Link href="/capture">
-              Open Capture
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
+            <Button asChild className="rounded-full">
+              <Link href="/capture">
+                Open Capture
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild variant="secondary" className="rounded-full">
+              <Link href={boughtWineIntakeHref()}>
+                {BOUGHT_WINE_INTAKE.primaryLabel}
+              </Link>
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -48,7 +56,7 @@ export function CaptureCommandCard() {
         </div>
         <div className="mt-4 rounded-2xl bg-primary/5 p-4 text-sm text-primary">
           <Sparkles className="mr-2 inline h-4 w-4" />
-          Current hardening focus: acceptance smoke, duplicate prevention, then field-ready evidence storage.
+          Purchase intake now routes through receipt closeout first, with single-bottle label capture still available when you only have a bottle photo.
         </div>
       </CardContent>
     </Card>

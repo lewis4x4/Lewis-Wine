@@ -7,6 +7,11 @@ import {
   receiptItemToTargetUpdate,
   type AcquisitionReceiptInput,
 } from "../src/lib/acquisition-receipt";
+import {
+  BOUGHT_WINE_INTAKE,
+  boughtWineIntakeHref,
+  chooseBoughtWineIntake,
+} from "../src/lib/purchase-intake";
 
 const text = `
 Benchmark Wine Shop
@@ -74,5 +79,12 @@ const targetUpdate = receiptItemToTargetUpdate(receipt.items[0]);
 assert.equal(targetUpdate.status, "acquired");
 assert.equal(targetUpdate.acquiredQuantity, 2);
 assert.equal(targetUpdate.acquiredPriceCents, 18400);
+
+assert.equal(BOUGHT_WINE_INTAKE.primaryLabel, "I bought wine");
+assert.equal(boughtWineIntakeHref(), "/intelligence?intake=purchase#acquisition-receipt");
+assert.equal(chooseBoughtWineIntake({ bottleCount: 1, hasReceipt: false }).href, "/capture?intent=purchase&save_mode=add_to_cellar");
+assert.equal(chooseBoughtWineIntake({ bottleCount: 1, hasReceipt: false }).reason, "single bottle label capture");
+assert.equal(chooseBoughtWineIntake({ bottleCount: 3, hasReceipt: false }).href, "/intelligence?intake=purchase#acquisition-receipt");
+assert.equal(chooseBoughtWineIntake({ bottleCount: 1, hasReceipt: true }).reason, "receipt or order confirmation");
 
 console.log("acquisition-receipt tests passed");

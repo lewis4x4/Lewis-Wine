@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { BOUGHT_WINE_INTAKE, boughtWineIntakeHref } from "@/lib/purchase-intake";
 import type { ShoppingListWithWine, ShoppingUrgency } from "@/types/database";
 
 const URGENCY_COLORS: Record<ShoppingUrgency, string> = {
@@ -113,9 +114,14 @@ export default function ShoppingListPage() {
             {stats?.estimatedCost ? ` • Est. ${formatCurrency(stats.estimatedCost)}` : ""}
           </p>
         </div>
-        <Link href="/shopping/add">
-          <Button>+ Add Item</Button>
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href={boughtWineIntakeHref()}>
+            <Button variant="secondary">{BOUGHT_WINE_INTAKE.primaryLabel}</Button>
+          </Link>
+          <Link href="/shopping/add">
+            <Button>+ Add Item</Button>
+          </Link>
+        </div>
       </div>
 
       <ShoppingModePanel />

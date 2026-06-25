@@ -41,6 +41,7 @@ import {
 type FieldCaptureExperienceProps = {
   initialDemo?: boolean;
   inventoryId?: string | null;
+  initialSaveMode?: FieldCaptureSaveMode | null;
 };
 
 const initialScore = 95;
@@ -96,7 +97,7 @@ function FieldValue({ label, value }: { label: string; value: string | number | 
   );
 }
 
-export function FieldCaptureExperience({ initialDemo = false, inventoryId = null }: FieldCaptureExperienceProps) {
+export function FieldCaptureExperience({ initialDemo = false, inventoryId = null, initialSaveMode = null }: FieldCaptureExperienceProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const idempotencyKeyRef = useRef(createFieldCaptureIdempotencyKey());
   const [stage, setStage] = useState<Stage>(initialDemo ? "review" : "photo");
@@ -107,7 +108,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
   const [occasion, setOccasion] = useState(initialOccasion);
   const [descriptors, setDescriptors] = useState(initialDescriptors);
   const [notes, setNotes] = useState(initialNotes);
-  const [saveMode, setSaveMode] = useState<FieldCaptureSaveMode>(inventoryId ? "link_existing_inventory" : "memory_only");
+  const [saveMode, setSaveMode] = useState<FieldCaptureSaveMode>(initialSaveMode ?? (inventoryId ? "link_existing_inventory" : "memory_only"));
   const [result, setResult] = useState<SaveResult | null>(null);
   const [followUpQuestion, setFollowUpQuestion] = useState<string | null>(null);
   const [followUpAnswer, setFollowUpAnswer] = useState("");

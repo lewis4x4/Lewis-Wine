@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { BOUGHT_WINE_INTAKE, boughtWineIntakeHref } from "@/lib/purchase-intake";
 
 const navItems = [
   { href: "/dashboard", label: "Home", icon: "🏠" },
   { href: "/cellar", label: "Cellar", icon: "🍾" },
   { href: "/capture", label: "Capture", icon: "📷" },
+  { href: boughtWineIntakeHref(), label: BOUGHT_WINE_INTAKE.primaryLabel.replace("I ", ""), icon: "🧾" },
   { href: "/bottle-brain", label: "Brain", icon: "🧠" },
   { href: "/jarvis/voice", label: "Voice", icon: "🎙️" },
   { href: "/ratings", label: "Ratings", icon: "⭐" },
