@@ -17,6 +17,14 @@ export type CaptureWineCandidate = {
 export type CaptureWineRequest = {
   image_base64: string;
   media_type: "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+  hint?: string | null;
+};
+
+export type CaptureWineResponse = {
+  candidate: CaptureWineCandidate;
+  matched_wine_id: string | null;
+  needs_follow_up: boolean;
+  follow_up_question: string | null;
 };
 
 export type ReviewInputs = {
@@ -122,12 +130,33 @@ export const tapizDemoCandidate: CaptureWineCandidate = {
   ambiguous_fields: [],
 };
 
-export function buildCaptureWineRequest(dataUrl: string): CaptureWineRequest {
+export function buildCaptureWineRequest(dataUrl: string, hint?: string | null): CaptureWineRequest {
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!match) throw new Error("Provide a valid image data URL.");
   const mediaType = match[1] as CaptureWineRequest["media_type"];
   if (!allowedMediaTypes.has(mediaType)) throw new Error("Use a JPEG, PNG, WebP, or GIF image.");
-  return { media_type: mediaType, image_base64: match[2] };
+  return { media_type: mediaType, image_base64: match[2], hint: compact(hint) };
+}
+
+export function shouldEnterCaptureFollowUp(response: Pick<CaptureWineResponse, "needs_follow_up" | "follow_up_question">, alreadyAsked: boolean) {
+  return Boolean(response.needs_follow_up && response.follow_up_question && !alreadyAsked);
+}
+
+export function buildCaptureFollowUpHint(question: string | null | undefined, answer: string) {
+  const cleanAnswer = compact(answer);
+  const cleanQuestion = compact(question);
+  if (!cleanAnswer || !cleanQuestion) return null;
+  return `Follow-up answer: ${cleanQuestion} ${cleanAnswer}`;
+}
+
+export function canSaveFieldCaptureDraft(draft: Pick<ReviewDraft, "producer" | "label" | "vintage">) {
+  if (!compact(draft.producer) && !compact(draft.label)) {
+    return { ok: false, reason: "Add at least a producer or label before saving this capture." };
+  }
+  if (!draft.vintage && !compact(draft.label)) {
+    return { ok: false, reason: "Add a label or vintage before saving this capture." };
+  }
+  return { ok: true, reason: null };
 }
 
 function decodeBase64Image(base64: string) {

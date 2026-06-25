@@ -157,7 +157,47 @@ Cleanup verification:
 
 No new migration or deploy was required; existing `00013` schema/bucket/RLS supported the proof.
 
+## Ambiguous Label Follow-Up UX Slice — 2026-06-25
+
+Completed after pushing the first capture hardening/evidence commits:
+
+- Added `CaptureWineResponse` support for `needs_follow_up` and `follow_up_question` returned by the `capture-wine` Edge Function.
+- Added a one-question follow-up stage in `/capture`:
+  - asks the Edge Function’s question,
+  - lets Brian answer once,
+  - reinvokes `capture-wine` with a bounded hint,
+  - then routes back to review without chaining more questions.
+- Added confidence-first review copy:
+  - medium/low confidence or ambiguous fields now show `Review carefully`,
+  - ambiguous fields remain visible as a review badge.
+- Added save protection for too-incomplete identity:
+  - blocks save when both producer and label are missing,
+  - blocks save when there is neither label nor vintage.
+- Added focused tests for:
+  - follow-up stage runs once,
+  - follow-up hint formatting,
+  - incomplete identity save blocking.
+
+Local verification:
+
+```bash
+npm run test:field-capture
+npm run typecheck
+npm run lint
+git diff --check
+```
+
+Browser smoke:
+
+- `/capture?demo=tapiz` still renders the normal high-confidence Tapiz review state.
+- Console: zero JavaScript errors.
+
+Remote boundary:
+
+- No Edge Function deploy was needed; the existing `capture-wine` function already returns the follow-up fields this UI now consumes.
+
 ## Next Actions
 
-- Push the three local commits if Brian wants this checkpoint published.
-- Continue to the next roadmap slice: follow-up UX for ambiguous labels, or inventory/cellar integration.
+- Run full `npm run check`.
+- Commit and push the ambiguous-label follow-up UX slice if green.
+- Continue to F4 Inventory / Cellar integration.

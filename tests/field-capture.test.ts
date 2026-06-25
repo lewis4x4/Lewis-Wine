@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import {
+  buildCaptureFollowUpHint,
   buildCaptureWineRequest,
   buildEvidenceUpload,
   buildReviewDraft,
   buildSaveTastingPayload,
   buildWineIdentityKey,
+  canSaveFieldCaptureDraft,
   createPostSaveActions,
+  shouldEnterCaptureFollowUp,
   isBenchmarkScore,
   normalizeDescriptorText,
   tapizDemoCandidate,
@@ -161,6 +164,37 @@ function testSavePayloadKeepsRawEvidenceOutOfExtraction() {
   assert.equal(JSON.stringify(payload.tasting.extraction).includes("QUJD"), false);
 }
 
+function testCaptureFollowUpRunsOnceForAmbiguousResponse() {
+  const response = {
+    candidate: { ...candidate, producer: null, confidence: { producer: 0.2 }, ambiguous_fields: ["producer"] },
+    matched_wine_id: null,
+    needs_follow_up: true,
+    follow_up_question: "Who is the producer on this bottle?",
+  };
+
+  assert.equal(shouldEnterCaptureFollowUp(response, false), true);
+  assert.equal(shouldEnterCaptureFollowUp(response, true), false);
+}
+
+function testCaptureFollowUpHintCarriesOneAnswer() {
+  const hint = buildCaptureFollowUpHint("Who is the producer on this bottle?", "  Tapiz  ");
+  assert.equal(hint, "Follow-up answer: Who is the producer on this bottle? Tapiz");
+  assert.equal(buildCaptureFollowUpHint("What vintage year is this bottle?", "   "), null);
+}
+
+function testIncompleteIdentityBlocksSaveUntilReviewed() {
+  const draft = buildReviewDraft({ ...candidate, producer: null, label: null, vintage: null, confidence: { producer: 0.1, label: 0.1, vintage: 0.1 }, ambiguous_fields: ["producer", "label", "vintage"] }, {
+    score: 90,
+    buy_again: "maybe",
+    occasion: "shop tasting",
+    descriptors: "dark fruit",
+    notes: "identity uncertain",
+  });
+  assert.equal(canSaveFieldCaptureDraft(draft).ok, false);
+  assert.match(canSaveFieldCaptureDraft(draft).reason ?? "", /producer or label/i);
+  assert.equal(canSaveFieldCaptureDraft(buildReviewDraft(candidate, { score: 90, buy_again: "maybe", occasion: "shop tasting", descriptors: "dark fruit", notes: "" })).ok, true);
+}
+
 for (const test of [
   testBuildCaptureRequestFromDataUrl,
   testRejectsInvalidCaptureImage,
@@ -174,6 +208,9 @@ for (const test of [
   testEvidenceUploadUsesPrivateOwnerScopedPath,
   testEvidenceUploadRejectsInvalidOrOversizedEvidence,
   testSavePayloadKeepsRawEvidenceOutOfExtraction,
+  testCaptureFollowUpRunsOnceForAmbiguousResponse,
+  testCaptureFollowUpHintCarriesOneAnswer,
+  testIncompleteIdentityBlocksSaveUntilReviewed,
 ]) {
   test();
 }

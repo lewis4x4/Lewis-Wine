@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
-import { Camera, CheckCircle2, ClipboardList, Loader2, RefreshCw, Search, Sparkles, Wine, Zap } from "lucide-react";
+import { Camera, CheckCircle2, ClipboardList, HelpCircle, Loader2, RefreshCw, Search, Sparkles, Wine, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,12 +13,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/lib/supabase/client";
 import {
+  buildCaptureFollowUpHint,
   buildCaptureWineRequest,
   buildReviewDraft,
+  canSaveFieldCaptureDraft,
   createPostSaveActions,
+  shouldEnterCaptureFollowUp,
   tapizDemoCandidate,
   type BuyAgain,
   type CaptureWineCandidate,
+  type CaptureWineResponse,
   type ReviewDraft,
 } from "@/lib/field-capture";
 
@@ -32,7 +36,7 @@ const initialOccasion = "best wines ever — reference Cab";
 const initialDescriptors = "smooth, rich, long finish";
 const initialNotes = "One of the best wines ever.";
 
-type Stage = "photo" | "review" | "saving" | "done";
+type Stage = "photo" | "follow_up" | "review" | "saving" | "done";
 
 type SaveResult = {
   wine: { id: string; producer?: string | null; label?: string | null; vintage?: number | null };
@@ -68,20 +72,33 @@ export function FieldCaptureExperience({ initialDemo = false }: FieldCaptureExpe
   const [descriptors, setDescriptors] = useState(initialDescriptors);
   const [notes, setNotes] = useState(initialNotes);
   const [result, setResult] = useState<SaveResult | null>(null);
+  const [followUpQuestion, setFollowUpQuestion] = useState<string | null>(null);
+  const [followUpAnswer, setFollowUpAnswer] = useState("");
+  const [followUpAsked, setFollowUpAsked] = useState(false);
   const supabase = useMemo(() => createClient(), []);
 
   const draft: ReviewDraft | null = candidate
     ? buildReviewDraft(candidate, { score, buy_again: buyAgain, occasion, descriptors, notes })
     : null;
+  const saveReadiness = draft ? canSaveFieldCaptureDraft(draft) : { ok: false, reason: "Capture a bottle first." };
 
-  async function analyzeDataUrl(dataUrl: string) {
+  async function analyzeDataUrl(dataUrl: string, options: { hint?: string | null; followUpAlreadyAsked?: boolean } = {}) {
     setStage("photo");
-    const request = buildCaptureWineRequest(dataUrl);
+    const request = buildCaptureWineRequest(dataUrl, options.hint);
     const { data, error } = await supabase.functions.invoke("capture-wine", { body: request });
     if (error) throw error;
-    const nextCandidate = data?.candidate as CaptureWineCandidate | null;
-    if (!nextCandidate) throw new Error("No candidate returned from capture-wine");
+    const response = data as CaptureWineResponse | null;
+    if (!response?.candidate) throw new Error("No candidate returned from capture-wine");
+    const nextCandidate = response.candidate;
     setCandidate(nextCandidate);
+    if (shouldEnterCaptureFollowUp(response, options.followUpAlreadyAsked ?? followUpAsked)) {
+      setFollowUpQuestion(response.follow_up_question);
+      setFollowUpAnswer("");
+      setFollowUpAsked(true);
+      setStage("follow_up");
+      return;
+    }
+    setFollowUpQuestion(null);
     setStage("review");
   }
 
@@ -89,6 +106,9 @@ export function FieldCaptureExperience({ initialDemo = false }: FieldCaptureExpe
     try {
       const dataUrl = await dataUrlFromFile(file);
       setImageDataUrl(dataUrl);
+      setFollowUpQuestion(null);
+      setFollowUpAnswer("");
+      setFollowUpAsked(false);
       toast.loading("Reading the label…", { id: "field-capture" });
       await analyzeDataUrl(dataUrl);
       toast.success("Bottle parsed. Review before saving.", { id: "field-capture" });
@@ -97,8 +117,34 @@ export function FieldCaptureExperience({ initialDemo = false }: FieldCaptureExpe
     }
   }
 
+  async function answerFollowUp() {
+    if (!imageDataUrl) {
+      toast.error("The original bottle photo is no longer available. Please capture it again.");
+      setStage("photo");
+      return;
+    }
+    const hint = buildCaptureFollowUpHint(followUpQuestion, followUpAnswer);
+    if (!hint) {
+      toast.error("Add one answer before continuing.");
+      return;
+    }
+    try {
+      toast.loading("Using your answer to finish the label…", { id: "field-capture" });
+      await analyzeDataUrl(imageDataUrl, { hint, followUpAlreadyAsked: true });
+      toast.success("Bottle identity updated. Review before saving.", { id: "field-capture" });
+    } catch (error) {
+      setStage("follow_up");
+      toast.error(error instanceof Error ? error.message : "Could not finish the follow-up", { id: "field-capture" });
+    }
+  }
+
   async function saveDraft() {
     if (!draft) return;
+    const readiness = canSaveFieldCaptureDraft(draft);
+    if (!readiness.ok) {
+      toast.error(readiness.reason ?? "Review the bottle identity before saving.");
+      return;
+    }
     setStage("saving");
     try {
       const response = await fetch("/api/field-capture/save", {
@@ -200,13 +246,43 @@ export function FieldCaptureExperience({ initialDemo = false }: FieldCaptureExpe
               <div className="rounded-3xl border bg-muted/30 p-8 text-center text-muted-foreground">Capture or load a bottle to begin.</div>
             ) : null}
 
-            {draft ? (
+            {stage === "follow_up" && followUpQuestion ? (
+              <div className="space-y-4 rounded-3xl border border-amber-500/40 bg-amber-500/10 p-5">
+                <div className="flex items-start gap-3">
+                  <HelpCircle className="mt-1 h-5 w-5 text-amber-700 dark:text-amber-300" />
+                  <div>
+                    <div className="font-semibold text-amber-950 dark:text-amber-100">One quick label check</div>
+                    <p className="mt-1 text-sm text-amber-950/80 dark:text-amber-100/80">{followUpQuestion}</p>
+                    <p className="mt-1 text-xs text-amber-950/65 dark:text-amber-100/70">I’ll ask once, use your answer as a hint, then move you back to review.</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="follow-up-answer">Answer</Label>
+                  <Input id="follow-up-answer" value={followUpAnswer} onChange={(event) => setFollowUpAnswer(event.target.value)} placeholder="e.g. Tapiz, 2021, Mendoza" />
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button onClick={answerFollowUp}><Sparkles className="mr-2 h-4 w-4" /> Use answer and continue</Button>
+                  <Button variant="outline" onClick={() => { setFollowUpQuestion(null); setStage("review"); }}>Review without answer</Button>
+                </div>
+              </div>
+            ) : null}
+
+            {draft && stage !== "follow_up" ? (
               <>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary">{draft.confidence_label}</Badge>
                   {draft.is_benchmark ? <Badge className="bg-amber-600 text-white hover:bg-amber-600">Benchmark bottle</Badge> : <Badge variant="outline">Standard tasting</Badge>}
                   {draft.ambiguous_fields?.length ? <Badge variant="outline">Needs review: {draft.ambiguous_fields.join(", ")}</Badge> : null}
                 </div>
+
+                {draft.confidence_label !== "High confidence" || draft.ambiguous_fields?.length ? (
+                  <div className="rounded-3xl border border-amber-500/40 bg-amber-500/10 p-4">
+                    <div className="font-semibold text-amber-950 dark:text-amber-100">Review carefully</div>
+                    <p className="mt-1 text-sm text-amber-950/80 dark:text-amber-100/80">
+                      Label confidence is not perfect. Check producer, label, and vintage before this becomes Pourfolio memory.
+                    </p>
+                  </div>
+                ) : null}
 
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   <FieldValue label="Producer" value={draft.producer} />
@@ -252,7 +328,8 @@ export function FieldCaptureExperience({ initialDemo = false }: FieldCaptureExpe
                   </div>
                 </div>
 
-                <Button size="lg" className="w-full" onClick={saveDraft} disabled={stage === "saving"}>
+                {!saveReadiness.ok ? <p className="text-sm text-destructive">{saveReadiness.reason}</p> : null}
+                <Button size="lg" className="w-full" onClick={saveDraft} disabled={stage === "saving" || !saveReadiness.ok}>
                   {stage === "saving" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                   {stage === "saving" ? "Saving to Pourfolio…" : draft.is_benchmark ? "Save benchmark memory" : "Save tasting memory"}
                 </Button>
@@ -276,7 +353,7 @@ export function FieldCaptureExperience({ initialDemo = false }: FieldCaptureExpe
                     </Link>
                   ))}
                 </div>
-                <Button variant="outline" className="w-full" onClick={() => { setStage("photo"); setCandidate(null); setResult(null); setImageDataUrl(null); }}><RefreshCw className="mr-2 h-4 w-4" /> Reset capture</Button>
+                <Button variant="outline" className="w-full" onClick={() => { setStage("photo"); setCandidate(null); setResult(null); setImageDataUrl(null); setFollowUpQuestion(null); setFollowUpAnswer(""); setFollowUpAsked(false); }}><RefreshCw className="mr-2 h-4 w-4" /> Reset capture</Button>
               </div>
             ) : null}
           </CardContent>
