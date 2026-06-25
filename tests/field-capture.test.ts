@@ -3,6 +3,7 @@ import {
   buildCaptureWineRequest,
   buildReviewDraft,
   buildSaveTastingPayload,
+  buildWineIdentityKey,
   createPostSaveActions,
   isBenchmarkScore,
   normalizeDescriptorText,
@@ -94,6 +95,18 @@ function testDescriptorNormalization() {
   assert.deepEqual(normalizeDescriptorText(" Cassis, cassis\ncedar ; long finish "), ["Cassis", "cedar", "long finish"]);
 }
 
+function testWineIdentityKeyNormalizesCaseWhitespaceAndVintage() {
+  assert.equal(
+    buildWineIdentityKey({ producer: "  TAPIZ ", vintage: 2021, label: " Alta   Collection Cabernet Sauvignon " }),
+    "tapiz|2021|alta collection cabernet sauvignon"
+  );
+  assert.notEqual(
+    buildWineIdentityKey({ producer: "Tapiz", vintage: 2020, label: "Alta Collection Cabernet Sauvignon" }),
+    buildWineIdentityKey({ producer: "Tapiz", vintage: 2021, label: "Alta Collection Cabernet Sauvignon" })
+  );
+  assert.equal(buildWineIdentityKey({ producer: null, vintage: null, label: "House Red" }), "||house red");
+}
+
 for (const test of [
   testBuildCaptureRequestFromDataUrl,
   testRejectsInvalidCaptureImage,
@@ -102,6 +115,7 @@ for (const test of [
   testSavePayloadIsDatabaseReady,
   testPostSaveActionsArePractical,
   testDescriptorNormalization,
+  testWineIdentityKeyNormalizesCaseWhitespaceAndVintage,
 ]) {
   test();
 }

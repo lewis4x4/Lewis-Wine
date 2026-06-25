@@ -129,6 +129,17 @@ function buildTitle(candidate: CaptureWineCandidate) {
     .join(" ") || "Captured wine";
 }
 
+function normalizeIdentityPart(value: string | number | null | undefined) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+export function buildWineIdentityKey(input: Pick<CaptureWineCandidate, "producer" | "label" | "vintage">) {
+  return [input.producer, input.vintage, input.label].map(normalizeIdentityPart).join("|");
+}
+
 function benchmarkPrompt(candidate: CaptureWineCandidate, inputs: ReviewInputs) {
   if (!isBenchmarkScore(inputs.score)) return null;
   const anchor = [candidate.producer, candidate.varietal].filter(Boolean).join(" / ") || "this wine";

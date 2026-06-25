@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AcquisitionEnginePanel } from "@/components/wine/acquisition-engine-panel";
 import { AcquisitionReceiptPanel } from "@/components/wine/acquisition-receipt-panel";
 import { BuyAgainLane } from "@/components/wine/buy-again-lane";
-import { GreatWineCapture } from "@/components/wine/great-wine-capture";
+import { CaptureCommandCard } from "@/components/wine/capture-command-card";
 import { ReplenishmentAutomationPanel } from "@/components/wine/replenishment-automation-panel";
 import { TasteGenomeDashboard } from "@/components/wine/taste-genome-dashboard";
 import { WineListAdvisor } from "@/components/wine/wine-list-advisor";
@@ -31,7 +31,7 @@ export default function PourfolioIntelligencePage() {
           </div>
         </div>
       </section>
-      <GreatWineCapture />
+      <CaptureCommandCard />
       <BuyAgainLane />
       <ReplenishmentAutomationPanel />
       <AcquisitionEnginePanel />

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { buildSaveTastingPayload, type ReviewDraft } from "@/lib/field-capture";
+import { buildSaveTastingPayload, buildWineIdentityKey, type ReviewDraft } from "@/lib/field-capture";
 
 const buyAgainSchema = z.enum(["yes", "no", "maybe", "cellar_only"]);
 const wineTypeSchema = z.enum(["red", "white", "rose", "rosé", "sparkling", "dessert", "fortified"]).nullable();
@@ -42,21 +42,54 @@ export async function POST(request: Request) {
     }
 
     const payload = buildSaveTastingPayload(draft);
+    const wineIdentityKey = buildWineIdentityKey(payload.wine);
     const client = supabase as unknown as {
       from: (table: string) => {
+        select: (columns?: string) => {
+          eq: (column: string, value: unknown) => {
+            eq: (column: string, value: unknown) => {
+              limit: (count: number) => Promise<{ data: Record<string, unknown>[] | null; error: Error | null }>;
+            };
+            is: (column: string, value: null) => {
+              limit: (count: number) => Promise<{ data: Record<string, unknown>[] | null; error: Error | null }>;
+            };
+          };
+        };
         insert: (values: Record<string, unknown>) => {
           select: (columns?: string) => { single: () => Promise<{ data: Record<string, unknown> | null; error: Error | null }> };
         };
       };
     };
 
-    const { data: wine, error: wineError } = await client
+    const vintageFilter = client
       .from("wines")
-      .insert({ owner_id: user.id, ...payload.wine })
       .select("id,producer,label,vintage,region,varietal")
-      .single();
+      .eq("owner_id", user.id);
+    const { data: existingRows, error: lookupError } = payload.wine.vintage == null
+      ? await vintageFilter.is("vintage", null).limit(200)
+      : await vintageFilter.eq("vintage", payload.wine.vintage).limit(200);
+    if (lookupError) throw lookupError;
 
-    if (wineError || !wine) throw wineError ?? new Error("Wine save returned no row");
+    const existingWine = (existingRows ?? []).find((row) => buildWineIdentityKey({
+      producer: (row.producer as string | null) ?? null,
+      label: (row.label as string | null) ?? null,
+      vintage: (row.vintage as number | null) ?? null,
+    }) === wineIdentityKey) ?? null;
+
+    let reusedWine = Boolean(existingWine);
+    let wine = existingWine;
+
+    if (!wine) {
+      const { data: insertedWine, error: wineError } = await client
+        .from("wines")
+        .insert({ owner_id: user.id, ...payload.wine })
+        .select("id,producer,label,vintage,region,varietal")
+        .single();
+
+      if (wineError || !insertedWine) throw wineError ?? new Error("Wine save returned no row");
+      wine = insertedWine;
+      reusedWine = false;
+    }
 
     const { data: tasting, error: tastingError } = await client
       .from("tastings")
@@ -78,6 +111,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       wine,
+      reused_wine: reusedWine,
       tasting,
       actions: {
         find_more: `/intelligence?wine_id=${wine.id}&action=find-more`,
