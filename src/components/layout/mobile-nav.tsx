@@ -9,18 +9,16 @@ const navItems = [
   { href: "/dashboard", label: "Home", icon: "🏠" },
   { href: "/cellar", label: "Cellar", icon: "🍾" },
   { href: "/capture", label: "Capture", icon: "📷" },
-  { href: boughtWineIntakeHref(), label: BOUGHT_WINE_INTAKE.primaryLabel.replace("I ", ""), icon: "🧾" },
-  { href: "/bottle-brain", label: "Brain", icon: "🧠" },
-  { href: "/jarvis/voice", label: "Voice", icon: "🎙️" },
-  { href: "/ratings", label: "Ratings", icon: "⭐" },
-];
+  { href: boughtWineIntakeHref(), label: BOUGHT_WINE_INTAKE.mobileLabel, icon: "🧾" },
+  { href: "/intelligence", label: "Intel", icon: "✨" },
+] as const;
 
 export function MobileNav() {
   const pathname = usePathname();
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background md:hidden">
-      <div className="flex items-center justify-around py-2">
+      <div className="grid grid-cols-5 py-2">
         {navItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
@@ -28,7 +26,7 @@ export function MobileNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-1 px-3 py-2 text-xs",
+                "flex flex-col items-center gap-1 px-2 py-2 text-xs",
                 isActive ? "text-primary" : "text-muted-foreground"
               )}
             >

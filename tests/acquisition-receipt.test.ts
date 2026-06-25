@@ -80,7 +80,8 @@ assert.equal(targetUpdate.status, "acquired");
 assert.equal(targetUpdate.acquiredQuantity, 2);
 assert.equal(targetUpdate.acquiredPriceCents, 18400);
 
-assert.equal(BOUGHT_WINE_INTAKE.primaryLabel, "I bought wine");
+assert.equal(BOUGHT_WINE_INTAKE.primaryLabel, "Add Purchase");
+assert.equal(BOUGHT_WINE_INTAKE.mobileLabel, "Purchase");
 assert.equal(boughtWineIntakeHref(), "/intelligence?intake=purchase#acquisition-receipt");
 assert.equal(chooseBoughtWineIntake({ bottleCount: 1, hasReceipt: false }).href, "/capture?intent=purchase&save_mode=add_to_cellar");
 assert.equal(chooseBoughtWineIntake({ bottleCount: 1, hasReceipt: false }).reason, "single bottle label capture");

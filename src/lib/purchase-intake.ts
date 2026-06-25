@@ -9,7 +9,8 @@ export type BoughtWineIntakeRoute = {
 };
 
 export const BOUGHT_WINE_INTAKE = {
-  primaryLabel: "I bought wine",
+  primaryLabel: "Add Purchase",
+  mobileLabel: "Purchase",
   shortDescription: "Receipt or label intake for newly purchased bottles.",
   receiptHref: "/intelligence?intake=purchase#acquisition-receipt",
   singleBottleHref: "/capture?intent=purchase&save_mode=add_to_cellar",
