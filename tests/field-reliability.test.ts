@@ -12,6 +12,24 @@ import {
   type OfflineDraftStorage,
 } from "../src/lib/offline-tasting-drafts";
 import {
+  createOfflineFieldCaptureDraft,
+  deleteOfflineFieldCaptureDraft,
+  drainSavedOfflineFieldCaptureDrafts,
+  getOfflineFieldCaptureDrafts,
+  markOfflineFieldCaptureDraftFailed,
+  markOfflineFieldCaptureDraftSyncing,
+  saveOfflineFieldCaptureDraft,
+  type OfflineFieldCaptureDraft,
+} from "../src/lib/offline-field-capture-drafts";
+import {
+  shouldQueueFieldCaptureFailure,
+  fieldCaptureFailureMessage,
+} from "../src/lib/field-capture-sync";
+import {
+  buildReviewDraft,
+  tapizDemoCandidate,
+} from "../src/lib/field-capture";
+import {
   shouldQueueVoiceTastingFailure,
   voiceTastingFailureMessage,
 } from "../src/lib/voice-tasting-sync";
@@ -97,5 +115,66 @@ assert.equal(shouldQueueVoiceTastingFailure({ isOnline: true, status: 503 }), tr
 assert.equal(shouldQueueVoiceTastingFailure({ isOnline: true, status: 422 }), false);
 assert.equal(shouldQueueVoiceTastingFailure({ isOnline: true, status: 401 }), false);
 assert.ok(voiceTastingFailureMessage(422).includes("clearer bottle match"));
+
+const fieldStorage = new MemoryStorage();
+const fieldReview = buildReviewDraft(tapizDemoCandidate, {
+  score: 95,
+  buy_again: "yes",
+  occasion: "best wines ever — offline queue proof",
+  descriptors: "smooth, rich, long finish",
+  notes: "Do not lose this field capture if the cellar signal drops.",
+});
+const fieldDraft = createOfflineFieldCaptureDraft({
+  reviewDraft: {
+    ...fieldReview,
+    save_mode: "link_existing_inventory",
+    inventory_id: "inv-tapiz",
+    idempotency_key: "field-capture-stable-key",
+  },
+  evidenceDataUrl: "data:image/png;base64,QUJD",
+  createdAt: "2026-06-25T17:00:00.000Z",
+});
+assert.equal(fieldDraft.status, "queued");
+assert.equal(fieldDraft.attempts, 0);
+assert.ok(fieldDraft.id.startsWith("offline-field-capture-"));
+assert.equal(fieldDraft.idempotencyKey, "field-capture-stable-key");
+assert.equal(fieldDraft.payload.idempotency_key, "field-capture-stable-key");
+assert.equal(fieldDraft.payload.inventory_id, "inv-tapiz");
+assert.equal(fieldDraft.payload.evidence_data_url, "data:image/png;base64,QUJD");
+assert.equal(JSON.stringify(fieldDraft.payload.tasting.extraction).includes("QUJD"), false);
+
+saveOfflineFieldCaptureDraft(fieldStorage, fieldDraft);
+assert.deepEqual(getOfflineFieldCaptureDrafts(fieldStorage), [fieldDraft]);
+
+markOfflineFieldCaptureDraftSyncing(fieldStorage, fieldDraft.id);
+assert.equal(getOfflineFieldCaptureDrafts(fieldStorage)[0].status, "syncing");
+
+markOfflineFieldCaptureDraftFailed(fieldStorage, fieldDraft.id, "Network uncertain");
+const failedFieldDraft = getOfflineFieldCaptureDrafts(fieldStorage)[0] as OfflineFieldCaptureDraft;
+assert.equal(failedFieldDraft.status, "failed");
+assert.equal(failedFieldDraft.attempts, 1);
+assert.equal(failedFieldDraft.idempotencyKey, "field-capture-stable-key");
+assert.equal(failedFieldDraft.payload.idempotency_key, "field-capture-stable-key");
+
+const secondFieldDraft = createOfflineFieldCaptureDraft({
+  reviewDraft: { ...fieldReview, idempotency_key: "field-capture-second-key" },
+  evidenceDataUrl: null,
+  createdAt: "2026-06-25T17:01:00.000Z",
+});
+saveOfflineFieldCaptureDraft(fieldStorage, secondFieldDraft);
+assert.equal(getOfflineFieldCaptureDrafts(fieldStorage).length, 2);
+deleteOfflineFieldCaptureDraft(fieldStorage, secondFieldDraft.id);
+assert.equal(getOfflineFieldCaptureDrafts(fieldStorage).length, 1);
+assert.deepEqual(drainSavedOfflineFieldCaptureDrafts(fieldStorage, [fieldDraft.id]), []);
+assert.deepEqual(getOfflineFieldCaptureDrafts(fieldStorage), []);
+
+assert.equal(shouldQueueFieldCaptureFailure({ isOnline: false }), true);
+assert.equal(shouldQueueFieldCaptureFailure({ isOnline: true }), true);
+assert.equal(shouldQueueFieldCaptureFailure({ isOnline: true, status: 0 }), true);
+assert.equal(shouldQueueFieldCaptureFailure({ isOnline: true, status: 500 }), true);
+assert.equal(shouldQueueFieldCaptureFailure({ isOnline: true, status: 503 }), true);
+assert.equal(shouldQueueFieldCaptureFailure({ isOnline: true, status: 422 }), false);
+assert.equal(shouldQueueFieldCaptureFailure({ isOnline: true, status: 401 }), false);
+assert.ok(fieldCaptureFailureMessage(422).includes("review"));
 
 console.log("field-reliability tests passed");

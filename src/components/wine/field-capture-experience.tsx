@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
-import { Camera, CheckCircle2, ClipboardList, HelpCircle, Loader2, RefreshCw, Search, Sparkles, Wine, Zap } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Camera, CheckCircle2, ClipboardList, HelpCircle, Loader2, RefreshCw, RotateCcw, Search, Sparkles, Trash2, Wine, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/lib/supabase/client";
+import {
+  createOfflineFieldCaptureDraft,
+  deleteOfflineFieldCaptureDraft,
+  drainSavedOfflineFieldCaptureDrafts,
+  getOfflineFieldCaptureDrafts,
+  markOfflineFieldCaptureDraftFailed,
+  markOfflineFieldCaptureDraftSyncing,
+  saveOfflineFieldCaptureDraft,
+  type OfflineFieldCaptureDraft,
+} from "@/lib/offline-field-capture-drafts";
+import { fieldCaptureFailureMessage, shouldQueueFieldCaptureFailure } from "@/lib/field-capture-sync";
 import {
   buildCaptureFollowUpHint,
   buildCaptureWineRequest,
@@ -56,6 +67,21 @@ function dataUrlFromFile(file: File) {
   });
 }
 
+async function postFieldCapturePayload(payload: unknown) {
+  const response = await fetch("/api/field-capture/save", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  if (!response.ok || !data.success) {
+    const error = new Error(data.error || "Could not save capture");
+    Object.assign(error, { status: response.status, payload: data });
+    throw error;
+  }
+  return data;
+}
+
 function createFieldCaptureIdempotencyKey() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return `field-capture-${crypto.randomUUID()}`;
   return `field-capture-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -86,7 +112,26 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
   const [followUpQuestion, setFollowUpQuestion] = useState<string | null>(null);
   const [followUpAnswer, setFollowUpAnswer] = useState("");
   const [followUpAsked, setFollowUpAsked] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [offlineDrafts, setOfflineDrafts] = useState<OfflineFieldCaptureDraft[]>([]);
   const supabase = useMemo(() => createClient(), []);
+
+  const refreshOfflineDrafts = () => {
+    if (typeof window === "undefined") return;
+    setIsOnline(window.navigator.onLine);
+    setOfflineDrafts(getOfflineFieldCaptureDrafts(window.localStorage));
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    refreshOfflineDrafts();
+    window.addEventListener("online", refreshOfflineDrafts);
+    window.addEventListener("offline", refreshOfflineDrafts);
+    return () => {
+      window.removeEventListener("online", refreshOfflineDrafts);
+      window.removeEventListener("offline", refreshOfflineDrafts);
+    };
+  }, []);
 
   const draft: ReviewDraft | null = candidate
     ? {
@@ -155,6 +200,79 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
     }
   }
 
+  function queueCurrentFieldCapture(reason?: string) {
+    if (!draft || typeof window === "undefined") return null;
+    const offlineDraft = saveOfflineFieldCaptureDraft(
+      window.localStorage,
+      createOfflineFieldCaptureDraft({ reviewDraft: draft, evidenceDataUrl: imageDataUrl }),
+    );
+    refreshOfflineDrafts();
+    if (reason) toast.info(`${reason} Queued field capture: ${offlineDraft.id}`);
+    else toast.info(`Queued field capture: ${offlineDraft.id}`);
+    return offlineDraft;
+  }
+
+  async function syncOneOfflineFieldDraft(offlineDraft: OfflineFieldCaptureDraft) {
+    if (typeof window === "undefined") return false;
+    markOfflineFieldCaptureDraftSyncing(window.localStorage, offlineDraft.id);
+    refreshOfflineDrafts();
+    try {
+      const payload = await postFieldCapturePayload(offlineDraft.payload);
+      drainSavedOfflineFieldCaptureDrafts(window.localStorage, [offlineDraft.id]);
+      refreshOfflineDrafts();
+      toast.success(payload.replayed ? "Offline field capture already saved." : "Offline field capture synced.");
+      return true;
+    } catch (error) {
+      markOfflineFieldCaptureDraftFailed(window.localStorage, offlineDraft.id, error instanceof Error ? error.message : "Sync failed.");
+      refreshOfflineDrafts();
+      toast.error("Offline field capture still needs attention.");
+      return false;
+    }
+  }
+
+  async function syncOfflineFieldDrafts() {
+    if (typeof window === "undefined") return;
+    if (!window.navigator.onLine) {
+      toast.error("You are offline. Sync when the cellar is back online.");
+      return;
+    }
+    const queued = getOfflineFieldCaptureDrafts(window.localStorage);
+    if (!queued.length) return;
+    setStage("saving");
+    let savedCount = 0;
+    try {
+      for (const offlineDraft of queued) {
+        const saved = await syncOneOfflineFieldDraft(offlineDraft);
+        if (saved) savedCount += 1;
+      }
+      if (savedCount > 0) toast.success(`Synced ${savedCount} field capture ${savedCount === 1 ? "draft" : "drafts"}.`);
+      if (savedCount < queued.length) toast.error("Some field captures still need attention.");
+    } finally {
+      setStage(draft ? "review" : "photo");
+    }
+  }
+
+  async function retryOfflineFieldDraft(offlineDraft: OfflineFieldCaptureDraft) {
+    if (typeof window === "undefined") return;
+    if (!window.navigator.onLine) {
+      toast.error("Still offline. Retry when the cellar is back online.");
+      return;
+    }
+    setStage("saving");
+    try {
+      await syncOneOfflineFieldDraft(offlineDraft);
+    } finally {
+      setStage(draft ? "review" : "photo");
+    }
+  }
+
+  function removeOfflineFieldDraft(offlineDraft: OfflineFieldCaptureDraft) {
+    if (typeof window === "undefined") return;
+    deleteOfflineFieldCaptureDraft(window.localStorage, offlineDraft.id);
+    refreshOfflineDrafts();
+    toast.success("Offline field capture deleted.");
+  }
+
   async function saveDraft() {
     if (!draft) return;
     const readiness = canSaveFieldCaptureDraft(draft);
@@ -162,21 +280,25 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
       toast.error(readiness.reason ?? "Review the bottle identity before saving.");
       return;
     }
+    if (typeof window !== "undefined" && !window.navigator.onLine) {
+      queueCurrentFieldCapture("Offline.");
+      return;
+    }
     setStage("saving");
     try {
-      const response = await fetch("/api/field-capture/save", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...draft, evidence_data_url: imageDataUrl }),
-      });
-      const payload = await response.json();
-      if (!response.ok || !payload.success) throw new Error(payload.error || "Could not save capture");
+      const payload = await postFieldCapturePayload({ ...draft, evidence_data_url: imageDataUrl });
       setResult({ wine: payload.wine, tasting: payload.tasting, inventory: payload.inventory, rating: payload.rating });
       setStage("done");
       toast.success(draft.is_benchmark ? "Benchmark saved to Pourfolio." : "Tasting saved to Pourfolio.");
     } catch (error) {
+      const maybeError = error as Error & { status?: number };
+      const shouldQueue = shouldQueueFieldCaptureFailure({
+        isOnline: typeof window === "undefined" ? true : window.navigator.onLine,
+        status: maybeError.status,
+      });
+      if (shouldQueue) queueCurrentFieldCapture(fieldCaptureFailureMessage(maybeError.status));
       setStage("review");
-      toast.error(error instanceof Error ? error.message : "Could not save capture");
+      toast.error(error instanceof Error ? (shouldQueue ? `${error.message} ${fieldCaptureFailureMessage(maybeError.status)}` : fieldCaptureFailureMessage(maybeError.status)) : fieldCaptureFailureMessage(maybeError.status));
     }
   }
 
@@ -373,6 +495,14 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
                   {stage === "saving" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                   {stage === "saving" ? "Saving to Pourfolio…" : draft.is_benchmark ? "Save benchmark memory" : "Save tasting memory"}
                 </Button>
+                <FieldCaptureOfflineQueue
+                  drafts={offlineDrafts}
+                  isOnline={isOnline}
+                  isBusy={stage === "saving"}
+                  onSync={syncOfflineFieldDrafts}
+                  onRetry={retryOfflineFieldDraft}
+                  onDelete={removeOfflineFieldDraft}
+                />
               </>
             ) : null}
 
@@ -398,6 +528,74 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
             ) : null}
           </CardContent>
         </Card>
+      </div>
+    </div>
+  );
+}
+
+
+function FieldCaptureOfflineQueue({
+  drafts,
+  isOnline,
+  isBusy,
+  onSync,
+  onRetry,
+  onDelete,
+}: {
+  drafts: OfflineFieldCaptureDraft[];
+  isOnline: boolean;
+  isBusy: boolean;
+  onSync: () => void;
+  onRetry: (draft: OfflineFieldCaptureDraft) => void;
+  onDelete: (draft: OfflineFieldCaptureDraft) => void;
+}) {
+  if (!drafts.length) {
+    return (
+      <div className="rounded-3xl border border-border/70 bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+        Field queue empty. If mobile service drops during save, this reviewed capture will wait here with its retry key intact.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-3xl border border-border/70 bg-muted/20 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium text-foreground">Offline field captures</div>
+          <div className="text-xs text-muted-foreground">{drafts.length} reviewed capture {drafts.length === 1 ? "draft" : "drafts"} waiting to sync.</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant={isOnline ? "secondary" : "outline"} className="rounded-full">{isOnline ? "Online" : "Offline"}</Badge>
+          <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={onSync} disabled={isBusy || !isOnline}>
+            Sync all
+          </Button>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {drafts.slice(0, 5).map((offlineDraft) => {
+          const wineLabel = [offlineDraft.payload.wine.vintage, offlineDraft.payload.wine.producer, offlineDraft.payload.wine.label ?? offlineDraft.payload.wine.varietal]
+            .filter(Boolean)
+            .join(" ") || "Captured wine";
+          return (
+            <div key={offlineDraft.id} className="rounded-2xl border border-border/70 bg-background/70 p-3 text-xs leading-5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium text-foreground">{wineLabel}</span>
+                <span className="text-muted-foreground">{offlineDraft.status} · attempts {offlineDraft.attempts}</span>
+              </div>
+              <p className="mt-1 line-clamp-2 text-muted-foreground">{offlineDraft.payload.tasting.notes || offlineDraft.payload.tasting.occasion || "Reviewed field capture waiting for safe retry."}</p>
+              <div className="mt-1 text-[11px] text-muted-foreground">Retry key preserved: {offlineDraft.idempotencyKey.slice(0, 36)}…</div>
+              {offlineDraft.lastError ? <p className="mt-1 text-[11px] text-destructive">{offlineDraft.lastError}</p> : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => onRetry(offlineDraft)} disabled={isBusy || !isOnline}>
+                  <RotateCcw className="h-3.5 w-3.5" /> Retry
+                </Button>
+                <Button type="button" size="sm" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => onDelete(offlineDraft)} disabled={isBusy}>
+                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                </Button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
