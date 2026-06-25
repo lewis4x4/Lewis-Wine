@@ -9,6 +9,11 @@ import {
   type AiEvidenceCandidate,
   type ExistingEvidenceSignal,
 } from "@/lib/current-intelligence";
+import {
+  countAnthropicWebSearchUses,
+  estimateAnthropicCostUsd,
+  pricingForAnthropicModel,
+} from "@/lib/current-intelligence/anthropic-telemetry";
 
 const bottle = {
   id: "inv-1",
@@ -115,6 +120,19 @@ const bottle = {
   ], buildRefreshPlan(bottle, "pricing", [], "2026-06-13T00:00:00.000Z"));
   assert.equal(normalized.observations[0].confidence < 80, true);
   assert.equal(normalized.gaps.some((gap) => gap.includes("vintage")), true);
+}
+
+{
+  assert.equal(pricingForAnthropicModel("claude-sonnet-4-5-20250929").inputUsdPerMTok, 3);
+  assert.equal(pricingForAnthropicModel("claude-haiku-4-5").outputUsdPerMTok, 5);
+  assert.equal(estimateAnthropicCostUsd("claude-sonnet-4-5-20250929", { input_tokens: 5_000, output_tokens: 600 }), 0.024);
+  assert.equal(estimateAnthropicCostUsd("claude-sonnet-4-5-20250929", null), null);
+  assert.equal(countAnthropicWebSearchUses([
+    { type: "server_tool_use", name: "web_search" },
+    { type: "web_search_tool_result" },
+    { type: "text", text: "done" },
+  ]), 1);
+  assert.equal(countAnthropicWebSearchUses([], { server_tool_use: { web_search_requests: 2 } }), 2);
 }
 
 console.log("current-intelligence tests passed");

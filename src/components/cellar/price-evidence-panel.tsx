@@ -15,6 +15,23 @@ import { summarizePricePosture, type PriceObservation, type SourceType } from "@
 
 type RefreshObservation = Partial<PriceObservation> & { sourceType: SourceType; observedPriceCents?: number | null; confidence?: number };
 
+type AnthropicRefreshCost = {
+  estimatedCostUsd?: number | null;
+  model?: string | null;
+  webSearchUses?: number | null;
+  usage?: {
+    input_tokens?: number | null;
+    output_tokens?: number | null;
+    server_tool_use?: {
+      web_search_requests?: number | null;
+    } | null;
+  } | null;
+};
+
+type RefreshProviderStatus = {
+  anthropic?: AnthropicRefreshCost | null;
+};
+
 type Props = {
   inventoryId: string;
   wineReferenceId?: string | null;
@@ -24,6 +41,21 @@ type Props = {
 function money(cents?: number | null) {
   if (cents == null) return "Unknown";
   return `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
+function estimatedRefreshCost(status?: RefreshProviderStatus | null) {
+  const anthropic = status?.anthropic;
+  if (!anthropic?.estimatedCostUsd && anthropic?.estimatedCostUsd !== 0) return null;
+  const searches = anthropic.usage?.server_tool_use?.web_search_requests ?? anthropic.webSearchUses ?? 0;
+  const tokenParts = [
+    anthropic.usage?.input_tokens != null ? `${anthropic.usage.input_tokens.toLocaleString()} in` : null,
+    anthropic.usage?.output_tokens != null ? `${anthropic.usage.output_tokens.toLocaleString()} out` : null,
+    searches ? `${searches} web search${searches === 1 ? "" : "es"}` : null,
+  ].filter(Boolean).join(" · ");
+  return {
+    cost: `$${anthropic.estimatedCostUsd.toFixed(4)}`,
+    detail: [anthropic.model, tokenParts].filter(Boolean).join(" · "),
+  };
 }
 
 function marketSourceFor(sourceType: SourceType): "manual" | "estimate" | "wine-searcher" | "vivino" {
@@ -38,7 +70,7 @@ export function PriceEvidencePanel({ inventoryId, wineReferenceId, onApplyMarket
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showManualDialog, setShowManualDialog] = useState(false);
   const [showRefreshDialog, setShowRefreshDialog] = useState(false);
-  const [refreshResult, setRefreshResult] = useState<{ observations: RefreshObservation[]; evidence: { title: string; detail?: string; confidence: number; sourceUrl?: string | null }[]; gaps: string[] } | null>(null);
+  const [refreshResult, setRefreshResult] = useState<{ observations: RefreshObservation[]; evidence: { title: string; detail?: string; confidence: number; sourceUrl?: string | null }[]; gaps: string[]; providerStatus?: RefreshProviderStatus | null } | null>(null);
   const [manualValue, setManualValue] = useState("");
   const [manualKind, setManualKind] = useState("market_value");
   const [manualSourceType, setManualSourceType] = useState<SourceType>("manual");
@@ -128,7 +160,7 @@ export function PriceEvidencePanel({ inventoryId, wineReferenceId, onApplyMarket
       });
       const payload = await response.json();
       if (!response.ok || !payload.success) throw new Error(payload.error ?? "Refresh failed");
-      setRefreshResult({ observations: payload.observations ?? [], evidence: payload.evidence ?? [], gaps: payload.gaps ?? [] });
+      setRefreshResult({ observations: payload.observations ?? [], evidence: payload.evidence ?? [], gaps: payload.gaps ?? [], providerStatus: payload.providerStatus ?? null });
       setShowRefreshDialog(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not refresh intelligence");
@@ -156,6 +188,8 @@ export function PriceEvidencePanel({ inventoryId, wineReferenceId, onApplyMarket
       market_value_updated_at: new Date().toISOString(),
     });
   }
+
+  const refreshCost = estimatedRefreshCost(refreshResult?.providerStatus);
 
   return (
     <>
@@ -248,6 +282,12 @@ export function PriceEvidencePanel({ inventoryId, wineReferenceId, onApplyMarket
             <DialogDescription>Review source-backed findings. AI output is draft evidence until you accept it.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {refreshCost ? (
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+                <div className="font-medium">Refresh cost: {refreshCost.cost}</div>
+                <p className="text-xs text-muted-foreground">{refreshCost.detail}</p>
+              </div>
+            ) : null}
             {refreshResult?.gaps?.length ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{refreshResult.gaps.map((gap) => <p key={gap}>{gap}</p>)}</div> : null}
             <div className="space-y-2">
               <div className="flex items-center justify-between">

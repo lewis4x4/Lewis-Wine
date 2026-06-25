@@ -4,6 +4,13 @@ import { z } from "zod";
 import { getAnthropicApiKey } from "@/lib/anthropic-config";
 import { createClient } from "@/lib/supabase/server";
 import {
+  countAnthropicWebSearchUses,
+  emptyAnthropicTelemetry,
+  estimateAnthropicCostUsd,
+  pricingForAnthropicModel,
+  type AnthropicRefreshTelemetry,
+} from "@/lib/current-intelligence/anthropic-telemetry";
+import {
   buildRefreshPlan,
   normalizeAiEvidenceCandidates,
   type AiEvidenceCandidate,
@@ -27,18 +34,25 @@ const requestSchema = z.object({
   })).optional(),
 });
 
-async function synthesizeWithAnthropic(record: BottleSearchRecord, scope: RefreshScope): Promise<AiEvidenceCandidate[]> {
+type AnthropicSynthesis = {
+  candidates: AiEvidenceCandidate[];
+  telemetry: AnthropicRefreshTelemetry;
+};
+
+async function synthesizeWithAnthropic(record: BottleSearchRecord, scope: RefreshScope): Promise<AnthropicSynthesis> {
   const apiKey = getAnthropicApiKey();
-  if (!apiKey) return [];
+  const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929";
+  if (!apiKey) return { candidates: [], telemetry: emptyAnthropicTelemetry(false, model) };
   const anthropic = new Anthropic({ apiKey });
   const prompt = `You are Pourfolio's wine intelligence analyst. Use web search when available. Return ONLY JSON array, no markdown. Do not invent prices. If a price is found on a retailer/winery page, include it as replacement-price evidence only. If a source describes producer facts, vintage notes, drink window, or serving guidance without price, still return it as evidence with no priceCents. If you cannot cite a public source URL, mark sourceType ai_inferred and omit priceCents unless the user supplied evidence. Scope: ${scope}. Wine record: ${JSON.stringify(record)}. Desired object fields: title,url,sourceType,extractedText,priceCents,currency,vintage,bottleSizeMl,confidence. Valid sourceType values: retailer, winery, auction, public_web, ai_inferred, provider, unknown. Avoid protected/login-gated sources such as Vivino, CellarTracker, and Wine-Searcher unless the user provided export/API evidence. Prefer 2-4 concise, source-backed findings.`;
   const baseRequest = {
-    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929",
+    model,
     max_tokens: 1800,
     temperature: 0,
     messages: [{ role: "user" as const, content: prompt }],
   };
   let response;
+  let fallbackWithoutWebSearch = false;
   try {
     response = await anthropic.messages.create({
       ...baseRequest,
@@ -46,12 +60,28 @@ async function synthesizeWithAnthropic(record: BottleSearchRecord, scope: Refres
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }] as any,
     });
   } catch {
+    fallbackWithoutWebSearch = true;
     response = await anthropic.messages.create(baseRequest);
   }
   const text = response.content.map((part) => part.type === "text" ? part.text : "").join("\n").trim();
   const jsonText = text.match(/\[[\s\S]*\]/)?.[0] ?? "[]";
   const parsed = JSON.parse(jsonText) as AiEvidenceCandidate[];
-  return Array.isArray(parsed) ? parsed : [];
+  const usage = response.usage ?? null;
+  return {
+    candidates: Array.isArray(parsed) ? parsed : [],
+    telemetry: {
+      provider: "anthropic",
+      configured: true,
+      attempted: true,
+      model,
+      webSearchEnabled: !fallbackWithoutWebSearch,
+      webSearchUses: countAnthropicWebSearchUses(response.content, usage),
+      fallbackWithoutWebSearch,
+      usage,
+      estimatedCostUsd: estimateAnthropicCostUsd(model, usage),
+      pricing: pricingForAnthropicModel(model),
+    },
+  };
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -91,12 +121,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ success: true, skipped: true, plan, gaps: [plan.skipReason], evidence: [], observations: [] });
     }
 
-    const candidates = [...(input.candidates ?? []), ...(await synthesizeWithAnthropic(wine as BottleSearchRecord, input.scope))];
+    const anthropic = await synthesizeWithAnthropic(wine as BottleSearchRecord, input.scope);
+    const candidates = [...(input.candidates ?? []), ...anthropic.candidates];
     const normalized = normalizeAiEvidenceCandidates(candidates, plan);
     const gaps = [...normalized.gaps];
     const anthropicConfigured = Boolean(getAnthropicApiKey());
     if (!anthropicConfigured) gaps.push("AI search is unavailable because ANTHROPIC_API_KEY is missing or still set to a placeholder in this runtime.");
     if (candidates.length === 0) gaps.push("No source-backed current info was found; manual evidence or CellarTracker import is recommended.");
+
+    const providerStatus = { anthropicConfigured, paidPricingProvider: false, anthropic: anthropic.telemetry };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from("wine_intelligence_refreshes").insert({
@@ -104,12 +137,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       scope: input.scope,
       status: "completed",
       plan,
-      provider_status: { anthropicConfigured, paidPricingProvider: false },
+      provider_status: providerStatus,
       gaps,
       completed_at: new Date().toISOString(),
     });
 
-    return NextResponse.json({ success: true, plan, evidence: normalized.evidence, observations: normalized.observations, gaps });
+    return NextResponse.json({ success: true, plan, evidence: normalized.evidence, observations: normalized.observations, gaps, providerStatus });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Failed to refresh intelligence" }, { status: 400 });
   }
