@@ -11,6 +11,7 @@ import {
   buildWineIdentityKey,
   canSaveFieldCaptureDraft,
   createPostSaveActions,
+  normalizeFieldCaptureIdempotencyKey,
   shouldEnterCaptureFollowUp,
   isBenchmarkScore,
   normalizeDescriptorText,
@@ -253,6 +254,20 @@ function testBuildFieldCaptureRatingSignalPayloadPreservesDescriptorsAndBuyAgain
   assert.equal(signal.extracted_from_text.inventory_id, "inventory-1");
 }
 
+function testFieldCaptureIdempotencyKeyNormalizesRetryToken() {
+  assert.equal(normalizeFieldCaptureIdempotencyKey("  field-save-123  "), "field-save-123");
+  assert.equal(normalizeFieldCaptureIdempotencyKey(""), null);
+  assert.equal(normalizeFieldCaptureIdempotencyKey(null), null);
+  assert.throws(() => normalizeFieldCaptureIdempotencyKey("x".repeat(161)), /Invalid field capture idempotency key/);
+}
+
+function testSavePayloadCarriesFieldCaptureIdempotencyKey() {
+  const draft = { ...tapizDraft(), idempotency_key: " field-capture-retry-1 " };
+  const payload = buildSaveTastingPayload(draft);
+  assert.equal(payload.idempotency_key, "field-capture-retry-1");
+  assert.equal(payload.tasting.extraction.field_capture_idempotency_key, "field-capture-retry-1");
+}
+
 for (const test of [
   testBuildCaptureRequestFromDataUrl,
   testRejectsInvalidCaptureImage,
@@ -274,6 +289,8 @@ for (const test of [
   testBuildFieldCaptureCellarPayloadDefaultsToOneBottleWithProvenance,
   testBuildFieldCaptureRatingPayloadLinksExistingInventory,
   testBuildFieldCaptureRatingSignalPayloadPreservesDescriptorsAndBuyAgain,
+  testFieldCaptureIdempotencyKeyNormalizesRetryToken,
+  testSavePayloadCarriesFieldCaptureIdempotencyKey,
 ]) {
   test();
 }

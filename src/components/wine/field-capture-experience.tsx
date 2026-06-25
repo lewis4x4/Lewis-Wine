@@ -56,6 +56,11 @@ function dataUrlFromFile(file: File) {
   });
 }
 
+function createFieldCaptureIdempotencyKey() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return `field-capture-${crypto.randomUUID()}`;
+  return `field-capture-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function FieldValue({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
     <div className="rounded-2xl border bg-background/70 p-3">
@@ -67,6 +72,7 @@ function FieldValue({ label, value }: { label: string; value: string | number | 
 
 export function FieldCaptureExperience({ initialDemo = false, inventoryId = null }: FieldCaptureExperienceProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const idempotencyKeyRef = useRef(createFieldCaptureIdempotencyKey());
   const [stage, setStage] = useState<Stage>(initialDemo ? "review" : "photo");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [candidate, setCandidate] = useState<CaptureWineCandidate | null>(initialDemo ? tapizDemoCandidate : null);
@@ -86,6 +92,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
     ? {
         ...buildReviewDraft(candidate, { score, buy_again: buyAgain, occasion, descriptors, notes }),
         save_mode: saveMode,
+        idempotency_key: idempotencyKeyRef.current,
         inventory_id: saveMode === "link_existing_inventory" ? inventoryId : null,
       }
     : null;
@@ -114,6 +121,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
   async function handleFile(file: File) {
     try {
       const dataUrl = await dataUrlFromFile(file);
+      idempotencyKeyRef.current = createFieldCaptureIdempotencyKey();
       setImageDataUrl(dataUrl);
       setFollowUpQuestion(null);
       setFollowUpAnswer("");
@@ -385,7 +393,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
                     </Link>
                   ))}
                 </div>
-                <Button variant="outline" className="w-full" onClick={() => { setStage("photo"); setCandidate(null); setResult(null); setImageDataUrl(null); setFollowUpQuestion(null); setFollowUpAnswer(""); setFollowUpAsked(false); }}><RefreshCw className="mr-2 h-4 w-4" /> Reset capture</Button>
+                <Button variant="outline" className="w-full" onClick={() => { idempotencyKeyRef.current = createFieldCaptureIdempotencyKey(); setStage("photo"); setCandidate(null); setResult(null); setImageDataUrl(null); setFollowUpQuestion(null); setFollowUpAnswer(""); setFollowUpAsked(false); }}><RefreshCw className="mr-2 h-4 w-4" /> Reset capture</Button>
               </div>
             ) : null}
           </CardContent>

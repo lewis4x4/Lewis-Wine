@@ -48,6 +48,7 @@ export type ReviewDraft = CaptureWineCandidate & {
   benchmark_prompt: string | null;
   confidence_label: "High confidence" | "Medium confidence" | "Low confidence";
   evidence_data_url?: string | null;
+  idempotency_key?: string | null;
   save_mode?: FieldCaptureSaveMode;
   inventory_id?: string | null;
   cellar_id?: string | null;
@@ -66,6 +67,7 @@ export type SaveTastingPayload = {
     wine_type: WineType;
   };
   evidence_data_url?: string | null;
+  idempotency_key?: string | null;
   save_mode: FieldCaptureSaveMode;
   inventory_id?: string | null;
   cellar_id?: string | null;
@@ -80,6 +82,7 @@ export type SaveTastingPayload = {
     extraction: {
       source: "field-capture";
       candidate: CaptureWineCandidate;
+      field_capture_idempotency_key?: string | null;
     };
   };
 };
@@ -141,6 +144,13 @@ const allowedMediaTypes = new Set<CaptureWineRequest["media_type"]>([
 function compact(value: string | null | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+export function normalizeFieldCaptureIdempotencyKey(value: string | null | undefined) {
+  const key = compact(value);
+  if (!key) return null;
+  if (key.length > 160) throw new Error("Invalid field capture idempotency key.");
+  return key;
 }
 
 export type EvidenceUpload = {
@@ -310,6 +320,7 @@ export function buildReviewDraft(candidate: CaptureWineCandidate, inputs: Review
 }
 
 export function buildSaveTastingPayload(draft: ReviewDraft): SaveTastingPayload {
+  const idempotencyKey = normalizeFieldCaptureIdempotencyKey(draft.idempotency_key);
   const candidate: CaptureWineCandidate = {
     producer: compact(draft.producer),
     label: compact(draft.label),
@@ -334,6 +345,7 @@ export function buildSaveTastingPayload(draft: ReviewDraft): SaveTastingPayload 
       wine_type: candidate.wine_type,
     },
     save_mode: draft.save_mode ?? "memory_only",
+    idempotency_key: idempotencyKey,
     inventory_id: compact(draft.inventory_id),
     cellar_id: compact(draft.cellar_id),
     quantity: draft.quantity ?? null,
@@ -344,7 +356,7 @@ export function buildSaveTastingPayload(draft: ReviewDraft): SaveTastingPayload 
       descriptors: draft.descriptors,
       notes: compact(draft.notes),
       is_benchmark: draft.is_benchmark,
-      extraction: { source: "field-capture", candidate },
+      extraction: { source: "field-capture", candidate, field_capture_idempotency_key: idempotencyKey },
     },
     evidence_data_url: compact(draft.evidence_data_url),
   };
