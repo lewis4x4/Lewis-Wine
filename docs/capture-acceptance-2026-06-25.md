@@ -127,13 +127,37 @@ Browser proof:
 - `/capture?demo=tapiz` still renders review state with `Tapiz`, `Alta Collection Cabernet Sauvignon`, and `Benchmark trigger`.
 - Console: zero JavaScript errors.
 
-Remote boundary:
+## Live Authenticated Evidence Proof — 2026-06-25
 
-- No remote Supabase write/deploy was performed in this local slice.
-- Live authenticated evidence upload remains to be proven with a real session/user and the remote `wine-evidence` bucket/policy.
+Completed after the local evidence-storage commit:
+
+- Created a temporary confirmed Supabase Auth proof user.
+- Signed in with the public anon auth flow to obtain a normal user session.
+- Called the local Next.js `POST /api/field-capture/save` endpoint with the same Supabase SSR auth-cookie shape used by the app.
+- Submitted a valid evidence-bearing field-capture draft.
+- Verified API success: `200` with `success: true`.
+- Verified the returned `evidence_path` was owner/wine scoped under:
+  - `wine-evidence/{auth_user_id}/bottles/{wine_id}/{uuid}.jpg`
+- Verified the object existed in the remote private `wine-evidence` bucket.
+- Verified the remote `tastings` row stored the same `evidence_path`.
+- Verified raw base64 evidence was not present in `tastings.extraction`.
+- Cleaned up the temporary proof user, proof wine, proof tasting, and proof Storage object.
+
+Cleanup verification:
+
+```json
+{
+  "wineRowsRemaining": 0,
+  "tastingRowsRemaining": 0,
+  "evidenceObjectRemaining": false,
+  "proofUserRemaining": false,
+  "errors": []
+}
+```
+
+No new migration or deploy was required; existing `00013` schema/bucket/RLS supported the proof.
 
 ## Next Actions
 
-- Run full `npm run check`.
-- Commit local evidence-storage code if the full gate passes.
-- Then decide whether to perform live authenticated evidence upload proof against Supabase.
+- Push the three local commits if Brian wants this checkpoint published.
+- Continue to the next roadmap slice: follow-up UX for ambiguous labels, or inventory/cellar integration.
