@@ -37,6 +37,7 @@ export type ReviewDraft = CaptureWineCandidate & {
   is_benchmark: boolean;
   benchmark_prompt: string | null;
   confidence_label: "High confidence" | "Medium confidence" | "Low confidence";
+  evidence_data_url?: string | null;
 };
 
 export type SaveTastingPayload = {
@@ -50,6 +51,7 @@ export type SaveTastingPayload = {
     varietal: string | null;
     wine_type: WineType;
   };
+  evidence_data_url?: string | null;
   tasting: {
     score: number | null;
     buy_again: BuyAgain;
@@ -84,6 +86,29 @@ function compact(value: string | null | undefined) {
   return trimmed ? trimmed : null;
 }
 
+export type EvidenceUpload = {
+  bucket: "wine-evidence";
+  path: string;
+  contentType: CaptureWineRequest["media_type"];
+  bytes: Uint8Array;
+};
+
+export type EvidenceUploadInput = {
+  ownerId: string;
+  wineId: string;
+  dataUrl: string;
+  token: string;
+};
+
+const evidenceExtensions: Record<CaptureWineRequest["media_type"], string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+
+const maxEvidenceBytes = 8 * 1024 * 1024;
+
 export const tapizDemoCandidate: CaptureWineCandidate = {
   producer: "Tapiz",
   label: "Alta Collection Cabernet Sauvignon",
@@ -103,6 +128,37 @@ export function buildCaptureWineRequest(dataUrl: string): CaptureWineRequest {
   const mediaType = match[1] as CaptureWineRequest["media_type"];
   if (!allowedMediaTypes.has(mediaType)) throw new Error("Use a JPEG, PNG, WebP, or GIF image.");
   return { media_type: mediaType, image_base64: match[2] };
+}
+
+function decodeBase64Image(base64: string) {
+  const normalized = base64.trim();
+  if (!normalized || !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized) || normalized.length % 4 !== 0) {
+    throw new Error("Evidence image must contain valid base64 data.");
+  }
+  const bytes = Buffer.from(normalized, "base64");
+  if (!bytes.byteLength) throw new Error("Evidence image must contain valid base64 data.");
+  if (bytes.byteLength > maxEvidenceBytes) throw new Error("Evidence image is too large; use an image under 8 MB.");
+  return bytes;
+}
+
+function sanitizePathPart(value: string, label: string) {
+  const cleaned = value.trim().replace(/[^A-Za-z0-9_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  if (!cleaned) throw new Error(`Evidence ${label} is required.`);
+  return cleaned;
+}
+
+export function buildEvidenceUpload(input: EvidenceUploadInput): EvidenceUpload {
+  const ownerId = sanitizePathPart(input.ownerId, "owner");
+  const wineId = sanitizePathPart(input.wineId, "wine");
+  const token = sanitizePathPart(input.token, "token");
+  const request = buildCaptureWineRequest(input.dataUrl);
+  const bytes = decodeBase64Image(request.image_base64);
+  return {
+    bucket: "wine-evidence",
+    path: `${ownerId}/bottles/${wineId}/${token}.${evidenceExtensions[request.media_type]}`,
+    contentType: request.media_type,
+    bytes,
+  };
 }
 
 export function normalizeDescriptorText(text: string): string[] {
@@ -208,6 +264,7 @@ export function buildSaveTastingPayload(draft: ReviewDraft): SaveTastingPayload 
       is_benchmark: draft.is_benchmark,
       extraction: { source: "field-capture", candidate },
     },
+    evidence_data_url: compact(draft.evidence_data_url),
   };
 }
 

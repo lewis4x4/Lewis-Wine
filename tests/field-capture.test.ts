@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   buildCaptureWineRequest,
+  buildEvidenceUpload,
   buildReviewDraft,
   buildSaveTastingPayload,
   buildWineIdentityKey,
@@ -123,6 +124,43 @@ function testTapizDemoCandidateOpensAsBenchmarkReview() {
   assert.ok(draft.benchmark_prompt?.toLowerCase().includes("benchmark"));
 }
 
+function testEvidenceUploadUsesPrivateOwnerScopedPath() {
+  const upload = buildEvidenceUpload({
+    ownerId: "user-123",
+    wineId: "wine-456",
+    dataUrl: "data:image/jpeg;base64,QUJD",
+    token: "capture-token",
+  });
+
+  assert.equal(upload.bucket, "wine-evidence");
+  assert.equal(upload.path, "user-123/bottles/wine-456/capture-token.jpg");
+  assert.equal(upload.contentType, "image/jpeg");
+  assert.equal(Buffer.from(upload.bytes).toString("utf8"), "ABC");
+}
+
+function testEvidenceUploadRejectsInvalidOrOversizedEvidence() {
+  assert.throws(() => buildEvidenceUpload({ ownerId: "user-123", wineId: "wine-456", dataUrl: "data:text/plain;base64,QUJD", token: "x" }), /JPEG, PNG, WebP, or GIF/);
+  assert.throws(() => buildEvidenceUpload({ ownerId: "user-123", wineId: "wine-456", dataUrl: "data:image/png;base64,!!!!", token: "x" }), /valid base64/);
+  assert.throws(() => buildEvidenceUpload({ ownerId: "", wineId: "wine-456", dataUrl: "data:image/png;base64,QUJD", token: "x" }), /owner/);
+}
+
+function testSavePayloadKeepsRawEvidenceOutOfExtraction() {
+  const draft = {
+    ...buildReviewDraft(candidate, {
+      score: 95,
+      buy_again: "yes" as const,
+      occasion: "best wines ever — reference Cab",
+      descriptors: "smooth, rich, long finish",
+      notes: "One of the best wines ever.",
+    }),
+    evidence_data_url: "data:image/jpeg;base64,QUJD",
+  };
+
+  const payload = buildSaveTastingPayload(draft);
+  assert.equal(payload.evidence_data_url, "data:image/jpeg;base64,QUJD");
+  assert.equal(JSON.stringify(payload.tasting.extraction).includes("QUJD"), false);
+}
+
 for (const test of [
   testBuildCaptureRequestFromDataUrl,
   testRejectsInvalidCaptureImage,
@@ -133,6 +171,9 @@ for (const test of [
   testDescriptorNormalization,
   testWineIdentityKeyNormalizesCaseWhitespaceAndVintage,
   testTapizDemoCandidateOpensAsBenchmarkReview,
+  testEvidenceUploadUsesPrivateOwnerScopedPath,
+  testEvidenceUploadRejectsInvalidOrOversizedEvidence,
+  testSavePayloadKeepsRawEvidenceOutOfExtraction,
 ]) {
   test();
 }

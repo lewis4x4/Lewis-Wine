@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { buildSaveTastingPayload, buildWineIdentityKey, type ReviewDraft } from "@/lib/field-capture";
+import { buildEvidenceUpload, buildSaveTastingPayload, buildWineIdentityKey, type ReviewDraft } from "@/lib/field-capture";
 
 const buyAgainSchema = z.enum(["yes", "no", "maybe", "cellar_only"]);
 const wineTypeSchema = z.enum(["red", "white", "rose", "rosé", "sparkling", "dessert", "fortified"]).nullable();
@@ -26,6 +26,7 @@ const reviewDraftSchema = z.object({
   is_benchmark: z.boolean(),
   benchmark_prompt: z.string().nullable(),
   confidence_label: z.enum(["High confidence", "Medium confidence", "Low confidence"]),
+  evidence_data_url: z.string().nullable().optional(),
 });
 
 export async function POST(request: Request) {
@@ -57,6 +58,15 @@ export async function POST(request: Request) {
         };
         insert: (values: Record<string, unknown>) => {
           select: (columns?: string) => { single: () => Promise<{ data: Record<string, unknown> | null; error: Error | null }> };
+        };
+      };
+      storage: {
+        from: (bucket: string) => {
+          upload: (
+            path: string,
+            body: Uint8Array,
+            options: { contentType: string; upsert: boolean }
+          ) => Promise<{ data: { path: string } | null; error: Error | null }>;
         };
       };
     };
@@ -91,6 +101,22 @@ export async function POST(request: Request) {
       reusedWine = false;
     }
 
+    let evidencePath: string | null = null;
+    if (payload.evidence_data_url) {
+      const evidence = buildEvidenceUpload({
+        ownerId: user.id,
+        wineId: String(wine.id),
+        dataUrl: payload.evidence_data_url,
+        token: crypto.randomUUID(),
+      });
+      const { error: uploadError } = await client
+        .storage
+        .from(evidence.bucket)
+        .upload(evidence.path, evidence.bytes, { contentType: evidence.contentType, upsert: false });
+      if (uploadError) throw uploadError;
+      evidencePath = evidence.path;
+    }
+
     const { data: tasting, error: tastingError } = await client
       .from("tastings")
       .insert({
@@ -101,9 +127,10 @@ export async function POST(request: Request) {
         occasion: payload.tasting.occasion,
         descriptors: payload.tasting.descriptors,
         notes: payload.tasting.notes,
+        evidence_path: evidencePath,
         extraction: payload.tasting.extraction,
       })
-      .select("id,wine_id,score,buy_again,occasion,descriptors,notes,is_benchmark,tasted_at")
+      .select("id,wine_id,score,buy_again,occasion,descriptors,notes,is_benchmark,evidence_path,tasted_at")
       .single();
 
     if (tastingError || !tasting) throw tastingError ?? new Error("Tasting save returned no row");

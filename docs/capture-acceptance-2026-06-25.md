@@ -86,6 +86,54 @@ Remaining known issue from initial F0 audit:
 
 - Resolved in follow-up slice: the Tapiz demo now has a shareable, server-renderable URL (`/capture?demo=tapiz`) and the `Load Tapiz demo` control is an actual link to that route. Direct browser navigation to `/capture?demo=tapiz` renders the review state with `Tapiz`, `Alta Collection Cabernet Sauvignon`, and `Benchmark trigger` visible with zero console errors.
 
+## Evidence Storage Local Slice — 2026-06-25
+
+Completed locally after the demo-entry fix:
+
+- Added `evidence_data_url` to the field-capture review/save payload as an optional, transient client-to-server field.
+- Added `buildEvidenceUpload(...)` helper that:
+  - accepts only JPEG, PNG, WebP, or GIF data URLs,
+  - validates base64 data,
+  - caps evidence at 8 MB,
+  - builds private owner-scoped Storage paths under `wine-evidence/{owner_id}/bottles/{wine_id}/{token}.{ext}`.
+- Updated `/api/field-capture/save` to upload photo evidence to the private `wine-evidence` bucket after wine identity resolution and before tasting insert.
+- Updated tasting insert/select to include `evidence_path`.
+- Confirmed raw base64 evidence is kept out of `tastings.extraction`.
+- Updated the `/capture` client to send the selected image data URL only at save time.
+
+Existing migration support already present:
+
+- `supabase/migrations/00013_pourfolio_intelligence_sprint_a.sql` creates private bucket `wine-evidence`.
+- The same migration defines Storage policy requiring first path segment to match `auth.uid()`.
+- No new migration was required for local code because `public.tastings.evidence_path` already exists.
+
+Local verification:
+
+```bash
+npm run test:field-capture
+npm run typecheck
+```
+
+Unauthenticated API smoke with a valid evidence-bearing draft:
+
+```bash
+POST /api/field-capture/save -> 401 Unauthorized
+```
+
+This proves validation accepts the evidence-bearing shape and auth still blocks writes before any Storage or database side effect.
+
+Browser proof:
+
+- `/capture?demo=tapiz` still renders review state with `Tapiz`, `Alta Collection Cabernet Sauvignon`, and `Benchmark trigger`.
+- Console: zero JavaScript errors.
+
+Remote boundary:
+
+- No remote Supabase write/deploy was performed in this local slice.
+- Live authenticated evidence upload remains to be proven with a real session/user and the remote `wine-evidence` bucket/policy.
+
 ## Next Actions
 
-- Continue to evidence storage and live authenticated save proof after approval for any required Supabase Storage/RLS or remote schema changes.
+- Run full `npm run check`.
+- Commit local evidence-storage code if the full gate passes.
+- Then decide whether to perform live authenticated evidence upload proof against Supabase.

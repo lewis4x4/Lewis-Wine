@@ -104,7 +104,7 @@ export function FieldCaptureExperience({ initialDemo = false }: FieldCaptureExpe
       const response = await fetch("/api/field-capture/save", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(draft),
+        body: JSON.stringify({ ...draft, evidence_data_url: imageDataUrl }),
       });
       const payload = await response.json();
       if (!response.ok || !payload.success) throw new Error(payload.error || "Could not save capture");
