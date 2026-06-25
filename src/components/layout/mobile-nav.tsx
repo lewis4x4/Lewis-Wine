@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { BOUGHT_WINE_INTAKE, boughtWineIntakeHref } from "@/lib/purchase-intake";
 
 const navItems = [
-  { href: "/dashboard", label: "Home", icon: "🏠" },
+  { href: "/", label: "Home", icon: "🏠" },
   { href: "/cellar", label: "Cellar", icon: "🍾" },
   { href: "/capture", label: "Capture", icon: "📷" },
   { href: boughtWineIntakeHref(), label: BOUGHT_WINE_INTAKE.mobileLabel, icon: "🧾" },

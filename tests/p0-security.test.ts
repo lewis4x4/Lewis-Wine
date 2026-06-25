@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import manifest from "../public/manifest.json" with { type: "json" };
 import {
   AI_SCAN_RATE_LIMIT_MAX_REQUESTS,
@@ -30,6 +30,11 @@ const requiredProtectedPaths = [
 ];
 
 assert.equal(manifest.start_url, "/");
+assert.ok(existsSync("src/app/(dashboard)/dashboard/page.tsx"), "/dashboard must resolve instead of sending signed-in users to a 404");
+for (const navSourcePath of ["src/components/layout/header.tsx", "src/components/layout/mobile-nav.tsx"]) {
+  const navSource = readFileSync(navSourcePath, "utf8");
+  assert.ok(!navSource.includes("href=\"/dashboard\""), `${navSourcePath} should not link users to the dashboard alias`);
+}
 assert.ok(!PROTECTED_APP_PATHS.includes("/recommend" as never));
 
 for (const path of requiredProtectedPaths) {
