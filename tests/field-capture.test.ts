@@ -6,6 +6,7 @@ import {
   buildFieldCaptureCellarPayload,
   buildFieldCaptureAcquisitionTargetPayload,
   buildFieldCaptureBuyAgainQueuePayload,
+  buildFieldCaptureCandidateFromLabelScan,
   buildFieldCaptureRatingPayload,
   buildFieldCaptureRatingSignalPayload,
   buildReviewDraft,
@@ -43,6 +44,29 @@ function testBuildCaptureRequestFromDataUrl() {
 function testRejectsInvalidCaptureImage() {
   assert.throws(() => buildCaptureWineRequest("not-a-data-url"), /valid image data URL/);
   assert.throws(() => buildCaptureWineRequest("data:text/plain;base64,QUJD"), /JPEG, PNG, WebP, or GIF/);
+}
+
+function testBuildsFieldCaptureCandidateFromLabelScan() {
+  const scanned = buildFieldCaptureCandidateFromLabelScan({
+    name: "Cabernet Sauvignon",
+    producer: "Zuccardi Q",
+    vintage: 2020,
+    wine_type: "red",
+    region: "Valle de Uco, Mendoza",
+    sub_region: null,
+    appellation: "Valle de Uco",
+    country: "Argentina",
+    grape_varieties: ["Cabernet Sauvignon"],
+    confidence: 88,
+  });
+
+  assert.equal(scanned.producer, "Zuccardi Q");
+  assert.equal(scanned.label, "Cabernet Sauvignon");
+  assert.equal(scanned.vintage, 2020);
+  assert.equal(scanned.subregion, "Valle de Uco");
+  assert.equal(scanned.varietal, "Cabernet Sauvignon");
+  assert.equal(scanned.confidence?.producer, 0.88);
+  assert.deepEqual(scanned.ambiguous_fields, []);
 }
 
 function testBuildReviewDraftPreservesIntelligence() {
@@ -305,6 +329,7 @@ function testFieldCaptureDownstreamSkipsNonBuyAgainCaptures() {
 for (const test of [
   testBuildCaptureRequestFromDataUrl,
   testRejectsInvalidCaptureImage,
+  testBuildsFieldCaptureCandidateFromLabelScan,
   testBuildReviewDraftPreservesIntelligence,
   testBenchmarkThreshold,
   testSavePayloadIsDatabaseReady,

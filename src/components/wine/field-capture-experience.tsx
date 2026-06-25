@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle2, ClipboardList, HelpCircle, Loader2, RefreshCw, RotateCcw, Search, Sparkles, Trash2, Wine, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { createClient } from "@/lib/supabase/client";
 import {
   createOfflineFieldCaptureDraft,
   deleteOfflineFieldCaptureDraft,
@@ -26,17 +25,17 @@ import { fieldCaptureFailureMessage, shouldQueueFieldCaptureFailure } from "@/li
 import {
   buildCaptureFollowUpHint,
   buildCaptureWineRequest,
+  buildFieldCaptureCandidateFromLabelScan,
   buildReviewDraft,
   canSaveFieldCaptureDraft,
   createPostSaveActions,
-  shouldEnterCaptureFollowUp,
   tapizDemoCandidate,
   type BuyAgain,
   type CaptureWineCandidate,
-  type CaptureWineResponse,
   type FieldCaptureSaveMode,
   type ReviewDraft,
 } from "@/lib/field-capture";
+import type { LabelScanResult } from "@/types/database";
 
 type FieldCaptureExperienceProps = {
   initialDemo?: boolean;
@@ -50,7 +49,7 @@ const initialOccasion = "best wines ever — reference Cab";
 const initialDescriptors = "smooth, rich, long finish";
 const initialNotes = "One of the best wines ever.";
 
-type Stage = "photo" | "follow_up" | "review" | "saving" | "done";
+type Stage = "photo" | "analyzing" | "follow_up" | "review" | "saving" | "done";
 
 type SaveResult = {
   wine: { id: string; producer?: string | null; label?: string | null; vintage?: number | null };
@@ -66,6 +65,21 @@ function dataUrlFromFile(file: File) {
     reader.onload = () => resolve(String(reader.result));
     reader.readAsDataURL(file);
   });
+}
+
+async function labelScanFromDataUrl(dataUrl: string): Promise<LabelScanResult> {
+  const request = buildCaptureWineRequest(dataUrl);
+  const image = await fetch(`data:${request.media_type};base64,${request.image_base64}`).then((response) => response.blob());
+  const formData = new FormData();
+  formData.append("label", image, `field-capture.${request.media_type.split("/")[1] ?? "jpg"}`);
+
+  const response = await fetch("/api/label/scan", {
+    method: "POST",
+    body: formData,
+  });
+  const data = await response.json() as LabelScanResult;
+  if (!response.ok || !data.success || !data.wine) throw new Error(data.error || "Could not read the label");
+  return data;
 }
 
 async function postFieldCapturePayload(payload: unknown) {
@@ -88,13 +102,8 @@ function createFieldCaptureIdempotencyKey() {
   return `field-capture-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function FieldValue({ label, value }: { label: string; value: string | number | null | undefined }) {
-  return (
-    <div className="rounded-2xl border bg-background/70 p-3">
-      <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
-      <div className="mt-1 font-medium">{value || "—"}</div>
-    </div>
-  );
+function labelId(label: string) {
+  return `field-capture-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 }
 
 export function FieldCaptureExperience({ initialDemo = false, inventoryId = null, initialSaveMode = null }: FieldCaptureExperienceProps) {
@@ -112,10 +121,8 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
   const [result, setResult] = useState<SaveResult | null>(null);
   const [followUpQuestion, setFollowUpQuestion] = useState<string | null>(null);
   const [followUpAnswer, setFollowUpAnswer] = useState("");
-  const [followUpAsked, setFollowUpAsked] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [offlineDrafts, setOfflineDrafts] = useState<OfflineFieldCaptureDraft[]>([]);
-  const supabase = useMemo(() => createClient(), []);
 
   const refreshOfflineDrafts = () => {
     if (typeof window === "undefined") return;
@@ -144,22 +151,34 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
     : null;
   const saveReadiness = draft ? canSaveFieldCaptureDraft(draft) : { ok: false, reason: "Capture a bottle first." };
 
-  async function analyzeDataUrl(dataUrl: string, options: { hint?: string | null; followUpAlreadyAsked?: boolean } = {}) {
-    setStage("photo");
-    const request = buildCaptureWineRequest(dataUrl, options.hint);
-    const { data, error } = await supabase.functions.invoke("capture-wine", { body: request });
-    if (error) throw error;
-    const response = data as CaptureWineResponse | null;
-    if (!response?.candidate) throw new Error("No candidate returned from capture-wine");
-    const nextCandidate = response.candidate;
+  function updateCandidateField<K extends keyof CaptureWineCandidate>(field: K, value: CaptureWineCandidate[K]) {
+    setCandidate((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        [field]: value,
+        ambiguous_fields: (current.ambiguous_fields ?? []).filter((ambiguous) => ambiguous !== field),
+      };
+    });
+  }
+
+  function updateCandidateTextField(field: keyof Pick<CaptureWineCandidate, "producer" | "label" | "region" | "subregion" | "country" | "varietal">, value: string) {
+    updateCandidateField(field, value.trim() ? value : null);
+  }
+
+  function updateCandidateVintage(value: string) {
+    const parsed = Number(value);
+    updateCandidateField("vintage", Number.isInteger(parsed) && parsed > 0 ? parsed : null);
+  }
+
+  async function analyzeDataUrl(dataUrl: string) {
+    setStage("analyzing");
+    const scan = await labelScanFromDataUrl(dataUrl);
+    if (!scan.wine) throw new Error("No candidate returned from label scan");
+    const nextCandidate = buildFieldCaptureCandidateFromLabelScan(scan.wine);
     setCandidate(nextCandidate);
-    if (shouldEnterCaptureFollowUp(response, options.followUpAlreadyAsked ?? followUpAsked)) {
-      setFollowUpQuestion(response.follow_up_question);
-      setFollowUpAnswer("");
-      setFollowUpAsked(true);
-      setStage("follow_up");
-      return;
-    }
+    setDescriptors(scan.wine.detected_descriptors?.join(", ") || initialDescriptors);
+    setNotes(scan.wine.suggested_tasting_note || scan.raw_text || initialNotes);
     setFollowUpQuestion(null);
     setStage("review");
   }
@@ -171,11 +190,11 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
       setImageDataUrl(dataUrl);
       setFollowUpQuestion(null);
       setFollowUpAnswer("");
-      setFollowUpAsked(false);
       toast.loading("Reading the label…", { id: "field-capture" });
       await analyzeDataUrl(dataUrl);
       toast.success("Bottle parsed. Review before saving.", { id: "field-capture" });
     } catch (error) {
+      setStage("photo");
       toast.error(error instanceof Error ? error.message : "Could not parse bottle", { id: "field-capture" });
     }
   }
@@ -193,7 +212,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
     }
     try {
       toast.loading("Using your answer to finish the label…", { id: "field-capture" });
-      await analyzeDataUrl(imageDataUrl, { hint, followUpAlreadyAsked: true });
+      await analyzeDataUrl(imageDataUrl);
       toast.success("Bottle identity updated. Review before saving.", { id: "field-capture" });
     } catch (error) {
       setStage("follow_up");
@@ -389,8 +408,15 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
             <CardDescription>Nothing becomes cellar truth until you approve it. That is the quality bar.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            {!draft && stage !== "saving" && stage !== "done" ? (
+            {!draft && stage !== "analyzing" && stage !== "saving" && stage !== "done" ? (
               <div className="rounded-3xl border bg-muted/30 p-8 text-center text-muted-foreground">Capture or load a bottle to begin.</div>
+            ) : null}
+
+            {stage === "analyzing" ? (
+              <div className="flex items-center justify-center gap-3 rounded-3xl border bg-muted/30 p-8 text-center text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Reading the label and building the review draft…
+              </div>
             ) : null}
 
             {stage === "follow_up" && followUpQuestion ? (
@@ -432,12 +458,48 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
                 ) : null}
 
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <FieldValue label="Producer" value={draft.producer} />
-                  <FieldValue label="Label" value={draft.label} />
-                  <FieldValue label="Vintage" value={draft.vintage} />
-                  <FieldValue label="Region" value={draft.region} />
-                  <FieldValue label="Varietal" value={draft.varietal} />
-                  <FieldValue label="Type" value={draft.wine_type} />
+                  <div className="space-y-2 rounded-2xl border bg-background/70 p-3">
+                    <Label htmlFor={labelId("Producer")} className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Producer</Label>
+                    <Input id={labelId("Producer")} value={candidate?.producer ?? ""} onChange={(event) => updateCandidateTextField("producer", event.target.value)} placeholder="Zuccardi Q" />
+                  </div>
+                  <div className="space-y-2 rounded-2xl border bg-background/70 p-3">
+                    <Label htmlFor={labelId("Label")} className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Label</Label>
+                    <Input id={labelId("Label")} value={candidate?.label ?? ""} onChange={(event) => updateCandidateTextField("label", event.target.value)} placeholder="Cabernet Sauvignon" />
+                  </div>
+                  <div className="space-y-2 rounded-2xl border bg-background/70 p-3">
+                    <Label htmlFor={labelId("Vintage")} className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Vintage</Label>
+                    <Input id={labelId("Vintage")} type="number" inputMode="numeric" value={candidate?.vintage ?? ""} onChange={(event) => updateCandidateVintage(event.target.value)} placeholder="2020" />
+                  </div>
+                  <div className="space-y-2 rounded-2xl border bg-background/70 p-3">
+                    <Label htmlFor={labelId("Region")} className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Region</Label>
+                    <Input id={labelId("Region")} value={candidate?.region ?? ""} onChange={(event) => updateCandidateTextField("region", event.target.value)} placeholder="Valle de Uco, Mendoza" />
+                  </div>
+                  <div className="space-y-2 rounded-2xl border bg-background/70 p-3">
+                    <Label htmlFor={labelId("Varietal")} className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Varietal</Label>
+                    <Input id={labelId("Varietal")} value={candidate?.varietal ?? ""} onChange={(event) => updateCandidateTextField("varietal", event.target.value)} placeholder="Cabernet Sauvignon" />
+                  </div>
+                  <div className="space-y-2 rounded-2xl border bg-background/70 p-3">
+                    <Label htmlFor={labelId("Type")} className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Type</Label>
+                    <select id={labelId("Type")} value={candidate?.wine_type ?? ""} onChange={(event) => updateCandidateField("wine_type", (event.target.value || null) as CaptureWineCandidate["wine_type"])} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
+                      <option value="">Unknown</option>
+                      <option value="red">red</option>
+                      <option value="white">white</option>
+                      <option value="rose">rose</option>
+                      <option value="sparkling">sparkling</option>
+                      <option value="dessert">dessert</option>
+                      <option value="fortified">fortified</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2 rounded-2xl border bg-background/70 p-3">
+                    <Label htmlFor={labelId("Subregion")} className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Subregion / appellation</Label>
+                    <Input id={labelId("Subregion")} value={candidate?.subregion ?? ""} onChange={(event) => updateCandidateTextField("subregion", event.target.value)} placeholder="Valle de Uco" />
+                  </div>
+                  <div className="space-y-2 rounded-2xl border bg-background/70 p-3">
+                    <Label htmlFor={labelId("Country")} className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Country</Label>
+                    <Input id={labelId("Country")} value={candidate?.country ?? ""} onChange={(event) => updateCandidateTextField("country", event.target.value)} placeholder="Argentina" />
+                  </div>
                 </div>
 
                 {draft.benchmark_prompt ? (
@@ -524,7 +586,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
                     </Link>
                   ))}
                 </div>
-                <Button variant="outline" className="w-full" onClick={() => { idempotencyKeyRef.current = createFieldCaptureIdempotencyKey(); setStage("photo"); setCandidate(null); setResult(null); setImageDataUrl(null); setFollowUpQuestion(null); setFollowUpAnswer(""); setFollowUpAsked(false); }}><RefreshCw className="mr-2 h-4 w-4" /> Reset capture</Button>
+                <Button variant="outline" className="w-full" onClick={() => { idempotencyKeyRef.current = createFieldCaptureIdempotencyKey(); setStage("photo"); setCandidate(null); setResult(null); setImageDataUrl(null); setFollowUpQuestion(null); setFollowUpAnswer(""); }}><RefreshCw className="mr-2 h-4 w-4" /> Reset capture</Button>
               </div>
             ) : null}
           </CardContent>

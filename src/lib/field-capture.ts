@@ -29,6 +29,19 @@ export type CaptureWineResponse = {
   follow_up_question: string | null;
 };
 
+export type FieldCaptureLabelScanWine = {
+  name: string | null;
+  producer: string | null;
+  vintage: number | null;
+  wine_type: WineType;
+  region: string | null;
+  sub_region?: string | null;
+  appellation?: string | null;
+  country: string | null;
+  grape_varieties?: string[] | null;
+  confidence?: number | null;
+};
+
 export type ReviewInputs = {
   score: number | null;
   buy_again: BuyAgain;
@@ -226,6 +239,37 @@ export function buildCaptureWineRequest(dataUrl: string, hint?: string | null): 
 
 export function shouldEnterCaptureFollowUp(response: Pick<CaptureWineResponse, "needs_follow_up" | "follow_up_question">, alreadyAsked: boolean) {
   return Boolean(response.needs_follow_up && response.follow_up_question && !alreadyAsked);
+}
+
+export function buildFieldCaptureCandidateFromLabelScan(wine: FieldCaptureLabelScanWine): CaptureWineCandidate {
+  const confidence = Math.max(0, Math.min(1, (wine.confidence ?? 65) / 100));
+  const varietal = compact(wine.grape_varieties?.[0]) ?? compact(wine.name);
+  const candidate: CaptureWineCandidate = {
+    producer: compact(wine.producer),
+    label: compact(wine.name),
+    vintage: wine.vintage,
+    region: compact(wine.region),
+    subregion: compact(wine.sub_region) ?? compact(wine.appellation),
+    country: compact(wine.country),
+    varietal,
+    wine_type: wine.wine_type === "rosé" ? "rose" : wine.wine_type,
+    confidence: {
+      producer: wine.producer ? confidence : 0,
+      label: wine.name ? confidence : 0,
+      vintage: wine.vintage ? confidence : 0,
+      region: wine.region ? confidence : 0,
+      varietal: varietal ? confidence : 0,
+      wine_type: wine.wine_type ? confidence : 0,
+    },
+    ambiguous_fields: [
+      !wine.producer ? "producer" : null,
+      !wine.name ? "label" : null,
+      !wine.vintage ? "vintage" : null,
+      !wine.region ? "region" : null,
+      !varietal ? "varietal" : null,
+    ].filter((field): field is string => Boolean(field)),
+  };
+  return candidate;
 }
 
 export function buildCaptureFollowUpHint(question: string | null | undefined, answer: string) {

@@ -155,18 +155,22 @@ export async function POST(request: Request) {
 
     let evidencePath: string | null = null;
     if (payload.evidence_data_url) {
-      const evidence = buildEvidenceUpload({
-        ownerId: userId,
-        wineId: String(savedWine.id),
-        dataUrl: payload.evidence_data_url,
-        token: crypto.randomUUID(),
-      });
-      const { error: uploadError } = await client
-        .storage
-        .from(evidence.bucket)
-        .upload(evidence.path, evidence.bytes, { contentType: evidence.contentType, upsert: false });
-      if (uploadError) throw uploadError;
-      evidencePath = evidence.path;
+      try {
+        const evidence = buildEvidenceUpload({
+          ownerId: userId,
+          wineId: String(savedWine.id),
+          dataUrl: payload.evidence_data_url,
+          token: crypto.randomUUID(),
+        });
+        const { error: uploadError } = await client
+          .storage
+          .from(evidence.bucket)
+          .upload(evidence.path, evidence.bytes, { contentType: evidence.contentType, upsert: false });
+        if (uploadError) throw uploadError;
+        evidencePath = evidence.path;
+      } catch (uploadError) {
+        console.warn("Field capture evidence upload failed; saving bottle without image evidence", uploadError);
+      }
     }
 
     let linkedInventory: { id: string; wine_reference_id: string | null } | null = null;
@@ -188,10 +192,20 @@ export async function POST(request: Request) {
 
     if (payload.save_mode === "add_to_cellar") {
       const cellarQuery = client.from("cellars").select("id").eq("owner_id", userId).limit(1);
-      const { data: cellarRows, error: cellarError } = payload.cellar_id
+      let { data: cellarRows, error: cellarError } = payload.cellar_id
         ? await cellarQuery.eq("id", payload.cellar_id)
         : await cellarQuery;
-      const cellar = Array.isArray(cellarRows) ? cellarRows[0] : cellarRows;
+      let cellar = Array.isArray(cellarRows) ? cellarRows[0] : cellarRows;
+      if (!payload.cellar_id && !cellarError && !cellar) {
+        const inserted = await client
+          .from("cellars")
+          .insert({ owner_id: userId, name: "My Cellar" })
+          .select("id")
+          .single();
+        cellarRows = inserted.data;
+        cellarError = inserted.error;
+        cellar = cellarRows;
+      }
       if (cellarError || !cellar) return NextResponse.json({ success: false, error: "No cellar found" }, { status: 404 });
       const cellarPayload = buildFieldCaptureCellarPayload(draft, { cellarId: String(cellar.id), quantity: payload.quantity, labelImageUrl: evidencePath });
       const { data: inventory, error: inventoryError } = await client
