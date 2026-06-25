@@ -1,4 +1,4 @@
-export type AcquisitionSourceKind = "buy_again" | "wishlist" | "shopping" | "restaurant_discovery" | "manual";
+export type AcquisitionSourceKind = "buy_again" | "wishlist" | "shopping" | "restaurant_discovery" | "replenishment" | "manual";
 export type AcquisitionStatus = "watching" | "buy_now" | "ordered" | "acquired" | "passed";
 export type AcquisitionPriority = "must_have" | "high" | "medium" | "low";
 export type AcquisitionAction = "watch" | "mark_buy_now" | "mark_ordered" | "mark_acquired" | "pass" | "reopen";

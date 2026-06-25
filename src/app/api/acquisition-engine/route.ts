@@ -20,7 +20,7 @@ const targetSchema = z.object({
   varietal: z.string().max(120).nullable().optional(),
   wineReferenceId: z.string().uuid().nullable().optional(),
   inventoryId: z.string().uuid().nullable().optional(),
-  sourceKind: z.enum(["buy_again", "wishlist", "shopping", "restaurant_discovery", "manual"]).default("manual"),
+  sourceKind: z.enum(["buy_again", "wishlist", "shopping", "restaurant_discovery", "replenishment", "manual"]).default("manual"),
   sourceId: z.string().uuid().nullable().optional(),
   status: z.enum(["watching", "buy_now", "ordered", "acquired", "passed"]).default("watching"),
   priority: z.enum(["must_have", "high", "medium", "low"]).default("medium"),
