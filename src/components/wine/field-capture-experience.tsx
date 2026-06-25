@@ -318,7 +318,12 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
       });
       if (shouldQueue) queueCurrentFieldCapture(fieldCaptureFailureMessage(maybeError.status));
       setStage("review");
-      toast.error(error instanceof Error ? (shouldQueue ? `${error.message} ${fieldCaptureFailureMessage(maybeError.status)}` : fieldCaptureFailureMessage(maybeError.status)) : fieldCaptureFailureMessage(maybeError.status));
+      const saveMessage = error instanceof Error
+        ? shouldQueue
+          ? `${error.message} ${fieldCaptureFailureMessage(maybeError.status)}`
+          : `${error.message}. ${fieldCaptureFailureMessage(maybeError.status)}`
+        : fieldCaptureFailureMessage(maybeError.status);
+      toast.error(saveMessage);
     }
   }
 

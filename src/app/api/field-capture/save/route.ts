@@ -46,7 +46,16 @@ const reviewDraftSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const draft = reviewDraftSchema.parse(await request.json()) as ReviewDraft;
+    const parsedDraft = reviewDraftSchema.safeParse(await request.json());
+    if (!parsedDraft.success) {
+      const issue = parsedDraft.error.issues[0];
+      const path = issue?.path.length ? issue.path.join(".") : "capture";
+      return NextResponse.json(
+        { success: false, error: `Invalid field capture ${path}: ${issue?.message ?? "review the capture fields"}` },
+        { status: 422 }
+      );
+    }
+    const draft = parsedDraft.data as ReviewDraft;
     const supabase = await createClient();
     const {
       data: { user },
