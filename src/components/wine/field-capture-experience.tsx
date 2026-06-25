@@ -23,11 +23,13 @@ import {
   type BuyAgain,
   type CaptureWineCandidate,
   type CaptureWineResponse,
+  type FieldCaptureSaveMode,
   type ReviewDraft,
 } from "@/lib/field-capture";
 
 type FieldCaptureExperienceProps = {
   initialDemo?: boolean;
+  inventoryId?: string | null;
 };
 
 const initialScore = 95;
@@ -41,6 +43,8 @@ type Stage = "photo" | "follow_up" | "review" | "saving" | "done";
 type SaveResult = {
   wine: { id: string; producer?: string | null; label?: string | null; vintage?: number | null };
   tasting: { id: string; wine_id: string; is_benchmark: boolean; buy_again: BuyAgain };
+  inventory?: { id: string } | null;
+  rating?: { id: string } | null;
 };
 
 function dataUrlFromFile(file: File) {
@@ -61,7 +65,7 @@ function FieldValue({ label, value }: { label: string; value: string | number | 
   );
 }
 
-export function FieldCaptureExperience({ initialDemo = false }: FieldCaptureExperienceProps) {
+export function FieldCaptureExperience({ initialDemo = false, inventoryId = null }: FieldCaptureExperienceProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [stage, setStage] = useState<Stage>(initialDemo ? "review" : "photo");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
@@ -71,6 +75,7 @@ export function FieldCaptureExperience({ initialDemo = false }: FieldCaptureExpe
   const [occasion, setOccasion] = useState(initialOccasion);
   const [descriptors, setDescriptors] = useState(initialDescriptors);
   const [notes, setNotes] = useState(initialNotes);
+  const [saveMode, setSaveMode] = useState<FieldCaptureSaveMode>(inventoryId ? "link_existing_inventory" : "memory_only");
   const [result, setResult] = useState<SaveResult | null>(null);
   const [followUpQuestion, setFollowUpQuestion] = useState<string | null>(null);
   const [followUpAnswer, setFollowUpAnswer] = useState("");
@@ -78,7 +83,11 @@ export function FieldCaptureExperience({ initialDemo = false }: FieldCaptureExpe
   const supabase = useMemo(() => createClient(), []);
 
   const draft: ReviewDraft | null = candidate
-    ? buildReviewDraft(candidate, { score, buy_again: buyAgain, occasion, descriptors, notes })
+    ? {
+        ...buildReviewDraft(candidate, { score, buy_again: buyAgain, occasion, descriptors, notes }),
+        save_mode: saveMode,
+        inventory_id: saveMode === "link_existing_inventory" ? inventoryId : null,
+      }
     : null;
   const saveReadiness = draft ? canSaveFieldCaptureDraft(draft) : { ok: false, reason: "Capture a bottle first." };
 
@@ -154,7 +163,7 @@ export function FieldCaptureExperience({ initialDemo = false }: FieldCaptureExpe
       });
       const payload = await response.json();
       if (!response.ok || !payload.success) throw new Error(payload.error || "Could not save capture");
-      setResult({ wine: payload.wine, tasting: payload.tasting });
+      setResult({ wine: payload.wine, tasting: payload.tasting, inventory: payload.inventory, rating: payload.rating });
       setStage("done");
       toast.success(draft.is_benchmark ? "Benchmark saved to Pourfolio." : "Tasting saved to Pourfolio.");
     } catch (error) {
@@ -163,7 +172,14 @@ export function FieldCaptureExperience({ initialDemo = false }: FieldCaptureExpe
     }
   }
 
-  const actions = result ? createPostSaveActions({ wine_id: result.wine.id, tasting_id: result.tasting.id, is_benchmark: result.tasting.is_benchmark, buy_again: result.tasting.buy_again }) : [];
+  const actions = result ? createPostSaveActions({
+    wine_id: result.wine.id,
+    tasting_id: result.tasting.id,
+    inventory_id: result.inventory?.id ?? null,
+    rating_id: result.rating?.id ?? null,
+    is_benchmark: result.tasting.is_benchmark,
+    buy_again: result.tasting.buy_again,
+  }) : [];
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-24 md:pb-8">
@@ -299,6 +315,22 @@ export function FieldCaptureExperience({ initialDemo = false }: FieldCaptureExpe
                     <p className="mt-1 text-sm text-amber-900/80 dark:text-amber-100/80">{draft.benchmark_prompt}</p>
                   </div>
                 ) : null}
+
+                <div className="rounded-3xl border bg-muted/30 p-4">
+                  <Label htmlFor="save-mode">Where should this memory land?</Label>
+                  <select id="save-mode" value={saveMode} onChange={(event) => setSaveMode(event.target.value as FieldCaptureSaveMode)} className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm">
+                    <option value="memory_only">Just remember this tasting</option>
+                    {inventoryId ? <option value="link_existing_inventory">Link to this cellar bottle</option> : null}
+                    <option value="add_to_cellar">Add one bottle to cellar</option>
+                  </select>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {saveMode === "link_existing_inventory"
+                      ? "This will save a canonical cellar rating and open the right Bottle Intelligence page."
+                      : saveMode === "add_to_cellar"
+                        ? "This will create a one-bottle cellar record and attach the tasting to it."
+                        : "This stays as capture memory; no broken cellar route will be created."}
+                  </p>
+                </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">

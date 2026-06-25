@@ -11,7 +11,9 @@ type CapturePageProps = {
 export default async function CapturePage({ searchParams }: CapturePageProps) {
   const params = await searchParams;
   const demoParam = params?.demo;
+  const inventoryParam = params?.inventory_id;
   const initialDemo = Array.isArray(demoParam) ? demoParam.includes("tapiz") : demoParam === "tapiz";
+  const inventoryId = Array.isArray(inventoryParam) ? inventoryParam[0] : inventoryParam ?? null;
 
-  return <FieldCaptureExperience initialDemo={initialDemo} />;
+  return <FieldCaptureExperience initialDemo={initialDemo} inventoryId={inventoryId} />;
 }

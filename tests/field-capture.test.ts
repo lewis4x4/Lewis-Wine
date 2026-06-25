@@ -3,6 +3,9 @@ import {
   buildCaptureFollowUpHint,
   buildCaptureWineRequest,
   buildEvidenceUpload,
+  buildFieldCaptureCellarPayload,
+  buildFieldCaptureRatingPayload,
+  buildFieldCaptureRatingSignalPayload,
   buildReviewDraft,
   buildSaveTastingPayload,
   buildWineIdentityKey,
@@ -91,9 +94,10 @@ function testSavePayloadIsDatabaseReady() {
 }
 
 function testPostSaveActionsArePractical() {
-  const actions = createPostSaveActions({ wine_id: "wine-1", tasting_id: "taste-1", is_benchmark: true, buy_again: "yes" });
+  const actions = createPostSaveActions({ wine_id: "wine-1", tasting_id: "taste-1", inventory_id: "inventory-1", rating_id: "rating-1", is_benchmark: true, buy_again: "yes" });
   assert.deepEqual(actions.map((action) => action.id), ["find-more", "buy-again", "view-bottle", "capture-another"]);
   assert.equal(actions[0].href, "/intelligence?wine_id=wine-1&action=find-more");
+  assert.equal(actions[2].href, "/cellar/inventory-1?tasting=rating-1");
 }
 
 function testDescriptorNormalization() {
@@ -195,6 +199,60 @@ function testIncompleteIdentityBlocksSaveUntilReviewed() {
   assert.equal(canSaveFieldCaptureDraft(buildReviewDraft(candidate, { score: 90, buy_again: "maybe", occasion: "shop tasting", descriptors: "dark fruit", notes: "" })).ok, true);
 }
 
+function tapizDraft() {
+  return buildReviewDraft(candidate, {
+    score: 95,
+    buy_again: "yes",
+    occasion: "best wines ever — reference Cab",
+    descriptors: "smooth, rich, long finish",
+    notes: "One of the best wines ever.",
+  });
+}
+
+function testPostSaveActionsAvoidBrokenCellarLinkForMemoryOnlyCaptures() {
+  const actions = createPostSaveActions({ wine_id: "wine-1", tasting_id: "taste-1", is_benchmark: true, buy_again: "yes" });
+  assert.deepEqual(actions.map((action) => action.id), ["find-more", "buy-again", "capture-another"]);
+  assert.equal(actions.some((action) => action.href === "/cellar/wine-1?tasting=taste-1"), false);
+}
+
+function testPostSaveActionsUseInventoryIdForLinkedCellarCapture() {
+  const actions = createPostSaveActions({ wine_id: "wine-1", tasting_id: "taste-1", inventory_id: "inventory-1", rating_id: "rating-1", is_benchmark: true, buy_again: "yes" });
+  const bottle = actions.find((action) => action.id === "view-bottle");
+  assert.equal(bottle?.href, "/cellar/inventory-1?tasting=rating-1");
+}
+
+function testBuildFieldCaptureCellarPayloadDefaultsToOneBottleWithProvenance() {
+  const payload = buildFieldCaptureCellarPayload(tapizDraft(), { cellarId: "cellar-1" });
+  assert.equal(payload.cellar_id, "cellar-1");
+  assert.equal(payload.custom_name, "Alta Collection Cabernet Sauvignon");
+  assert.equal(payload.custom_producer, "Tapiz");
+  assert.equal(payload.custom_vintage, 2021);
+  assert.equal(payload.custom_region, "Mendoza");
+  assert.equal(payload.custom_wine_type, "red");
+  assert.equal(payload.quantity, 1);
+  assert.deepEqual(payload.tags, ["field-capture", "benchmark", "buy-again"]);
+  assert.match(payload.notes ?? "", /best wines ever|field capture/i);
+}
+
+function testBuildFieldCaptureRatingPayloadLinksExistingInventory() {
+  const payload = buildFieldCaptureRatingPayload(tapizDraft(), { inventoryId: "inventory-1", wineReferenceId: "ref-1" });
+  if (!payload) throw new Error("Expected rating payload");
+  assert.equal(payload.inventory_id, "inventory-1");
+  assert.equal(payload.wine_reference_id, "ref-1");
+  assert.equal(payload.score, 95);
+  assert.equal(payload.tasting_notes, "One of the best wines ever.");
+  assert.equal(payload.occasion, "best wines ever — reference Cab");
+}
+
+function testBuildFieldCaptureRatingSignalPayloadPreservesDescriptorsAndBuyAgain() {
+  const signal = buildFieldCaptureRatingSignalPayload(tapizDraft(), { saveMode: "link_existing_inventory", inventoryId: "inventory-1" });
+  assert.equal(signal.buy_again, true);
+  assert.deepEqual(signal.decision_tags, ["field-capture", "benchmark", "buy-again", "link-existing-inventory"]);
+  assert.deepEqual(signal.brian_phrases, ["smooth", "rich", "long finish"]);
+  assert.equal(signal.extracted_from_text.save_mode, "link_existing_inventory");
+  assert.equal(signal.extracted_from_text.inventory_id, "inventory-1");
+}
+
 for (const test of [
   testBuildCaptureRequestFromDataUrl,
   testRejectsInvalidCaptureImage,
@@ -211,6 +269,11 @@ for (const test of [
   testCaptureFollowUpRunsOnceForAmbiguousResponse,
   testCaptureFollowUpHintCarriesOneAnswer,
   testIncompleteIdentityBlocksSaveUntilReviewed,
+  testPostSaveActionsAvoidBrokenCellarLinkForMemoryOnlyCaptures,
+  testPostSaveActionsUseInventoryIdForLinkedCellarCapture,
+  testBuildFieldCaptureCellarPayloadDefaultsToOneBottleWithProvenance,
+  testBuildFieldCaptureRatingPayloadLinksExistingInventory,
+  testBuildFieldCaptureRatingSignalPayloadPreservesDescriptorsAndBuyAgain,
 ]) {
   test();
 }

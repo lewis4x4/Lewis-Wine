@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { buildEvidenceUpload, buildSaveTastingPayload, buildWineIdentityKey, type ReviewDraft } from "@/lib/field-capture";
+import {
+  buildEvidenceUpload,
+  buildFieldCaptureCellarPayload,
+  buildFieldCaptureRatingPayload,
+  buildFieldCaptureRatingSignalPayload,
+  buildSaveTastingPayload,
+  buildWineIdentityKey,
+  type ReviewDraft,
+} from "@/lib/field-capture";
 
 const buyAgainSchema = z.enum(["yes", "no", "maybe", "cellar_only"]);
 const wineTypeSchema = z.enum(["red", "white", "rose", "rosé", "sparkling", "dessert", "fortified"]).nullable();
@@ -27,6 +35,10 @@ const reviewDraftSchema = z.object({
   benchmark_prompt: z.string().nullable(),
   confidence_label: z.enum(["High confidence", "Medium confidence", "Low confidence"]),
   evidence_data_url: z.string().nullable().optional(),
+  save_mode: z.enum(["memory_only", "add_to_cellar", "link_existing_inventory"]).optional(),
+  inventory_id: z.string().uuid().nullable().optional(),
+  cellar_id: z.string().uuid().nullable().optional(),
+  quantity: z.number().int().positive().nullable().optional(),
 });
 
 export async function POST(request: Request) {
@@ -44,32 +56,8 @@ export async function POST(request: Request) {
 
     const payload = buildSaveTastingPayload(draft);
     const wineIdentityKey = buildWineIdentityKey(payload.wine);
-    const client = supabase as unknown as {
-      from: (table: string) => {
-        select: (columns?: string) => {
-          eq: (column: string, value: unknown) => {
-            eq: (column: string, value: unknown) => {
-              limit: (count: number) => Promise<{ data: Record<string, unknown>[] | null; error: Error | null }>;
-            };
-            is: (column: string, value: null) => {
-              limit: (count: number) => Promise<{ data: Record<string, unknown>[] | null; error: Error | null }>;
-            };
-          };
-        };
-        insert: (values: Record<string, unknown>) => {
-          select: (columns?: string) => { single: () => Promise<{ data: Record<string, unknown> | null; error: Error | null }> };
-        };
-      };
-      storage: {
-        from: (bucket: string) => {
-          upload: (
-            path: string,
-            body: Uint8Array,
-            options: { contentType: string; upsert: boolean }
-          ) => Promise<{ data: { path: string } | null; error: Error | null }>;
-        };
-      };
-    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = supabase as any;
 
     const vintageFilter = client
       .from("wines")
@@ -80,7 +68,7 @@ export async function POST(request: Request) {
       : await vintageFilter.eq("vintage", payload.wine.vintage).limit(200);
     if (lookupError) throw lookupError;
 
-    const existingWine = (existingRows ?? []).find((row) => buildWineIdentityKey({
+    const existingWine = ((existingRows ?? []) as Record<string, unknown>[]).find((row) => buildWineIdentityKey({
       producer: (row.producer as string | null) ?? null,
       label: (row.label as string | null) ?? null,
       vintage: (row.vintage as number | null) ?? null,
@@ -101,11 +89,13 @@ export async function POST(request: Request) {
       reusedWine = false;
     }
 
+    const savedWine = wine as Record<string, unknown>;
+
     let evidencePath: string | null = null;
     if (payload.evidence_data_url) {
       const evidence = buildEvidenceUpload({
         ownerId: user.id,
-        wineId: String(wine.id),
+        wineId: String(savedWine.id),
         dataUrl: payload.evidence_data_url,
         token: crypto.randomUUID(),
       });
@@ -117,18 +107,75 @@ export async function POST(request: Request) {
       evidencePath = evidence.path;
     }
 
+    let linkedInventory: { id: string; wine_reference_id: string | null } | null = null;
+    let rating: { id: string } | null = null;
+
+    if (payload.save_mode === "link_existing_inventory") {
+      if (!payload.inventory_id) return NextResponse.json({ success: false, error: "inventory_id is required for linked cellar capture" }, { status: 400 });
+      const { data: inventory, error: inventoryError } = await client
+        .from("cellar_inventory")
+        .select("id,wine_reference_id,cellars!inner(owner_id)")
+        .eq("id", payload.inventory_id)
+        .eq("cellars.owner_id", user.id)
+        .single();
+      if (inventoryError || !inventory) return NextResponse.json({ success: false, error: "Inventory bottle not found" }, { status: 404 });
+      linkedInventory = { id: String(inventory.id), wine_reference_id: inventory.wine_reference_id ?? null };
+    }
+
+    if (payload.save_mode === "add_to_cellar") {
+      const cellarQuery = client.from("cellars").select("id").eq("owner_id", user.id).limit(1);
+      const { data: cellarRows, error: cellarError } = payload.cellar_id
+        ? await cellarQuery.eq("id", payload.cellar_id)
+        : await cellarQuery;
+      const cellar = Array.isArray(cellarRows) ? cellarRows[0] : cellarRows;
+      if (cellarError || !cellar) return NextResponse.json({ success: false, error: "No cellar found" }, { status: 404 });
+      const cellarPayload = buildFieldCaptureCellarPayload(draft, { cellarId: String(cellar.id), quantity: payload.quantity, labelImageUrl: evidencePath });
+      const { data: inventory, error: inventoryError } = await client
+        .from("cellar_inventory")
+        .insert(cellarPayload)
+        .select("id,wine_reference_id")
+        .single();
+      if (inventoryError || !inventory) throw inventoryError ?? new Error("Cellar inventory save returned no row");
+      linkedInventory = { id: String(inventory.id), wine_reference_id: inventory.wine_reference_id ?? null };
+    }
+
+    if (linkedInventory) {
+      const ratingPayload = buildFieldCaptureRatingPayload(draft, { inventoryId: linkedInventory.id, wineReferenceId: linkedInventory.wine_reference_id });
+      if (ratingPayload) {
+        const { data: ratingRow, error: ratingError } = await client
+          .from("ratings")
+          .insert({ ...ratingPayload, user_id: user.id, tasting_date: new Date().toISOString().slice(0, 10) })
+          .select("id")
+          .single();
+        if (ratingError || !ratingRow) throw ratingError ?? new Error("Rating save returned no row");
+        rating = { id: String(ratingRow.id) };
+        const signalPayload = buildFieldCaptureRatingSignalPayload(draft, { saveMode: payload.save_mode, inventoryId: linkedInventory.id });
+        const { error: signalError } = await client
+          .from("rating_signals")
+          .upsert({ ...signalPayload, rating_id: rating.id, user_id: user.id }, { onConflict: "rating_id" });
+        if (signalError) throw signalError;
+      }
+    }
+
+    const extraction = {
+      ...payload.tasting.extraction,
+      save_mode: payload.save_mode,
+      inventory_id: linkedInventory?.id ?? payload.inventory_id ?? null,
+      rating_id: rating?.id ?? null,
+    };
+
     const { data: tasting, error: tastingError } = await client
       .from("tastings")
       .insert({
         owner_id: user.id,
-        wine_id: wine.id,
+        wine_id: savedWine.id,
         score: payload.tasting.score,
         buy_again: payload.tasting.buy_again,
         occasion: payload.tasting.occasion,
         descriptors: payload.tasting.descriptors,
         notes: payload.tasting.notes,
         evidence_path: evidencePath,
-        extraction: payload.tasting.extraction,
+        extraction,
       })
       .select("id,wine_id,score,buy_again,occasion,descriptors,notes,is_benchmark,evidence_path,tasted_at")
       .single();
@@ -140,10 +187,12 @@ export async function POST(request: Request) {
       wine,
       reused_wine: reusedWine,
       tasting,
+      inventory: linkedInventory,
+      rating,
       actions: {
-        find_more: `/intelligence?wine_id=${wine.id}&action=find-more`,
-        buy_again: `/intelligence?wine_id=${wine.id}#buy-again`,
-        bottle: `/cellar/${wine.id}?tasting=${tasting.id}`,
+        find_more: `/intelligence?wine_id=${savedWine.id}&action=find-more`,
+        buy_again: `/intelligence?wine_id=${savedWine.id}#buy-again`,
+        bottle: linkedInventory ? `/cellar/${linkedInventory.id}?tasting=${rating?.id ?? tasting.id}` : null,
       },
     });
   } catch (error) {

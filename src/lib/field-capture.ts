@@ -1,3 +1,5 @@
+export type FieldCaptureSaveMode = "memory_only" | "add_to_cellar" | "link_existing_inventory";
+
 export type WineType = "red" | "white" | "rose" | "rosé" | "sparkling" | "dessert" | "fortified" | null;
 export type BuyAgain = "yes" | "no" | "maybe" | "cellar_only";
 
@@ -46,6 +48,10 @@ export type ReviewDraft = CaptureWineCandidate & {
   benchmark_prompt: string | null;
   confidence_label: "High confidence" | "Medium confidence" | "Low confidence";
   evidence_data_url?: string | null;
+  save_mode?: FieldCaptureSaveMode;
+  inventory_id?: string | null;
+  cellar_id?: string | null;
+  quantity?: number | null;
 };
 
 export type SaveTastingPayload = {
@@ -60,6 +66,10 @@ export type SaveTastingPayload = {
     wine_type: WineType;
   };
   evidence_data_url?: string | null;
+  save_mode: FieldCaptureSaveMode;
+  inventory_id?: string | null;
+  cellar_id?: string | null;
+  quantity?: number | null;
   tasting: {
     score: number | null;
     buy_again: BuyAgain;
@@ -80,6 +90,45 @@ export type PostSaveAction = {
   description: string;
   href: string;
   primary?: boolean;
+};
+
+export type FieldCaptureCellarPayload = {
+  cellar_id: string;
+  wine_reference_id: string | null;
+  custom_name: string;
+  custom_producer: string | null;
+  custom_vintage: number | null;
+  custom_wine_type: Exclude<WineType, "rosé">;
+  custom_region: string | null;
+  vintage: number | null;
+  quantity: number;
+  status: "in_cellar";
+  notes: string | null;
+  tags: string[];
+  label_image_url?: string | null;
+};
+
+export type FieldCaptureRatingPayload = {
+  inventory_id: string;
+  wine_reference_id: string | null;
+  score: number;
+  tasting_notes: string | null;
+  occasion: string | null;
+};
+
+export type FieldCaptureRatingSignalPayload = {
+  buy_again: boolean | null;
+  decision_tags: string[];
+  occasion_tags: string[];
+  brian_phrases: string[];
+  extracted_from_text: {
+    source: "field-capture";
+    save_mode: FieldCaptureSaveMode;
+    inventory_id?: string | null;
+    candidate: CaptureWineCandidate;
+    descriptors: string[];
+    confidence_label: ReviewDraft["confidence_label"];
+  };
 };
 
 const allowedMediaTypes = new Set<CaptureWineRequest["media_type"]>([
@@ -284,6 +333,10 @@ export function buildSaveTastingPayload(draft: ReviewDraft): SaveTastingPayload 
       varietal: candidate.varietal,
       wine_type: candidate.wine_type,
     },
+    save_mode: draft.save_mode ?? "memory_only",
+    inventory_id: compact(draft.inventory_id),
+    cellar_id: compact(draft.cellar_id),
+    quantity: draft.quantity ?? null,
     tasting: {
       score: draft.score,
       buy_again: draft.buy_again,
@@ -297,7 +350,77 @@ export function buildSaveTastingPayload(draft: ReviewDraft): SaveTastingPayload 
   };
 }
 
-export function createPostSaveActions(result: { wine_id: string; tasting_id: string; is_benchmark: boolean; buy_again: BuyAgain }): PostSaveAction[] {
+function actionTags(draft: Pick<ReviewDraft, "is_benchmark" | "buy_again">, extra: string[] = []) {
+  const tags = ["field-capture"];
+  if (draft.is_benchmark) tags.push("benchmark");
+  else tags.push("tasting-memory");
+  if (draft.buy_again === "yes") tags.push("buy-again");
+  tags.push(...extra);
+  return tags;
+}
+
+function normalizeCellarWineType(wineType: WineType): Exclude<WineType, "rosé"> {
+  return wineType === "rosé" ? "rose" : wineType;
+}
+
+export function buildFieldCaptureCellarPayload(draft: ReviewDraft, options: { cellarId: string; quantity?: number | null; labelImageUrl?: string | null }): FieldCaptureCellarPayload {
+  return {
+    cellar_id: options.cellarId,
+    wine_reference_id: null,
+    custom_name: compact(draft.label) ?? draft.title,
+    custom_producer: compact(draft.producer),
+    custom_vintage: draft.vintage,
+    custom_wine_type: normalizeCellarWineType(draft.wine_type),
+    custom_region: compact(draft.region),
+    vintage: draft.vintage,
+    quantity: Math.max(1, Math.trunc(options.quantity ?? draft.quantity ?? 1)),
+    status: "in_cellar",
+    notes: [`Field capture: ${draft.title}.`, compact(draft.occasion), compact(draft.notes)].filter(Boolean).join(" ") || null,
+    tags: actionTags(draft),
+    label_image_url: options.labelImageUrl ?? null,
+  };
+}
+
+export function buildFieldCaptureRatingPayload(draft: ReviewDraft, options: { inventoryId: string; wineReferenceId?: string | null }): FieldCaptureRatingPayload | null {
+  if (draft.score == null) return null;
+  return {
+    inventory_id: options.inventoryId,
+    wine_reference_id: options.wineReferenceId ?? null,
+    score: draft.score,
+    tasting_notes: compact(draft.notes) ?? compact(draft.occasion),
+    occasion: compact(draft.occasion),
+  };
+}
+
+export function buildFieldCaptureRatingSignalPayload(draft: ReviewDraft, options: { saveMode: FieldCaptureSaveMode; inventoryId?: string | null }): FieldCaptureRatingSignalPayload {
+  return {
+    buy_again: draft.buy_again === "yes" ? true : draft.buy_again === "no" ? false : null,
+    decision_tags: actionTags(draft, [options.saveMode.replace(/_/g, "-")]),
+    occasion_tags: compact(draft.occasion) ? [draft.occasion] : [],
+    brian_phrases: draft.descriptors,
+    extracted_from_text: {
+      source: "field-capture",
+      save_mode: options.saveMode,
+      inventory_id: options.inventoryId ?? null,
+      candidate: {
+        producer: compact(draft.producer),
+        label: compact(draft.label),
+        vintage: draft.vintage,
+        region: compact(draft.region),
+        subregion: compact(draft.subregion),
+        country: compact(draft.country),
+        varietal: compact(draft.varietal),
+        wine_type: draft.wine_type,
+        confidence: draft.confidence ?? null,
+        ambiguous_fields: draft.ambiguous_fields ?? [],
+      },
+      descriptors: draft.descriptors,
+      confidence_label: draft.confidence_label,
+    },
+  };
+}
+
+export function createPostSaveActions(result: { wine_id: string; tasting_id: string; inventory_id?: string | null; rating_id?: string | null; is_benchmark: boolean; buy_again: BuyAgain }): PostSaveAction[] {
   const actions: PostSaveAction[] = [];
   if (result.is_benchmark || result.buy_again === "yes") {
     actions.push({
@@ -314,12 +437,14 @@ export function createPostSaveActions(result: { wine_id: string; tasting_id: str
       href: `/intelligence?wine_id=${encodeURIComponent(result.wine_id)}#buy-again`,
     });
   }
-  actions.push({
-    id: "view-bottle",
-    label: "View bottle intelligence",
-    description: "Open this bottle's memory card and future recommendation signals.",
-    href: `/cellar/${encodeURIComponent(result.wine_id)}?tasting=${encodeURIComponent(result.tasting_id)}`,
-  });
+  if (result.inventory_id) {
+    actions.push({
+      id: "view-bottle",
+      label: "View bottle intelligence",
+      description: "Open this cellar bottle's memory card and future recommendation signals.",
+      href: `/cellar/${encodeURIComponent(result.inventory_id)}?tasting=${encodeURIComponent(result.rating_id ?? result.tasting_id)}`,
+    });
+  }
   actions.push({
     id: "capture-another",
     label: "Capture another",
