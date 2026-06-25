@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { buildBottleIntelligence, type BottleIntelligenceInput } from "../src/lib/bottle-intelligence";
+import { buildFieldCaptureRatingPayload, buildReviewDraft, tapizDemoCandidate } from "../src/lib/field-capture";
 
 const baseBottle: BottleIntelligenceInput = {
   id: "cellar-1",
@@ -129,9 +130,38 @@ function testCriticScoreExtractionIsSourceLabeled() {
   });
 }
 
+function testFieldCaptureRatingFeedsBottleIntelligenceMemory() {
+  const draft = buildReviewDraft(tapizDemoCandidate, {
+    score: 95,
+    buy_again: "yes",
+    occasion: "best wines ever — reference Cab",
+    descriptors: "smooth, rich, long finish",
+    notes: "One of the best wines ever.",
+  });
+  const rating = buildFieldCaptureRatingPayload(draft, { inventoryId: "cellar-1", wineReferenceId: null });
+  assert.ok(rating);
+  const intelligence = buildBottleIntelligence({
+    ...baseBottle,
+    id: "cellar-1",
+    name: tapizDemoCandidate.label ?? "Tapiz",
+    producer: tapizDemoCandidate.producer,
+    vintage: tapizDemoCandidate.vintage,
+    region: tapizDemoCandidate.region,
+    country: tapizDemoCandidate.country,
+    wineType: tapizDemoCandidate.wine_type,
+    grapeVarieties: [tapizDemoCandidate.varietal ?? "Cabernet Sauvignon"],
+    ratings: [{ score: rating.score, tastingNotes: rating.tasting_notes, tastingDate: "2026-06-25" }],
+  });
+  assert.equal(intelligence.memoryDensity.state, "emerging");
+  assert.equal(intelligence.memoryDensity.ratingCount, 1);
+  assert.match(intelligence.memoryDensity.latestMemory ?? "", /best wines ever|smooth|rich|long finish/i);
+  assert.equal(intelligence.dossier.benchmark.status, "self_benchmark");
+}
+
 testBuildsWorldClassBottleIntelligenceCard();
 testFlagsThinBottleAsLearningPickWithReferenceDerivedStructure();
 testTriagePastPeakAndMissingLocation();
 testCriticScoreExtractionIsSourceLabeled();
+testFieldCaptureRatingFeedsBottleIntelligenceMemory();
 
 console.log("bottle-intelligence tests passed");

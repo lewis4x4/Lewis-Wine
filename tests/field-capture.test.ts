@@ -4,6 +4,8 @@ import {
   buildCaptureWineRequest,
   buildEvidenceUpload,
   buildFieldCaptureCellarPayload,
+  buildFieldCaptureAcquisitionTargetPayload,
+  buildFieldCaptureBuyAgainQueuePayload,
   buildFieldCaptureRatingPayload,
   buildFieldCaptureRatingSignalPayload,
   buildReviewDraft,
@@ -268,6 +270,38 @@ function testSavePayloadCarriesFieldCaptureIdempotencyKey() {
   assert.equal(payload.tasting.extraction.field_capture_idempotency_key, "field-capture-retry-1");
 }
 
+function testFieldCaptureDownstreamBuyAgainAndAcquisitionPayloads() {
+  const draft = tapizDraft();
+  const queue = buildFieldCaptureBuyAgainQueuePayload(draft, { ownerId: "user-1", wineId: "wine-1" });
+  assert.ok(queue);
+  assert.equal(queue.owner_id, "user-1");
+  assert.equal(queue.wine_id, "wine-1");
+  assert.equal(queue.status, "active");
+  assert.match(queue.note ?? "", /field capture/i);
+
+  const acquisition = buildFieldCaptureAcquisitionTargetPayload(draft, {
+    userId: "user-1",
+    sourceId: "queue-1",
+    inventoryId: "inventory-1",
+  });
+  assert.ok(acquisition);
+  assert.equal(acquisition.user_id, "user-1");
+  assert.equal(acquisition.inventory_id, "inventory-1");
+  assert.equal(acquisition.source_kind, "buy_again");
+  assert.equal(acquisition.source_id, "queue-1");
+  assert.equal(acquisition.status, "watching");
+  assert.equal(acquisition.priority, "must_have");
+  assert.equal(acquisition.desired_quantity, 6);
+  assert.equal(acquisition.wine_title, "2021 Tapiz Alta Collection Cabernet Sauvignon");
+  assert.match(acquisition.notes ?? "", /95\/100|field capture/i);
+}
+
+function testFieldCaptureDownstreamSkipsNonBuyAgainCaptures() {
+  const draft = { ...tapizDraft(), buy_again: "no" as const };
+  assert.equal(buildFieldCaptureBuyAgainQueuePayload(draft, { ownerId: "user-1", wineId: "wine-1" }), null);
+  assert.equal(buildFieldCaptureAcquisitionTargetPayload(draft, { userId: "user-1", sourceId: "queue-1" }), null);
+}
+
 for (const test of [
   testBuildCaptureRequestFromDataUrl,
   testRejectsInvalidCaptureImage,
@@ -291,6 +325,8 @@ for (const test of [
   testBuildFieldCaptureRatingSignalPayloadPreservesDescriptorsAndBuyAgain,
   testFieldCaptureIdempotencyKeyNormalizesRetryToken,
   testSavePayloadCarriesFieldCaptureIdempotencyKey,
+  testFieldCaptureDownstreamBuyAgainAndAcquisitionPayloads,
+  testFieldCaptureDownstreamSkipsNonBuyAgainCaptures,
 ]) {
   test();
 }

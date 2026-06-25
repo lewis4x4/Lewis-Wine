@@ -134,6 +134,33 @@ export type FieldCaptureRatingSignalPayload = {
   };
 };
 
+export type FieldCaptureBuyAgainQueuePayload = {
+  owner_id: string;
+  wine_id: string;
+  status: "active";
+  target_price: null;
+  note: string;
+};
+
+export type FieldCaptureAcquisitionTargetPayload = {
+  user_id: string;
+  inventory_id: string | null;
+  source_kind: "buy_again";
+  source_id: string;
+  status: "watching";
+  priority: "must_have" | "high" | "medium";
+  wine_title: string;
+  producer: string | null;
+  vintage: number | null;
+  region: string | null;
+  varietal: string | null;
+  desired_quantity: number;
+  target_price_cents: null;
+  max_price_cents: null;
+  next_refresh_at: string;
+  notes: string;
+};
+
 const allowedMediaTypes = new Set<CaptureWineRequest["media_type"]>([
   "image/jpeg",
   "image/png",
@@ -429,6 +456,54 @@ export function buildFieldCaptureRatingSignalPayload(draft: ReviewDraft, options
       descriptors: draft.descriptors,
       confidence_label: draft.confidence_label,
     },
+  };
+}
+
+function wantsBuyAgain(draft: Pick<ReviewDraft, "buy_again">) {
+  return draft.buy_again === "yes";
+}
+
+export function buildFieldCaptureBuyAgainQueuePayload(
+  draft: ReviewDraft,
+  options: { ownerId: string; wineId: string },
+): FieldCaptureBuyAgainQueuePayload | null {
+  if (!wantsBuyAgain(draft)) return null;
+  const scoreLabel = draft.score == null ? "unscored" : `${draft.score}/100`;
+  return {
+    owner_id: options.ownerId,
+    wine_id: options.wineId,
+    status: "active",
+    target_price: null,
+    note: `Field capture Buy Again candidate: ${draft.title} (${scoreLabel}). ${compact(draft.occasion) ?? ""} ${compact(draft.notes) ?? ""}`.trim(),
+  };
+}
+
+export function buildFieldCaptureAcquisitionTargetPayload(
+  draft: ReviewDraft,
+  options: { userId: string; sourceId: string; inventoryId?: string | null; nextRefreshAt?: string | null },
+): FieldCaptureAcquisitionTargetPayload | null {
+  if (!wantsBuyAgain(draft)) return null;
+  const score = draft.score ?? 0;
+  const priority: FieldCaptureAcquisitionTargetPayload["priority"] = draft.is_benchmark || score >= 94 ? "must_have" : score >= 90 ? "high" : "medium";
+  const desiredQuantity = priority === "must_have" ? 6 : priority === "high" ? 3 : 1;
+  const nextRefreshAt = options.nextRefreshAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  return {
+    user_id: options.userId,
+    inventory_id: options.inventoryId ?? null,
+    source_kind: "buy_again",
+    source_id: options.sourceId,
+    status: "watching",
+    priority,
+    wine_title: draft.title,
+    producer: compact(draft.producer),
+    vintage: draft.vintage,
+    region: compact(draft.region),
+    varietal: compact(draft.varietal),
+    desired_quantity: desiredQuantity,
+    target_price_cents: null,
+    max_price_cents: null,
+    next_refresh_at: nextRefreshAt,
+    notes: `Field capture downstream target: ${draft.title}${draft.score == null ? "" : ` ${draft.score}/100`}. ${compact(draft.occasion) ?? ""} ${compact(draft.notes) ?? ""}`.trim(),
   };
 }
 

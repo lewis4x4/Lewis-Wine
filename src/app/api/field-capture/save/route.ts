@@ -3,6 +3,8 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import {
   buildEvidenceUpload,
+  buildFieldCaptureAcquisitionTargetPayload,
+  buildFieldCaptureBuyAgainQueuePayload,
   buildFieldCaptureCellarPayload,
   buildFieldCaptureRatingPayload,
   buildFieldCaptureRatingSignalPayload,
@@ -81,6 +83,23 @@ export async function POST(request: Request) {
       const extraction = (existingTasting.extraction ?? {}) as Record<string, unknown>;
       const inventoryId = typeof extraction.inventory_id === "string" ? extraction.inventory_id : null;
       const ratingId = typeof extraction.rating_id === "string" ? extraction.rating_id : null;
+      const { data: existingQueue } = await client
+        .from("buy_again_queue")
+        .select("id")
+        .eq("owner_id", userId)
+        .eq("wine_id", existingTasting.wine_id)
+        .maybeSingle();
+      let existingAcquisition: { id: string } | null = null;
+      if (existingQueue?.id) {
+        const { data: acquisitionRow } = await client
+          .from("acquisition_watchlist")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("source_kind", "buy_again")
+          .eq("source_id", String(existingQueue.id))
+          .maybeSingle();
+        existingAcquisition = acquisitionRow ? { id: String(acquisitionRow.id) } : null;
+      }
       return NextResponse.json({
         success: true,
         replayed: true,
@@ -89,6 +108,8 @@ export async function POST(request: Request) {
         tasting: existingTasting,
         inventory: inventoryId ? { id: inventoryId } : null,
         rating: ratingId ? { id: ratingId } : null,
+        buy_again_queue: existingQueue?.id ? { id: String(existingQueue.id) } : null,
+        acquisition_target: existingAcquisition,
         actions: {
           find_more: `/intelligence?wine_id=${existingTasting.wine_id}&action=find-more`,
           buy_again: `/intelligence?wine_id=${existingTasting.wine_id}#buy-again`,
@@ -150,6 +171,8 @@ export async function POST(request: Request) {
 
     let linkedInventory: { id: string; wine_reference_id: string | null } | null = null;
     let rating: { id: string } | null = null;
+    let buyAgainQueue: { id: string } | null = null;
+    let acquisitionTarget: { id: string } | null = null;
 
     if (payload.save_mode === "link_existing_inventory") {
       if (!payload.inventory_id) return NextResponse.json({ success: false, error: "inventory_id is required for linked cellar capture" }, { status: 400 });
@@ -246,6 +269,47 @@ export async function POST(request: Request) {
     }
     if (!tasting) throw new Error("Tasting save returned no row");
 
+    const buyAgainPayload = buildFieldCaptureBuyAgainQueuePayload(draft, { ownerId: userId, wineId: String(savedWine.id) });
+    if (buyAgainPayload) {
+      const { data: queueRow, error: queueError } = await client
+        .from("buy_again_queue")
+        .upsert(buyAgainPayload, { onConflict: "owner_id,wine_id" })
+        .select("id")
+        .single();
+      if (queueError || !queueRow) throw queueError ?? new Error("Buy Again queue save returned no row");
+      buyAgainQueue = { id: String(queueRow.id) };
+
+      const acquisitionPayload = buildFieldCaptureAcquisitionTargetPayload(draft, {
+        userId,
+        sourceId: buyAgainQueue.id,
+        inventoryId: linkedInventory?.id ?? payload.inventory_id ?? null,
+      });
+      if (acquisitionPayload) {
+        const { data: existingAcquisitionRow, error: existingAcquisitionError } = await client
+          .from("acquisition_watchlist")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("source_kind", acquisitionPayload.source_kind)
+          .eq("source_id", acquisitionPayload.source_id)
+          .maybeSingle();
+        if (existingAcquisitionError) throw existingAcquisitionError;
+        const acquisitionQuery = existingAcquisitionRow?.id
+          ? client
+            .from("acquisition_watchlist")
+            .update(acquisitionPayload)
+            .eq("id", existingAcquisitionRow.id)
+            .eq("user_id", userId)
+          : client
+            .from("acquisition_watchlist")
+            .insert(acquisitionPayload);
+        const { data: acquisitionRow, error: acquisitionError } = await acquisitionQuery
+          .select("id")
+          .single();
+        if (acquisitionError || !acquisitionRow) throw acquisitionError ?? new Error("Acquisition target save returned no row");
+        acquisitionTarget = { id: String(acquisitionRow.id) };
+      }
+    }
+
     return NextResponse.json({
       success: true,
       wine,
@@ -253,6 +317,8 @@ export async function POST(request: Request) {
       tasting,
       inventory: linkedInventory,
       rating,
+      buy_again_queue: buyAgainQueue,
+      acquisition_target: acquisitionTarget,
       actions: {
         find_more: `/intelligence?wine_id=${savedWine.id}&action=find-more`,
         buy_again: `/intelligence?wine_id=${savedWine.id}#buy-again`,
@@ -260,8 +326,13 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    const message = error instanceof Error
+      ? error.message
+      : error && typeof error === "object" && "message" in error
+        ? String((error as { message?: unknown }).message)
+        : "Failed to save field capture";
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Failed to save field capture" },
+      { success: false, error: message },
       { status: 400 }
     );
   }
