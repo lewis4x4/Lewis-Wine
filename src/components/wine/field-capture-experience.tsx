@@ -16,23 +16,21 @@ import {
   buildCaptureWineRequest,
   buildReviewDraft,
   createPostSaveActions,
+  tapizDemoCandidate,
   type BuyAgain,
   type CaptureWineCandidate,
   type ReviewDraft,
 } from "@/lib/field-capture";
 
-const demoCandidate: CaptureWineCandidate = {
-  producer: "Tapiz",
-  label: "Alta Collection Cabernet Sauvignon",
-  vintage: 2021,
-  region: "Mendoza",
-  subregion: "San Pablo Vineyard, Uco Valley",
-  country: "Argentina",
-  varietal: "Cabernet Sauvignon",
-  wine_type: "red",
-  confidence: { producer: 0.95, label: 0.9, vintage: 0.92, region: 0.86, varietal: 0.94, wine_type: 0.9 },
-  ambiguous_fields: [],
+type FieldCaptureExperienceProps = {
+  initialDemo?: boolean;
 };
+
+const initialScore = 95;
+const initialBuyAgain: BuyAgain = "yes";
+const initialOccasion = "best wines ever — reference Cab";
+const initialDescriptors = "smooth, rich, long finish";
+const initialNotes = "One of the best wines ever.";
 
 type Stage = "photo" | "review" | "saving" | "done";
 
@@ -59,16 +57,16 @@ function FieldValue({ label, value }: { label: string; value: string | number | 
   );
 }
 
-export function FieldCaptureExperience() {
+export function FieldCaptureExperience({ initialDemo = false }: FieldCaptureExperienceProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [stage, setStage] = useState<Stage>("photo");
+  const [stage, setStage] = useState<Stage>(initialDemo ? "review" : "photo");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
-  const [candidate, setCandidate] = useState<CaptureWineCandidate | null>(null);
-  const [score, setScore] = useState<number | null>(95);
-  const [buyAgain, setBuyAgain] = useState<BuyAgain>("yes");
-  const [occasion, setOccasion] = useState("best wines ever — reference Cab");
-  const [descriptors, setDescriptors] = useState("smooth, rich, long finish");
-  const [notes, setNotes] = useState("One of the best wines ever.");
+  const [candidate, setCandidate] = useState<CaptureWineCandidate | null>(initialDemo ? tapizDemoCandidate : null);
+  const [score, setScore] = useState<number | null>(initialScore);
+  const [buyAgain, setBuyAgain] = useState<BuyAgain>(initialBuyAgain);
+  const [occasion, setOccasion] = useState(initialOccasion);
+  const [descriptors, setDescriptors] = useState(initialDescriptors);
+  const [notes, setNotes] = useState(initialNotes);
   const [result, setResult] = useState<SaveResult | null>(null);
   const supabase = useMemo(() => createClient(), []);
 
@@ -97,17 +95,6 @@ export function FieldCaptureExperience() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not parse bottle", { id: "field-capture" });
     }
-  }
-
-  function loadDemo() {
-    setImageDataUrl(null);
-    setCandidate(demoCandidate);
-    setScore(95);
-    setBuyAgain("yes");
-    setOccasion("best wines ever — reference Cab");
-    setDescriptors("smooth, rich, long finish");
-    setNotes("One of the best wines ever.");
-    setStage("review");
   }
 
   async function saveDraft() {
@@ -196,7 +183,9 @@ export function FieldCaptureExperience() {
             <Input ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => event.target.files?.[0] && handleFile(event.target.files[0])} />
             <div className="grid gap-2 sm:grid-cols-2">
               <Button size="lg" onClick={() => inputRef.current?.click()}><Camera className="mr-2 h-4 w-4" /> Take / upload photo</Button>
-              <Button size="lg" variant="outline" onClick={loadDemo}><Sparkles className="mr-2 h-4 w-4" /> Load Tapiz demo</Button>
+              <Button size="lg" variant="outline" asChild>
+                <Link href="/capture?demo=tapiz"><Sparkles className="mr-2 h-4 w-4" /> Load Tapiz demo</Link>
+              </Button>
             </div>
           </CardContent>
         </Card>

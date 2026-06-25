@@ -4,6 +4,14 @@ export const metadata = {
   title: "Field Capture | Pourfolio",
 };
 
-export default function CapturePage() {
-  return <FieldCaptureExperience />;
+type CapturePageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function CapturePage({ searchParams }: CapturePageProps) {
+  const params = await searchParams;
+  const demoParam = params?.demo;
+  const initialDemo = Array.isArray(demoParam) ? demoParam.includes("tapiz") : demoParam === "tapiz";
+
+  return <FieldCaptureExperience initialDemo={initialDemo} />;
 }

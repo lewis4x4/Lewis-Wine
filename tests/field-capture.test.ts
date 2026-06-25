@@ -7,6 +7,7 @@ import {
   createPostSaveActions,
   isBenchmarkScore,
   normalizeDescriptorText,
+  tapizDemoCandidate,
   type CaptureWineCandidate,
 } from "../src/lib/field-capture";
 
@@ -107,6 +108,21 @@ function testWineIdentityKeyNormalizesCaseWhitespaceAndVintage() {
   assert.equal(buildWineIdentityKey({ producer: null, vintage: null, label: "House Red" }), "||house red");
 }
 
+function testTapizDemoCandidateOpensAsBenchmarkReview() {
+  const draft = buildReviewDraft(tapizDemoCandidate, {
+    score: 95,
+    buy_again: "yes",
+    occasion: "best wines ever — reference Cab",
+    descriptors: "smooth, rich, long finish",
+    notes: "One of the best wines ever.",
+  });
+
+  assert.equal(draft.producer, "Tapiz");
+  assert.equal(draft.label, "Alta Collection Cabernet Sauvignon");
+  assert.equal(draft.is_benchmark, true);
+  assert.ok(draft.benchmark_prompt?.toLowerCase().includes("benchmark"));
+}
+
 for (const test of [
   testBuildCaptureRequestFromDataUrl,
   testRejectsInvalidCaptureImage,
@@ -116,6 +132,7 @@ for (const test of [
   testPostSaveActionsArePractical,
   testDescriptorNormalization,
   testWineIdentityKeyNormalizesCaseWhitespaceAndVintage,
+  testTapizDemoCandidateOpensAsBenchmarkReview,
 ]) {
   test();
 }

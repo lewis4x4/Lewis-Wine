@@ -82,11 +82,10 @@ Browser proof after F6:
   - `Save tasting memory`
 - Console: zero JavaScript errors.
 
-Remaining known issue:
+Remaining known issue from initial F0 audit:
 
-- In browser automation, `/capture` still rendered correctly but the `Load Tapiz demo` click did not advance the page state. This may be an automation/hydration-specific issue, but it should be treated as an explicit next-slice acceptance item before declaring the full capture loop field-ready.
+- Resolved in follow-up slice: the Tapiz demo now has a shareable, server-renderable URL (`/capture?demo=tapiz`) and the `Load Tapiz demo` control is an actual link to that route. Direct browser navigation to `/capture?demo=tapiz` renders the review state with `Tapiz`, `Alta Collection Cabernet Sauvignon`, and `Benchmark trigger` visible with zero console errors.
 
 ## Next Actions
 
-- Investigate and fix/prove `/capture` interactive state advancement.
-- Continue to evidence storage and live authenticated save proof after the interaction gate is green.
+- Continue to evidence storage and live authenticated save proof after approval for any required Supabase Storage/RLS or remote schema changes.

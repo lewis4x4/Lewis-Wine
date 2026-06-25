@@ -84,6 +84,19 @@ function compact(value: string | null | undefined) {
   return trimmed ? trimmed : null;
 }
 
+export const tapizDemoCandidate: CaptureWineCandidate = {
+  producer: "Tapiz",
+  label: "Alta Collection Cabernet Sauvignon",
+  vintage: 2021,
+  region: "Mendoza",
+  subregion: "San Pablo Vineyard, Uco Valley",
+  country: "Argentina",
+  varietal: "Cabernet Sauvignon",
+  wine_type: "red",
+  confidence: { producer: 0.95, label: 0.9, vintage: 0.92, region: 0.86, varietal: 0.94, wine_type: 0.9 },
+  ambiguous_fields: [],
+};
+
 export function buildCaptureWineRequest(dataUrl: string): CaptureWineRequest {
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!match) throw new Error("Provide a valid image data URL.");
