@@ -12,7 +12,11 @@ import {
   type ReplenishmentAutomationInput,
   type ReplenishmentPrompt,
 } from "./replenishment-automation";
-import { getWineReadiness, isWineApproachingPeak, type WineReadinessState } from "./wine-readiness";
+import {
+  getWineReadinessProfile,
+  isWineApproachingPeak,
+  type WineReadinessProfile,
+} from "./wine-readiness";
 
 export type PortfolioRadarActionType =
   | "drink_now"
@@ -91,6 +95,18 @@ export type PortfolioRadarCellarItem = CellarCommandWine & {
   wine_reference_id?: string | null;
   market_value_source?: string | null;
   market_value_updated_at?: string | null;
+  peak_start?: string | null;
+  peak_end?: string | null;
+  reference_drink_after?: string | null;
+  reference_drink_before?: string | null;
+  reference_peak_start?: string | null;
+  reference_peak_end?: string | null;
+  wine_reference_drink_window_start?: string | null;
+  wine_reference_drink_window_end?: string | null;
+  wine_reference_peak_start?: string | null;
+  wine_reference_peak_end?: string | null;
+  drink_window_start?: string | null;
+  drink_window_end?: string | null;
 };
 
 export type PortfolioRadarReceiptInput = AcquisitionReceiptInput & {
@@ -239,6 +255,23 @@ function targetForCellar(
       currentMarketValueCents: wine.current_market_value_cents ?? null,
       ...metadata,
     },
+  };
+}
+
+function readinessMetadata(profile: WineReadinessProfile): PortfolioRadarTargetMetadata {
+  return {
+    readiness: profile.legacyState,
+    readinessPhase: profile.phase,
+    readinessSource: profile.source,
+    readinessConfidence: profile.confidence,
+    normalizedDrinkAfter: profile.normalizedDrinkAfter,
+    normalizedDrinkBefore: profile.normalizedDrinkBefore,
+    peakStart: profile.peakStart,
+    peakEnd: profile.peakEnd,
+    daysToStart: profile.daysToStart,
+    daysToPeak: profile.daysToPeak,
+    daysToEnd: profile.daysToEnd,
+    readinessNextAction: profile.nextAction,
   };
 }
 
@@ -402,35 +435,40 @@ function severityForPriority(priority: number): PortfolioRadarSeverity {
   return "low";
 }
 
-function buildDrinkNowAction(wine: PortfolioRadarCellarItem, readiness: WineReadinessState): PortfolioRadarAction {
+function buildDrinkNowAction(wine: PortfolioRadarCellarItem, readinessProfile: WineReadinessProfile): PortfolioRadarAction {
+  const readiness = readinessProfile.legacyState;
   const name = displayName(wine);
   const bottleText = plural(Math.max(0, wine.quantity), "bottle");
   const fitClause = wine.brian_fit_score != null && wine.brian_fit_score >= 92
     ? ` Brian-Fit is ${wine.brian_fit_score}, but readiness is the reason this belongs in the queue.`
     : "";
+  const atPeak = readinessProfile.phase === "at_peak";
   return action({
     type: "drink_now",
-    priority: readiness === "drink_soon" ? 790 : 760,
-    severity: "medium",
+    priority: atPeak ? 820 : readiness === "drink_soon" ? 790 : 760,
+    severity: atPeak ? "high" : "medium",
     verb: "Open",
     label: `Open ${name}`,
-    reason: `Inside its drinking window with ${bottleText} on hand; use it while readiness is actionable.${fitClause}`,
-    confidence: 88,
+    reason: atPeak
+      ? `At peak with ${bottleText} on hand; use it while maturity, not preference alone, says the bottle is at its best.${fitClause}`
+      : `Inside its drinking window with ${bottleText} on hand; use it while readiness is actionable.${fitClause}`,
+    confidence: atPeak ? 91 : 88,
     sourceSurface: "cellar_command_center",
     cta: {
       label: "Choose bottle",
       href: `/cellar/${wine.id}`,
       action: "open_cellar_item",
     },
-    target: targetForCellar(wine, { readiness }),
+    target: targetForCellar(wine, readinessMetadata(readinessProfile)),
   });
 }
 
 function buildAtRiskAction(
   wine: PortfolioRadarCellarItem,
-  readiness: WineReadinessState,
+  readinessProfile: WineReadinessProfile,
   approachingPeak: boolean
 ): PortfolioRadarAction {
+  const readiness = readinessProfile.legacyState;
   const name = displayName(wine);
   const pastPeak = readiness === "past_peak";
   const priority = pastPeak ? 1000 : 880;
@@ -450,11 +488,11 @@ function buildAtRiskAction(
       href: `/cellar/${wine.id}`,
       action: pastPeak ? "resolve_past_peak" : "prioritize_at_risk_bottle",
     },
-    target: targetForCellar(wine, { readiness, approachingPeak }),
+    target: targetForCellar(wine, { ...readinessMetadata(readinessProfile), approachingPeak }),
   });
 }
 
-function buildMissingWindowAction(wine: PortfolioRadarCellarItem, readiness: WineReadinessState): PortfolioRadarAction {
+function buildMissingWindowAction(wine: PortfolioRadarCellarItem, readinessProfile: WineReadinessProfile): PortfolioRadarAction {
   const name = displayName(wine);
   return action({
     type: "missing_drink_window",
@@ -470,7 +508,7 @@ function buildMissingWindowAction(wine: PortfolioRadarCellarItem, readiness: Win
       href: `/cellar/${wine.id}?focus=drink-window`,
       action: "set_drink_window",
     },
-    target: targetForCellar(wine, { readiness }),
+    target: targetForCellar(wine, readinessMetadata(readinessProfile)),
   });
 }
 
@@ -645,18 +683,19 @@ function buildCellarActions(
   const actions: PortfolioRadarAction[] = [];
 
   for (const wine of (input.cellar ?? []).filter((candidate) => candidate.quantity > 0)) {
-    const readiness = getWineReadiness(wine, { asOf: date });
+    const readinessProfile = getWineReadinessProfile(wine, { asOf: date });
+    const readiness = readinessProfile.legacyState;
     const approachingPeak = isWineApproachingPeak(wine, { asOf: date, withinDays: 180 });
     const evidence = priceEvidenceSummary(wine, observationsByInventory.get(wine.id) ?? [], asOf);
 
     if (readiness === "past_peak" || approachingPeak) {
-      actions.push(buildAtRiskAction(wine, readiness, approachingPeak));
+      actions.push(buildAtRiskAction(wine, readinessProfile, approachingPeak));
     } else if (readiness === "ready" || readiness === "drink_soon") {
-      actions.push(buildDrinkNowAction(wine, readiness));
+      actions.push(buildDrinkNowAction(wine, readinessProfile));
     }
 
-    if (!wine.drink_after && !wine.drink_before) {
-      actions.push(buildMissingWindowAction(wine, readiness));
+    if (readinessProfile.phase === "missing_window") {
+      actions.push(buildMissingWindowAction(wine, readinessProfile));
     }
 
     if (evidence.reviewCount > 0) {

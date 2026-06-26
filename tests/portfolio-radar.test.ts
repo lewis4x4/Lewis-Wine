@@ -409,6 +409,8 @@ function testReadinessActionsUseTruthBeforePreference() {
   });
   assert.equal(drink.target.kind, "cellar_item");
   assert.equal(drink.target.metadata.readiness, "ready");
+  assert.equal(drink.target.metadata.readinessPhase, "ready");
+  assert.equal(drink.target.metadata.readinessSource, "inventory");
   assert.equal(drink.target.metadata.quantity, 2);
 
   const risk = findAction(radar.actions, "at_risk_past_peak", "past-peak");
@@ -416,11 +418,57 @@ function testReadinessActionsUseTruthBeforePreference() {
   assert.ok(risk.priority > drink.priority);
   assert.match(risk.reason, /Past its stated drinking window/);
   assert.equal(risk.target.metadata.readiness, "past_peak");
+  assert.equal(risk.target.metadata.readinessPhase, "past_peak");
 
   const windowGap = findAction(radar.actions, "missing_drink_window", "window-gap");
   assert.equal(windowGap.verb, "Set window");
   assert.match(windowGap.reason, /No drink window is stored/);
   assert.equal(windowGap.cta.action, "set_drink_window");
+  assert.equal(windowGap.target.metadata.readinessPhase, "missing_window");
+}
+
+function testPortfolioRadarConsumesRicherReadinessPhases() {
+  const radar = buildPortfolioRadar({
+    asOf,
+    cellar: [
+      cellar({
+        id: "at-peak",
+        name: "Peak Cabernet",
+        vintage: 2018,
+        drink_after: "2022-01-01",
+        drink_before: "2030-12-31",
+        peak_start: "2026-01-01",
+        peak_end: "2026-12-31",
+        brian_fit_score: 94,
+      }),
+      cellar({
+        id: "reference-ready",
+        name: "Reference Window Pinot",
+        vintage: 2020,
+        drink_after: null,
+        drink_before: null,
+        wine_reference_drink_window_start: "2024",
+        wine_reference_drink_window_end: "2030",
+        current_market_value_cents: 8000,
+      }),
+    ],
+  });
+
+  const peak = findAction(radar.actions, "drink_now", "at-peak");
+  assert.equal(peak.target.metadata.readiness, "ready");
+  assert.equal(peak.target.metadata.readinessPhase, "at_peak");
+  assert.equal(peak.target.metadata.peakStart, "2026-01-01");
+  assert.match(peak.reason, /at peak/i);
+  assert.ok(peak.priority > 790);
+
+  const referenceReady = findAction(radar.actions, "drink_now", "reference-ready");
+  assert.equal(referenceReady.target.metadata.readinessPhase, "ready");
+  assert.equal(referenceReady.target.metadata.readinessSource, "wine_reference");
+  assert.equal(referenceReady.target.metadata.normalizedDrinkAfter, "2024-01-01");
+  assert.equal(
+    radar.actions.some((action) => action.type === "missing_drink_window" && action.target.id === "reference-ready"),
+    false
+  );
 }
 
 function testValuationEvidenceActionsAndAiGuardrail() {
@@ -543,6 +591,7 @@ function testPrioritizationAndDeterminism() {
 
 testRadarBuildsConcreteActionQueueFromAllInputs();
 testReadinessActionsUseTruthBeforePreference();
+testPortfolioRadarConsumesRicherReadinessPhases();
 testValuationEvidenceActionsAndAiGuardrail();
 testAcquisitionReplenishmentReceiptAndMemoryActions();
 testPrioritizationAndDeterminism();
