@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle2, ClipboardList, HelpCircle, Loader2, RefreshCw, RotateCcw, Search, Sparkles, Trash2, Wine, Zap } from "lucide-react";
 import { toast } from "sonner";
@@ -161,6 +162,7 @@ function labelId(label: string) {
 }
 
 export function FieldCaptureExperience({ initialDemo = false, inventoryId = null, initialSaveMode = null }: FieldCaptureExperienceProps) {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const captureSequenceRef = useRef(0);
   const idempotencyKeyRef = useRef(createFieldCaptureIdempotencyKey());
@@ -386,6 +388,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
       setResult({ wine: payload.wine, tasting: payload.tasting, inventory: payload.inventory, rating: payload.rating });
       setStage("done");
       toast.success(draft.is_benchmark ? "Benchmark saved to Pourfolio." : "Tasting saved to Pourfolio.");
+      router.push(`/capture/saved/${encodeURIComponent(payload.tasting.id)}`);
     } catch (error) {
       const maybeError = error as Error & { status?: number };
       const shouldQueue = shouldQueueFieldCaptureFailure({
