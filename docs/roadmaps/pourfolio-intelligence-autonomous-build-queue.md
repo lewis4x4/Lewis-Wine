@@ -53,8 +53,8 @@ Autonomous build status: complete
 | Order | Slice | Status | Notes |
 |---:|---|---|---|
 | 1 | Portfolio Radar v1 / Pourfolio Today | Done | Shipped in `44c6223 Add Portfolio Radar intelligence queue`. |
-| 2 | Readiness Engine v2 | Next | Expand readiness phases and feed Portfolio Radar. |
-| 3 | Source-backed drink-window evidence | Planned | Structured drink-window observations/review/apply flow. |
+| 2 | Readiness Engine v2 | Done | Shipped in `4dee98a Add Readiness Engine v2 phase model`; Portfolio Radar consumes phase/source metadata. |
+| 3 | Source-backed drink-window evidence | Next | Structured drink-window observations/review/apply flow. |
 | 4 | Valuation Rollup + Sell-watch | Planned | Accepted evidence rolls up into value posture and sell/buy-watch actions. |
 | 5 | Automated Refresh Queue | Planned | Due-selection, budget controls, skip reasons, schedule. |
 | 6 | Outcome and Learning Loop | Planned | Durable Insight → Action → Outcome learning. |
@@ -73,22 +73,19 @@ The only permitted cron-management action for the autonomous builder is pausing 
 
 ## Next Default Slice
 
-If no newer human instruction exists, the next run should start with **Readiness Engine v2**.
+If no newer human instruction exists, the next run should start with **Source-backed Drink-window Evidence**.
 
 Minimum useful first slice:
 
-- Extend `src/lib/wine-readiness.ts` with a richer return shape while preserving existing callers where possible.
-- Add tests for:
-  - `missing_window`
-  - `hold`
-  - `entering_window`
-  - `ready`
-  - `at_peak`
-  - `drink_soon`
-  - `past_peak`
-  - `needs_review`
-  - exact boundary dates
-- Wire Portfolio Radar to use the richer phase labels without breaking existing panel behavior.
+- Add a local, idempotent migration or pure model scaffolding for structured drink-window observations, without applying production migrations automatically.
+- Add helper/tests for reviewable drink-window evidence:
+  - source type/name/url
+  - proposed drink-after/drink-before
+  - optional peak-start/peak-end
+  - confidence
+  - review status
+  - applicability to inventory/reference readiness
+- Wire the evidence shape toward Readiness Engine v2 without letting AI/public-web findings silently overwrite cellar truth.
 
 ## Acceptance Standard Per Slot
 

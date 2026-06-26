@@ -933,8 +933,8 @@ Improve valuation accuracy with better data sources.
 | Acquisition Engine price search | Done | Commit `1e39bec`; hosted smoke passed for source-backed acquisition refresh. |
 | Buy Again / Shopping / Replenishment handoff to Acquisition | Done | Commit `0a53bab`; local full check passed before push. Hosted smoke for `0a53bab` still recommended. |
 | Portfolio Radar / Pourfolio Today | Done | Commit `44c6223`; authenticated local + hosted smokes generated 9 actions; Netlify deploy ready. |
-| Readiness Engine v2 | Next | Current readiness exists but lacks entering/peak phases. This is the next default autonomous build slice. |
-| Drink-window evidence observations | Planned | Schema supports generic drink-window evidence kind but no full structured apply path verified. |
+| Readiness Engine v2 | Done | Commit `4dee98a`; core richer phase model shipped and Portfolio Radar consumes phase/source metadata. |
+| Drink-window evidence observations | Next | Schema supports generic drink-window evidence kind but no full structured apply path verified. |
 | Valuation rollup | Planned | Evidence model exists; rollup from accepted observations into portfolio truth is incomplete. |
 | Automated refresh queue | Planned | Acquisition has next-refresh concepts; cellar-wide refresh not verified. |
 | Outcome/learning loop | Planned | Some flows capture data, but no unified Insight → Action → Outcome model yet. |
@@ -944,15 +944,15 @@ Improve valuation accuracy with better data sources.
 
 ## Recommended Next Build Slice
 
-Build **Readiness Engine v2**.
+Build **Source-backed Drink-window Evidence**.
 
 Why this next:
 
-- Portfolio Radar now exists and needs sharper maturity/readiness signals.
-- It gives the operating queue better drink/hold/peak/past-peak judgment.
-- It unlocks later source-backed drink-window evidence and automated refresh work.
+- Readiness Engine v2 now has the richer phase model.
+- The next gap is making drink-window truth sourced, reviewable, and explainable.
+- This gives Portfolio Radar trustworthy inputs for missing-window, entering-window, at-peak, drink-soon, and past-peak actions.
 
-Do not start with providers or more scraping. That adds data before the system has precise readiness/action semantics.
+Do not start with providers or more scraping. Build the evidence/review/apply spine first, then let providers feed it.
 
 ---
 
