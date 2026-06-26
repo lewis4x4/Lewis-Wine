@@ -932,8 +932,8 @@ Improve valuation accuracy with better data sources.
 |---|---:|---|
 | Acquisition Engine price search | Done | Commit `1e39bec`; hosted smoke passed for source-backed acquisition refresh. |
 | Buy Again / Shopping / Replenishment handoff to Acquisition | Done | Commit `0a53bab`; local full check passed before push. Hosted smoke for `0a53bab` still recommended. |
-| Portfolio Radar / Pourfolio Today | Next | Recommended next build. Not implemented yet. |
-| Readiness Engine v2 | Planned | Current readiness exists but lacks entering/peak phases. |
+| Portfolio Radar / Pourfolio Today | Done | Commit `44c6223`; authenticated local + hosted smokes generated 9 actions; Netlify deploy ready. |
+| Readiness Engine v2 | Next | Current readiness exists but lacks entering/peak phases. This is the next default autonomous build slice. |
 | Drink-window evidence observations | Planned | Schema supports generic drink-window evidence kind but no full structured apply path verified. |
 | Valuation rollup | Planned | Evidence model exists; rollup from accepted observations into portfolio truth is incomplete. |
 | Automated refresh queue | Planned | Acquisition has next-refresh concepts; cellar-wide refresh not verified. |
@@ -944,16 +944,15 @@ Improve valuation accuracy with better data sources.
 
 ## Recommended Next Build Slice
 
-Build **Portfolio Radar v1: Pourfolio Today**.
+Build **Readiness Engine v2**.
 
-Why this first:
+Why this next:
 
-- It creates the product spine.
-- It makes existing panels useful immediately.
-- It gives Brian a stable place to ask “what matters now?”
-- It prevents future work from becoming more disconnected panels.
+- Portfolio Radar now exists and needs sharper maturity/readiness signals.
+- It gives the operating queue better drink/hold/peak/past-peak judgment.
+- It unlocks later source-backed drink-window evidence and automated refresh work.
 
-Do not start with providers or more scraping. That adds data before the system has a place to turn data into action.
+Do not start with providers or more scraping. That adds data before the system has precise readiness/action semantics.
 
 ---
 

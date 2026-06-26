@@ -48,6 +48,10 @@ public/worker-*.js.map
 # Supabase local link/cache
 supabase/.temp/
 
+# Pourfolio autonomous build runtime state
+.pourfolio-autobuild/
+docs/roadmaps/pourfolio-intelligence-autonomous-build-run-log.md
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
