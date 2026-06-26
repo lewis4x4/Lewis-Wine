@@ -46,7 +46,16 @@ const reviewDraftSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const parsedDraft = reviewDraftSchema.safeParse(await request.json());
+    let requestBody: unknown;
+    try {
+      requestBody = await request.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "Capture payload was too large or incomplete. Please upload the label photo again." },
+        { status: 413 }
+      );
+    }
+    const parsedDraft = reviewDraftSchema.safeParse(requestBody);
     if (!parsedDraft.success) {
       const issue = parsedDraft.error.issues[0];
       const path = issue?.path.length ? issue.path.join(".") : "capture";

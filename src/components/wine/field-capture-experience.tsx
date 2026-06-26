@@ -58,6 +58,12 @@ type SaveResult = {
   rating?: { id: string } | null;
 };
 
+type FieldCaptureSaveResponse = SaveResult & {
+  success?: boolean;
+  error?: string;
+  replayed?: boolean;
+};
+
 const maxCaptureImageDataUrlChars = 5_500_000;
 const maxCaptureImageDimension = 1800;
 
@@ -110,14 +116,22 @@ async function dataUrlFromFile(file: File) {
   throw new Error("Photo is too large to prepare automatically. Please crop closer to the label and try again.");
 }
 
-async function labelScanFromDataUrl(dataUrl: string): Promise<LabelScanResult> {
-  const request = buildCaptureWineRequest(dataUrl);
+async function parseJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
+  try {
+    return await response.json() as T;
+  } catch {
+    throw new Error(`${fallbackMessage} Server returned an unreadable response (${response.status}).`);
+  }
+}
+
+async function labelScanFromDataUrl(dataUrl: string, hint?: string | null): Promise<LabelScanResult> {
+  const request = buildCaptureWineRequest(dataUrl, hint);
   const response = await fetch("/api/label/scan", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ media_type: request.media_type, image_base64: request.image_base64 }),
+    body: JSON.stringify({ media_type: request.media_type, image_base64: request.image_base64, hint: request.hint }),
   });
-  const data = await response.json() as LabelScanResult;
+  const data = await parseJsonResponse<LabelScanResult>(response, "Could not read the label.");
   if (!response.ok || !data.success || !data.wine) throw new Error(data.error || "Could not read the label");
   return data;
 }
@@ -128,7 +142,7 @@ async function postFieldCapturePayload(payload: unknown) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const data = await response.json();
+  const data = await parseJsonResponse<FieldCaptureSaveResponse>(response, "Could not save capture.");
   if (!response.ok || !data.success) {
     const error = new Error(data.error || "Could not save capture");
     Object.assign(error, { status: response.status, payload: data });
@@ -152,9 +166,9 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
   const [stage, setStage] = useState<Stage>(initialDemo ? "review" : "photo");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [candidate, setCandidate] = useState<CaptureWineCandidate | null>(initialDemo ? tapizDemoCandidate : null);
-  const [score, setScore] = useState<number | null>(initialScore);
-  const [buyAgain, setBuyAgain] = useState<BuyAgain>(initialBuyAgain);
-  const [occasion, setOccasion] = useState(initialOccasion);
+  const [score, setScore] = useState<number | null>(initialDemo ? initialScore : null);
+  const [buyAgain, setBuyAgain] = useState<BuyAgain>(initialDemo ? initialBuyAgain : "maybe");
+  const [occasion, setOccasion] = useState(initialDemo ? initialOccasion : "");
   const [descriptors, setDescriptors] = useState(initialDescriptors);
   const [notes, setNotes] = useState(initialNotes);
   const [saveMode, setSaveMode] = useState<FieldCaptureSaveMode>(initialSaveMode ?? (inventoryId ? "link_existing_inventory" : "memory_only"));
@@ -211,9 +225,9 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
     updateCandidateField("vintage", Number.isInteger(parsed) && parsed > 0 ? parsed : null);
   }
 
-  async function analyzeDataUrl(dataUrl: string) {
+  async function analyzeDataUrl(dataUrl: string, hint?: string | null) {
     setStage("analyzing");
-    const scan = await labelScanFromDataUrl(dataUrl);
+    const scan = await labelScanFromDataUrl(dataUrl, hint);
     if (!scan.wine) throw new Error("No candidate returned from label scan");
     const nextCandidate = buildFieldCaptureCandidateFromLabelScan(scan.wine);
     setCandidate(nextCandidate);
@@ -252,7 +266,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
     }
     try {
       toast.loading("Using your answer to finish the label…", { id: "field-capture" });
-      await analyzeDataUrl(imageDataUrl);
+      await analyzeDataUrl(imageDataUrl, hint);
       toast.success("Bottle identity updated. Review before saving.", { id: "field-capture" });
     } catch (error) {
       setStage("follow_up");
@@ -437,7 +451,18 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
                 </div>
               )}
             </button>
-            <Input ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => event.target.files?.[0] && handleFile(event.target.files[0])} />
+            <Input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void handleFile(file);
+              }}
+            />
             <div className="grid gap-2 sm:grid-cols-2">
               <Button size="lg" onClick={() => inputRef.current?.click()}><Camera className="mr-2 h-4 w-4" /> Take / upload photo</Button>
               <Button size="lg" variant="outline" asChild>

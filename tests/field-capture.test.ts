@@ -36,9 +36,10 @@ const candidate: CaptureWineCandidate = {
 };
 
 function testBuildCaptureRequestFromDataUrl() {
-  const request = buildCaptureWineRequest("data:image/png;base64,QUJD");
+  const request = buildCaptureWineRequest("data:image/png;base64,QUJD", "  Producer is Zuccardi Q  ");
   assert.equal(request.media_type, "image/png");
   assert.equal(request.image_base64, "QUJD");
+  assert.equal(request.hint, "Producer is Zuccardi Q");
 }
 
 function testRejectsInvalidCaptureImage() {

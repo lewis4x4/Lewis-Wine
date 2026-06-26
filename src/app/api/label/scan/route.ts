@@ -15,6 +15,7 @@ type LabelImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/web
 type LabelImagePayload = {
   mediaType: LabelImageMediaType;
   base64: string;
+  hint?: string | null;
 };
 
 function parseDataUrl(dataUrl: string): LabelImagePayload | null {
@@ -40,14 +41,15 @@ function validateBase64Image(mediaType: string, base64: string): { error: string
 async function readLabelImage(request: NextRequest): Promise<LabelImagePayload | { error: string; status: number }> {
   const contentType = request.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
-    let body: { data_url?: string; image_base64?: string; media_type?: string };
+    let body: { data_url?: string; image_base64?: string; media_type?: string; hint?: string | null };
     try {
-      body = await request.json() as { data_url?: string; image_base64?: string; media_type?: string };
+      body = await request.json() as { data_url?: string; image_base64?: string; media_type?: string; hint?: string | null };
     } catch {
       return { error: "Image payload was too large or incomplete. Please upload the label photo again.", status: 413 };
     }
     const payload = body.data_url ? parseDataUrl(body.data_url) : body.image_base64 && body.media_type ? { mediaType: body.media_type as LabelImageMediaType, base64: body.image_base64 } : null;
     if (!payload) return { error: "No label image provided", status: 400 };
+    payload.hint = typeof body.hint === "string" ? body.hint.trim().slice(0, 500) : null;
     const validationError = validateBase64Image(payload.mediaType, payload.base64);
     return validationError ?? payload;
   }
@@ -143,7 +145,7 @@ export async function POST(request: NextRequest) {
             },
             {
               type: "text",
-              text: `Analyze this wine bottle label and extract all wine information. Return ONLY a valid JSON object (no markdown, no code blocks) with this exact structure:
+              text: `Analyze this wine bottle label and extract all wine information.${image.hint ? ` Use this user-provided follow-up hint to resolve ambiguity: ${image.hint}` : ""} Return ONLY a valid JSON object (no markdown, no code blocks) with this exact structure:
 
 {
   "name": "full wine name (e.g., 'Cabernet Sauvignon' or 'Estate Reserve Cabernet Sauvignon')",
