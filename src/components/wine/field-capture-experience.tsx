@@ -458,9 +458,10 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
               capture="environment"
               className="hidden"
               onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = "";
-                if (file) void handleFile(file);
+                const input = event.currentTarget;
+                const file = input.files?.[0];
+                if (file) void handleFile(file).finally(() => { input.value = ""; });
+                else input.value = "";
               }}
             />
             <div className="grid gap-2 sm:grid-cols-2">
