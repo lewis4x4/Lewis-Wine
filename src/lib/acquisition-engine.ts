@@ -3,6 +3,7 @@ export type AcquisitionStatus = "watching" | "buy_now" | "ordered" | "acquired" 
 export type AcquisitionPriority = "must_have" | "high" | "medium" | "low";
 export type AcquisitionAction = "watch" | "mark_buy_now" | "mark_ordered" | "mark_acquired" | "pass" | "reopen";
 export type AcquisitionAvailability = "available" | "limited" | "unknown" | "sold_out";
+export type AcquisitionPriceSourceType = "manual" | "cellartracker" | "wine_market_journal" | "retailer" | "winery" | "auction" | "public_web" | "ai_search" | "ai_inferred" | "wine_searcher_trial" | "provider" | "unknown";
 
 export type AcquisitionTarget = {
   id: string;
@@ -27,11 +28,36 @@ export type AcquisitionPriceObservation = {
   id: string;
   targetId: string;
   observedPriceCents: number | null;
+  sourceType?: AcquisitionPriceSourceType | null;
   sourceName?: string | null;
   sourceUrl?: string | null;
   availability: AcquisitionAvailability;
   confidence: number;
   observedAt: string;
+};
+
+export type AcquisitionPriceCandidate = {
+  title: string;
+  url?: string | null;
+  sourceType?: AcquisitionPriceSourceType | null;
+  sourceName?: string | null;
+  extractedText?: string | null;
+  priceCents?: number | null;
+  currency?: string | null;
+  availability?: AcquisitionAvailability | null;
+  confidence?: number | null;
+};
+
+export type NormalizedAcquisitionPriceCandidate = {
+  sourceType: AcquisitionPriceSourceType;
+  sourceName: string;
+  sourceUrl: string | null;
+  observedPriceCents: number | null;
+  currency: string;
+  availability: AcquisitionAvailability;
+  confidence: number;
+  notes: string;
+  rawPayload: AcquisitionPriceCandidate;
 };
 
 export type AcquisitionEngineInput = {
@@ -87,6 +113,99 @@ function formatCurrency(cents: number | null | undefined) {
     currency: "USD",
     maximumFractionDigits: dollars % 1 === 0 ? 0 : 2,
   }).format(dollars);
+}
+
+const sourceTypes = new Set<AcquisitionPriceSourceType>(["manual", "cellartracker", "wine_market_journal", "retailer", "winery", "auction", "public_web", "ai_search", "ai_inferred", "wine_searcher_trial", "provider", "unknown"]);
+const availabilities = new Set<AcquisitionAvailability>(["available", "limited", "unknown", "sold_out"]);
+
+function clean(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed || null;
+}
+
+function clampConfidence(value: number | null | undefined) {
+  if (!Number.isFinite(value ?? NaN)) return 60;
+  return Math.max(0, Math.min(100, Math.round(value ?? 60)));
+}
+
+function safeUrl(value: string | null | undefined) {
+  const trimmed = clean(value);
+  if (!trimmed) return null;
+  try {
+    return new URL(trimmed).toString();
+  } catch {
+    return null;
+  }
+}
+
+function hostFromUrl(url: string | null) {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+function isProtectedPricingHost(host: string | null) {
+  return Boolean(host && /(^|\.)(vivino\.com|cellartracker\.com|wine-searcher\.com)$/i.test(host));
+}
+
+function sourceTypeFromCandidate(candidate: AcquisitionPriceCandidate, url: string | null): AcquisitionPriceSourceType {
+  const requested = candidate.sourceType && sourceTypes.has(candidate.sourceType) ? candidate.sourceType : null;
+  if (requested && requested !== "ai_search") return requested;
+  const host = hostFromUrl(url);
+  if (!host) return requested ?? "ai_inferred";
+  if (isProtectedPricingHost(host)) return "public_web";
+  if (/auction|acker|sotheby|christie|winebid|heritage/i.test(host)) return "auction";
+  if (/wine\.com|totalwine|klwines|benchmarkwine|wineaccess|merchant|retail|shop/i.test(host)) return "retailer";
+  if (/winery|vineyard|estate|cellars|wines?\./i.test(host)) return "winery";
+  return requested ?? "public_web";
+}
+
+export function buildAcquisitionSearchRecord(target: AcquisitionTarget) {
+  return {
+    id: target.id,
+    title: target.wineTitle,
+    producer: target.producer ?? null,
+    vintage: target.vintage ?? null,
+    region: target.region ?? null,
+    varietal: target.varietal ?? null,
+    desiredQuantity: target.desiredQuantity ?? 1,
+    targetPriceCents: target.targetPriceCents ?? null,
+    maxPriceCents: target.maxPriceCents ?? null,
+    priority: target.priority,
+    sourceKind: target.sourceKind,
+  };
+}
+
+export function normalizeAcquisitionPriceCandidate(candidate: AcquisitionPriceCandidate): NormalizedAcquisitionPriceCandidate {
+  const sourceUrl = safeUrl(candidate.url);
+  const sourceType = sourceTypeFromCandidate(candidate, sourceUrl);
+  const sourceName = clean(candidate.sourceName) ?? hostFromUrl(sourceUrl) ?? clean(candidate.title) ?? sourceType;
+  const price = Number.isFinite(candidate.priceCents ?? NaN) ? Math.max(0, Math.round(candidate.priceCents ?? 0)) : null;
+  const sourceBackedPrice = (sourceUrl && !isProtectedPricingHost(hostFromUrl(sourceUrl))) || ["manual", "cellartracker", "wine_market_journal", "provider", "wine_searcher_trial"].includes(sourceType)
+    ? price
+    : null;
+  return {
+    sourceType,
+    sourceName,
+    sourceUrl,
+    observedPriceCents: sourceBackedPrice,
+    currency: clean(candidate.currency)?.toUpperCase().slice(0, 3) || "USD",
+    availability: candidate.availability && availabilities.has(candidate.availability) ? candidate.availability : sourceBackedPrice ? "available" : "unknown",
+    confidence: clampConfidence(candidate.confidence),
+    notes: clean(candidate.extractedText) ?? clean(candidate.title) ?? "Acquisition price refresh candidate.",
+    rawPayload: candidate,
+  };
+}
+
+export function normalizeAcquisitionPriceCandidates(candidates: AcquisitionPriceCandidate[]) {
+  const normalized = candidates.map(normalizeAcquisitionPriceCandidate);
+  const gaps: string[] = [];
+  if (!normalized.length) gaps.push("No source-backed acquisition price evidence was found.");
+  if (!normalized.some((candidate) => candidate.observedPriceCents != null)) gaps.push("No usable current price was found; keep this target in the refresh queue.");
+  return { observations: normalized, gaps };
 }
 
 function ageDays(iso: string, asOf: string) {

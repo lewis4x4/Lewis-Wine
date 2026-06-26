@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, RefreshCw, ShoppingCart, Target, TimerReset, Trophy, XCircle } from "lucide-react";
+import { CheckCircle2, RefreshCw, Search, ShoppingCart, Target, TimerReset, Trophy, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ function formatSpend(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-function TargetCard({ item, onAction, busy }: { item: AcquisitionCommandItem; onAction: (id: string, action: AcquisitionAction) => void; busy: boolean }) {
+function TargetCard({ item, onAction, onRefresh, busy, refreshing }: { item: AcquisitionCommandItem; onAction: (id: string, action: AcquisitionAction) => void; onRefresh: (id: string) => void; busy: boolean; refreshing: boolean }) {
   return (
     <div className="rounded-3xl border bg-background p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -47,15 +47,19 @@ function TargetCard({ item, onAction, busy }: { item: AcquisitionCommandItem; on
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {item.bestObservation?.sourceUrl ? <Button variant="outline" size="sm" asChild><a href={item.bestObservation.sourceUrl} target="_blank" rel="noreferrer">Source</a></Button> : null}
-        {item.decision !== "ordered" && item.decision !== "acquired" ? <Button size="sm" onClick={() => onAction(item.id, "mark_ordered")} disabled={busy}>Mark ordered</Button> : null}
-        {item.decision !== "acquired" ? <Button variant="secondary" size="sm" onClick={() => onAction(item.id, "mark_acquired")} disabled={busy}>Acquired</Button> : null}
-        {item.decision !== "passed" ? <Button variant="ghost" size="sm" onClick={() => onAction(item.id, "pass")} disabled={busy}>Pass</Button> : <Button variant="secondary" size="sm" onClick={() => onAction(item.id, "reopen")} disabled={busy}>Reopen</Button>}
+        <Button variant="outline" size="sm" onClick={() => onRefresh(item.id)} disabled={busy || refreshing}>
+          {refreshing ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+          {refreshing ? "Searching" : "Find price evidence"}
+        </Button>
+        {item.decision !== "ordered" && item.decision !== "acquired" ? <Button size="sm" onClick={() => onAction(item.id, "mark_ordered")} disabled={busy || refreshing}>Mark ordered</Button> : null}
+        {item.decision !== "acquired" ? <Button variant="secondary" size="sm" onClick={() => onAction(item.id, "mark_acquired")} disabled={busy || refreshing}>Acquired</Button> : null}
+        {item.decision !== "passed" ? <Button variant="ghost" size="sm" onClick={() => onAction(item.id, "pass")} disabled={busy || refreshing}>Pass</Button> : <Button variant="secondary" size="sm" onClick={() => onAction(item.id, "reopen")} disabled={busy || refreshing}>Reopen</Button>}
       </div>
     </div>
   );
 }
 
-function Lane({ name, items, onAction, busyId }: { name: keyof ReturnType<typeof buildAcquisitionEngine>["lanes"]; items: AcquisitionCommandItem[]; onAction: (id: string, action: AcquisitionAction) => void; busyId: string | null }) {
+function Lane({ name, items, onAction, onRefresh, busyId, refreshingId }: { name: keyof ReturnType<typeof buildAcquisitionEngine>["lanes"]; items: AcquisitionCommandItem[]; onAction: (id: string, action: AcquisitionAction) => void; onRefresh: (id: string) => void; busyId: string | null; refreshingId: string | null }) {
   const copy = laneCopy[name];
   const Icon = copy.icon;
   return (
@@ -68,7 +72,7 @@ function Lane({ name, items, onAction, busyId }: { name: keyof ReturnType<typeof
         <Badge variant="outline" className="rounded-full">{items.length}</Badge>
       </div>
       <div className="space-y-3">
-        {items.length ? items.map((item) => <TargetCard key={item.id} item={item} onAction={onAction} busy={busyId === item.id} />) : <div className="rounded-3xl border border-dashed bg-background/70 p-6 text-sm text-muted-foreground">No targets in this lane.</div>}
+        {items.length ? items.map((item) => <TargetCard key={item.id} item={item} onAction={onAction} onRefresh={onRefresh} busy={busyId === item.id} refreshing={refreshingId === item.id} />) : <div className="rounded-3xl border border-dashed bg-background/70 p-6 text-sm text-muted-foreground">No targets in this lane.</div>}
       </div>
     </div>
   );
@@ -80,6 +84,7 @@ export function AcquisitionEnginePanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [isUnauthorized, setIsUnauthorized] = useState(false);
   const engine = useMemo(() => buildAcquisitionEngine({ targets, priceObservations }), [targets, priceObservations]);
 
@@ -132,6 +137,27 @@ export function AcquisitionEnginePanel() {
     }
   }
 
+  async function refreshTargetPrice(id: string) {
+    setRefreshingId(id);
+    try {
+      const response = await fetch("/api/acquisition-engine?kind=refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetId: id, force: true }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload.error ?? "Could not refresh acquisition price evidence");
+      const count = Array.isArray(payload.observations) ? payload.observations.length : 0;
+      const gap = Array.isArray(payload.gaps) && payload.gaps.length ? ` ${payload.gaps[0]}` : "";
+      toast.success(count ? `Saved ${count} acquisition price signal${count === 1 ? "" : "s"}.` : `Refresh complete.${gap}`);
+      await loadEngine();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not refresh acquisition price evidence");
+    } finally {
+      setRefreshingId(null);
+    }
+  }
+
   return (
     <Card id="acquisition-engine" className="rounded-[28px] border-border/70 bg-background/90 shadow-sm">
       <CardHeader>
@@ -168,11 +194,11 @@ export function AcquisitionEnginePanel() {
           <>
             {engine.refreshQueue.length ? <div className="rounded-3xl border border-amber-500/30 bg-amber-500/10 p-4"><div className="font-medium text-amber-950 dark:text-amber-100">Price refresh queue</div><p className="mt-1 text-sm text-amber-950/80 dark:text-amber-100/80">{engine.refreshQueue.slice(0, 3).map((item) => `${item.wineTitle}: ${item.refreshReason}`).join(" · ")}</p></div> : null}
             <div className="grid gap-4 xl:grid-cols-2">
-              <Lane name="buyNow" items={engine.lanes.buyNow} onAction={updateTarget} busyId={busyId} />
-              <Lane name="watch" items={engine.lanes.watch} onAction={updateTarget} busyId={busyId} />
-              <Lane name="ordered" items={engine.lanes.ordered} onAction={updateTarget} busyId={busyId} />
-              <Lane name="acquired" items={engine.lanes.acquired} onAction={updateTarget} busyId={busyId} />
-              <Lane name="passed" items={engine.lanes.passed} onAction={updateTarget} busyId={busyId} />
+              <Lane name="buyNow" items={engine.lanes.buyNow} onAction={updateTarget} onRefresh={refreshTargetPrice} busyId={busyId} refreshingId={refreshingId} />
+              <Lane name="watch" items={engine.lanes.watch} onAction={updateTarget} onRefresh={refreshTargetPrice} busyId={busyId} refreshingId={refreshingId} />
+              <Lane name="ordered" items={engine.lanes.ordered} onAction={updateTarget} onRefresh={refreshTargetPrice} busyId={busyId} refreshingId={refreshingId} />
+              <Lane name="acquired" items={engine.lanes.acquired} onAction={updateTarget} onRefresh={refreshTargetPrice} busyId={busyId} refreshingId={refreshingId} />
+              <Lane name="passed" items={engine.lanes.passed} onAction={updateTarget} onRefresh={refreshTargetPrice} busyId={busyId} refreshingId={refreshingId} />
             </div>
           </>
         ) : null}

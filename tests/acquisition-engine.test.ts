@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import {
   buildAcquisitionEngine,
+  buildAcquisitionSearchRecord,
   nextAcquisitionStatus,
+  normalizeAcquisitionPriceCandidate,
+  normalizeAcquisitionPriceCandidates,
   type AcquisitionEngineInput,
 } from "../src/lib/acquisition-engine";
 
@@ -99,5 +102,59 @@ assert.equal(nextAcquisitionStatus("watching", "mark_ordered"), "ordered");
 assert.equal(nextAcquisitionStatus("ordered", "mark_acquired"), "acquired");
 assert.equal(nextAcquisitionStatus("watching", "pass"), "passed");
 assert.equal(nextAcquisitionStatus("passed", "reopen"), "watching");
+
+const searchRecord = buildAcquisitionSearchRecord(input.targets[0]);
+assert.deepEqual(searchRecord, {
+  id: "tapiz-target",
+  title: "2021 Tapiz Alta Collection Cabernet Sauvignon",
+  producer: "Tapiz",
+  vintage: null,
+  region: null,
+  varietal: null,
+  desiredQuantity: 6,
+  targetPriceCents: 9500,
+  maxPriceCents: 11000,
+  priority: "must_have",
+  sourceKind: "buy_again",
+});
+
+const retailerCandidate = normalizeAcquisitionPriceCandidate({
+  title: "Tapiz Alta Collection Cabernet Sauvignon",
+  url: "https://www.wine.com/product/tapiz-alta-collection-cabernet-sauvignon/123",
+  sourceType: "ai_search",
+  extractedText: "Retailer listing shows available at $92.",
+  priceCents: 9200,
+  currency: "usd",
+  confidence: 86,
+});
+assert.equal(retailerCandidate.sourceType, "retailer");
+assert.equal(retailerCandidate.sourceName, "wine.com");
+assert.equal(retailerCandidate.observedPriceCents, 9200);
+assert.equal(retailerCandidate.currency, "USD");
+assert.equal(retailerCandidate.availability, "available");
+
+const unsupportedAiPrice = normalizeAcquisitionPriceCandidate({
+  title: "AI estimate without citation",
+  sourceType: "ai_inferred",
+  extractedText: "Model estimate, no source.",
+  priceCents: 12000,
+  confidence: 70,
+});
+assert.equal(unsupportedAiPrice.observedPriceCents, null);
+assert.equal(unsupportedAiPrice.sourceType, "ai_inferred");
+
+const protectedSourcePrice = normalizeAcquisitionPriceCandidate({
+  title: "Vivino listing should not become trusted evidence",
+  url: "https://www.vivino.com/US/en/example/w/12345",
+  sourceType: "ai_search",
+  priceCents: 9900,
+  confidence: 80,
+});
+assert.equal(protectedSourcePrice.sourceType, "public_web");
+assert.equal(protectedSourcePrice.observedPriceCents, null);
+
+const normalizedBatch = normalizeAcquisitionPriceCandidates([unsupportedAiPrice.rawPayload]);
+assert.equal(normalizedBatch.observations.length, 1);
+assert.match(normalizedBatch.gaps.join(" "), /No usable current price/);
 
 console.log("acquisition-engine tests passed");
