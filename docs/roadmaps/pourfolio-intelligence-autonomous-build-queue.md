@@ -42,6 +42,14 @@ node scripts/pourfolio-autobuild-slot.mjs status
 
 ## Current Roadmap Position
 
+Autonomous build status: `active`
+
+When all actionable slices are `Done` and no row is `Next`, `Planned`, or `Blocked`, change this to:
+
+```text
+Autonomous build status: complete
+```
+
 | Order | Slice | Status | Notes |
 |---:|---|---|---|
 | 1 | Portfolio Radar v1 / Pourfolio Today | Done | Shipped in `44c6223 Add Portfolio Radar intelligence queue`. |
@@ -51,6 +59,17 @@ node scripts/pourfolio-autobuild-slot.mjs status
 | 5 | Automated Refresh Queue | Planned | Due-selection, budget controls, skip reasons, schedule. |
 | 6 | Outcome and Learning Loop | Planned | Durable Insight → Action → Outcome learning. |
 | 7 | Provider and Data-source Expansion | Later | Provider integrations after the evidence/action spine is working. |
+
+## Completion / Self-Pause Protocol
+
+If a run sees `Autonomous build status: complete`, or it independently verifies that every actionable roadmap slice is complete:
+
+1. Do not start a new feature slice.
+2. Acquire the lock and append a `complete` run-log entry with summary `Roadmap complete; pausing autonomous builder`.
+3. Pause Hermes cron job `b2e7c7c6f5ef` named `Pourfolio autonomous intelligence roadmap builder`.
+4. Final response should say the roadmap is complete and the two-hour builder paused itself.
+
+The only permitted cron-management action for the autonomous builder is pausing its own job when the roadmap is complete. It must not create, remove, or reschedule cron jobs.
 
 ## Next Default Slice
 
