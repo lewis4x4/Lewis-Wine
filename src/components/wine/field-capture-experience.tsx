@@ -162,6 +162,7 @@ function labelId(label: string) {
 
 export function FieldCaptureExperience({ initialDemo = false, inventoryId = null, initialSaveMode = null }: FieldCaptureExperienceProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const captureSequenceRef = useRef(0);
   const idempotencyKeyRef = useRef(createFieldCaptureIdempotencyKey());
   const [stage, setStage] = useState<Stage>(initialDemo ? "review" : "photo");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
@@ -222,12 +223,13 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
 
   function updateCandidateVintage(value: string) {
     const parsed = Number(value);
-    updateCandidateField("vintage", Number.isInteger(parsed) && parsed > 0 ? parsed : null);
+    updateCandidateField("vintage", Number.isInteger(parsed) && parsed >= 1800 && parsed <= 2200 ? parsed : null);
   }
 
-  async function analyzeDataUrl(dataUrl: string, hint?: string | null) {
+  async function analyzeDataUrl(dataUrl: string, hint?: string | null, sequence = captureSequenceRef.current) {
     setStage("analyzing");
     const scan = await labelScanFromDataUrl(dataUrl, hint);
+    if (sequence !== captureSequenceRef.current) return false;
     if (!scan.wine) throw new Error("No candidate returned from label scan");
     const nextCandidate = buildFieldCaptureCandidateFromLabelScan(scan.wine);
     setCandidate(nextCandidate);
@@ -235,19 +237,29 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
     setNotes(scan.wine.suggested_tasting_note || scan.raw_text || initialNotes);
     setFollowUpQuestion(null);
     setStage("review");
+    return true;
   }
 
   async function handleFile(file: File) {
+    const sequence = captureSequenceRef.current + 1;
+    captureSequenceRef.current = sequence;
     try {
       const dataUrl = await dataUrlFromFile(file);
+      if (sequence !== captureSequenceRef.current) return;
       idempotencyKeyRef.current = createFieldCaptureIdempotencyKey();
+      setCandidate(null);
+      setResult(null);
       setImageDataUrl(dataUrl);
       setFollowUpQuestion(null);
       setFollowUpAnswer("");
       toast.loading("Reading the label…", { id: "field-capture" });
-      await analyzeDataUrl(dataUrl);
-      toast.success("Bottle parsed. Review before saving.", { id: "field-capture" });
+      const completed = await analyzeDataUrl(dataUrl, null, sequence);
+      if (completed) toast.success("Bottle parsed. Review before saving.", { id: "field-capture" });
     } catch (error) {
+      if (sequence !== captureSequenceRef.current) return;
+      setCandidate(null);
+      setResult(null);
+      setImageDataUrl(null);
       setStage("photo");
       toast.error(error instanceof Error ? error.message : "Could not parse bottle", { id: "field-capture" });
     }
@@ -266,8 +278,8 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
     }
     try {
       toast.loading("Using your answer to finish the label…", { id: "field-capture" });
-      await analyzeDataUrl(imageDataUrl, hint);
-      toast.success("Bottle identity updated. Review before saving.", { id: "field-capture" });
+      const completed = await analyzeDataUrl(imageDataUrl, hint, captureSequenceRef.current);
+      if (completed) toast.success("Bottle identity updated. Review before saving.", { id: "field-capture" });
     } catch (error) {
       setStage("follow_up");
       toast.error(error instanceof Error ? error.message : "Could not finish the follow-up", { id: "field-capture" });
@@ -276,14 +288,24 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
 
   function queueCurrentFieldCapture(reason?: string) {
     if (!draft || typeof window === "undefined") return null;
-    const offlineDraft = saveOfflineFieldCaptureDraft(
-      window.localStorage,
-      createOfflineFieldCaptureDraft({ reviewDraft: draft, evidenceDataUrl: imageDataUrl }),
-    );
-    refreshOfflineDrafts();
-    if (reason) toast.info(`${reason} Queued field capture: ${offlineDraft.id}`);
-    else toast.info(`Queued field capture: ${offlineDraft.id}`);
-    return offlineDraft;
+    try {
+      const offlineDraft = saveOfflineFieldCaptureDraft(
+        window.localStorage,
+        createOfflineFieldCaptureDraft({ reviewDraft: draft, evidenceDataUrl: imageDataUrl }),
+      );
+      refreshOfflineDrafts();
+      if (reason) toast.info(`${reason} Queued field capture: ${offlineDraft.id}`);
+      else toast.info(`Queued field capture: ${offlineDraft.id}`);
+      return offlineDraft;
+    } catch (error) {
+      const message = error instanceof DOMException && error.name === "QuotaExceededError"
+        ? "Offline storage is full. Please crop or retake the label photo, or save when back online."
+        : error instanceof Error
+          ? error.message
+          : "Could not queue this capture offline.";
+      toast.error(message);
+      return null;
+    }
   }
 
   async function syncOneOfflineFieldDraft(offlineDraft: OfflineFieldCaptureDraft) {
@@ -389,6 +411,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
     is_benchmark: result.tasting.is_benchmark,
     buy_again: result.tasting.buy_again,
   }) : [];
+  const isCaptureBusy = stage === "analyzing" || stage === "saving";
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-24 md:pb-8">
@@ -438,8 +461,9 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
           <CardContent className="space-y-4">
             <button
               type="button"
-              onClick={() => inputRef.current?.click()}
-              className="relative flex min-h-[360px] w-full items-center justify-center overflow-hidden rounded-3xl border-2 border-dashed bg-muted/30 text-left transition-colors hover:border-primary/70"
+              onClick={() => { if (!isCaptureBusy) inputRef.current?.click(); }}
+              disabled={isCaptureBusy}
+              className="relative flex min-h-[360px] w-full items-center justify-center overflow-hidden rounded-3xl border-2 border-dashed bg-muted/30 text-left transition-colors hover:border-primary/70 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {imageDataUrl ? (
                 <Image src={imageDataUrl} alt="Captured wine label" fill className="object-contain p-3" />
@@ -456,6 +480,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
               type="file"
               accept="image/*"
               capture="environment"
+              disabled={isCaptureBusy}
               className="hidden"
               onChange={(event) => {
                 const input = event.currentTarget;
@@ -465,7 +490,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
               }}
             />
             <div className="grid gap-2 sm:grid-cols-2">
-              <Button size="lg" onClick={() => inputRef.current?.click()}><Camera className="mr-2 h-4 w-4" /> Take / upload photo</Button>
+              <Button size="lg" onClick={() => inputRef.current?.click()} disabled={isCaptureBusy}><Camera className="mr-2 h-4 w-4" /> Take / upload photo</Button>
               <Button size="lg" variant="outline" asChild>
                 <Link href="/capture?demo=tapiz"><Sparkles className="mr-2 h-4 w-4" /> Load Tapiz demo</Link>
               </Button>
@@ -480,7 +505,17 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
           </CardHeader>
           <CardContent className="space-y-5">
             {!draft && stage !== "analyzing" && stage !== "saving" && stage !== "done" ? (
-              <div className="rounded-3xl border bg-muted/30 p-8 text-center text-muted-foreground">Capture or load a bottle to begin.</div>
+              <>
+                <div className="rounded-3xl border bg-muted/30 p-8 text-center text-muted-foreground">Capture or load a bottle to begin.</div>
+                <FieldCaptureOfflineQueue
+                  drafts={offlineDrafts}
+                  isOnline={isOnline}
+                  isBusy={isCaptureBusy}
+                  onSync={syncOfflineFieldDrafts}
+                  onRetry={retryOfflineFieldDraft}
+                  onDelete={removeOfflineFieldDraft}
+                />
+              </>
             ) : null}
 
             {stage === "analyzing" ? (
@@ -599,7 +634,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="score">Brian score</Label>
-                    <Input id="score" type="number" min={0} max={100} value={score ?? ""} onChange={(event) => setScore(event.target.value ? Number(event.target.value) : null)} />
+                    <Input id="score" type="number" min={50} max={100} value={score ?? ""} onChange={(event) => setScore(event.target.value ? Number(event.target.value) : null)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="buy-again">Buy again?</Label>
@@ -632,7 +667,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
                 <FieldCaptureOfflineQueue
                   drafts={offlineDrafts}
                   isOnline={isOnline}
-                  isBusy={stage === "saving"}
+                  isBusy={isCaptureBusy}
                   onSync={syncOfflineFieldDrafts}
                   onRetry={retryOfflineFieldDraft}
                   onDelete={removeOfflineFieldDraft}
@@ -707,7 +742,7 @@ function FieldCaptureOfflineQueue({
       </div>
       <div className="space-y-2">
         {drafts.slice(0, 5).map((offlineDraft) => {
-          const wineLabel = [offlineDraft.payload.wine.vintage, offlineDraft.payload.wine.producer, offlineDraft.payload.wine.label ?? offlineDraft.payload.wine.varietal]
+          const wineLabel = [offlineDraft.payload.vintage, offlineDraft.payload.producer, offlineDraft.payload.label ?? offlineDraft.payload.varietal]
             .filter(Boolean)
             .join(" ") || "Captured wine";
           return (
@@ -716,7 +751,7 @@ function FieldCaptureOfflineQueue({
                 <span className="font-medium text-foreground">{wineLabel}</span>
                 <span className="text-muted-foreground">{offlineDraft.status} · attempts {offlineDraft.attempts}</span>
               </div>
-              <p className="mt-1 line-clamp-2 text-muted-foreground">{offlineDraft.payload.tasting.notes || offlineDraft.payload.tasting.occasion || "Reviewed field capture waiting for safe retry."}</p>
+              <p className="mt-1 line-clamp-2 text-muted-foreground">{offlineDraft.payload.notes || offlineDraft.payload.occasion || "Reviewed field capture waiting for safe retry."}</p>
               <div className="mt-1 text-[11px] text-muted-foreground">Retry key preserved: {offlineDraft.idempotencyKey.slice(0, 36)}…</div>
               {offlineDraft.lastError ? <p className="mt-1 text-[11px] text-destructive">{offlineDraft.lastError}</p> : null}
               <div className="mt-3 flex flex-wrap gap-2">
@@ -730,6 +765,7 @@ function FieldCaptureOfflineQueue({
             </div>
           );
         })}
+        {drafts.length > 5 ? <p className="text-xs text-muted-foreground">Showing 5 of {drafts.length} queued captures. Sync all to process the full queue.</p> : null}
       </div>
     </div>
   );

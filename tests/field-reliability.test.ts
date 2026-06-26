@@ -27,6 +27,7 @@ import {
 } from "../src/lib/field-capture-sync";
 import {
   buildReviewDraft,
+  buildSaveTastingPayload,
   tapizDemoCandidate,
 } from "../src/lib/field-capture";
 import {
@@ -141,7 +142,8 @@ assert.equal(fieldDraft.idempotencyKey, "field-capture-stable-key");
 assert.equal(fieldDraft.payload.idempotency_key, "field-capture-stable-key");
 assert.equal(fieldDraft.payload.inventory_id, "inv-tapiz");
 assert.equal(fieldDraft.payload.evidence_data_url, "data:image/png;base64,QUJD");
-assert.equal(JSON.stringify(fieldDraft.payload.tasting.extraction).includes("QUJD"), false);
+assert.equal(JSON.stringify(fieldDraft.payload).includes("QUJD"), true);
+assert.equal(JSON.stringify(buildSaveTastingPayload(fieldDraft.payload).tasting.extraction).includes("QUJD"), false);
 
 saveOfflineFieldCaptureDraft(fieldStorage, fieldDraft);
 assert.deepEqual(getOfflineFieldCaptureDrafts(fieldStorage), [fieldDraft]);

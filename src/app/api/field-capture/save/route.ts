@@ -14,11 +14,11 @@ import {
 } from "@/lib/field-capture";
 
 const buyAgainSchema = z.enum(["yes", "no", "maybe", "cellar_only"]);
-const wineTypeSchema = z.enum(["red", "white", "rose", "rosé", "sparkling", "dessert", "fortified"]).nullable();
+const wineTypeSchema = z.enum(["red", "white", "rose", "sparkling", "dessert", "fortified"]).nullable();
 
 const reviewDraftSchema = z.object({
   producer: z.string().nullable(),
-  label: z.string().nullable(),
+  label: z.string().trim().min(1, "Add the wine label/name before saving this capture"),
   vintage: z.number().int().min(1800).max(2200).nullable(),
   region: z.string().nullable(),
   subregion: z.string().nullable().optional(),
@@ -28,7 +28,7 @@ const reviewDraftSchema = z.object({
   confidence: z.record(z.string(), z.number()).nullable().optional(),
   ambiguous_fields: z.array(z.string()).nullable().optional(),
   title: z.string(),
-  score: z.number().int().min(0).max(100).nullable(),
+  score: z.number().int().min(50).max(100).nullable(),
   buy_again: buyAgainSchema,
   occasion: z.string(),
   descriptors: z.array(z.string()),

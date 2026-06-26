@@ -121,6 +121,24 @@ function testSavePayloadIsDatabaseReady() {
   assert.equal(payload.tasting.extraction.candidate.producer, "Tapiz");
 }
 
+function testSavePayloadNormalizesRoseAccentForDatabase() {
+  const payload = buildSaveTastingPayload(buildReviewDraft({ ...candidate, wine_type: "rosé" }, {
+    score: 90,
+    buy_again: "maybe",
+    occasion: "shop tasting",
+    descriptors: "red fruit",
+    notes: "accent normalization proof",
+  }));
+  assert.equal(payload.wine.wine_type, "rose");
+}
+
+function testSaveReadinessMirrorsServerAndDatabaseConstraints() {
+  assert.equal(canSaveFieldCaptureDraft(buildReviewDraft({ ...candidate, label: null }, { score: 90, buy_again: "maybe", occasion: "shop", descriptors: "", notes: "" })).ok, false);
+  assert.equal(canSaveFieldCaptureDraft(buildReviewDraft({ ...candidate, vintage: 1700 }, { score: 90, buy_again: "maybe", occasion: "shop", descriptors: "", notes: "" })).ok, false);
+  assert.equal(canSaveFieldCaptureDraft(buildReviewDraft(candidate, { score: 49, buy_again: "maybe", occasion: "shop", descriptors: "", notes: "" })).ok, false);
+  assert.equal(canSaveFieldCaptureDraft(buildReviewDraft(candidate, { score: null, buy_again: "maybe", occasion: "shop", descriptors: "", notes: "" })).ok, true);
+}
+
 function testPostSaveActionsArePractical() {
   const actions = createPostSaveActions({ wine_id: "wine-1", tasting_id: "taste-1", inventory_id: "inventory-1", rating_id: "rating-1", is_benchmark: true, buy_again: "yes" });
   assert.deepEqual(actions.map((action) => action.id), ["find-more", "buy-again", "view-bottle", "capture-another"]);
@@ -223,7 +241,7 @@ function testIncompleteIdentityBlocksSaveUntilReviewed() {
     notes: "identity uncertain",
   });
   assert.equal(canSaveFieldCaptureDraft(draft).ok, false);
-  assert.match(canSaveFieldCaptureDraft(draft).reason ?? "", /producer or label/i);
+  assert.match(canSaveFieldCaptureDraft(draft).reason ?? "", /label\/name/i);
   assert.equal(canSaveFieldCaptureDraft(buildReviewDraft(candidate, { score: 90, buy_again: "maybe", occasion: "shop tasting", descriptors: "dark fruit", notes: "" })).ok, true);
 }
 
@@ -334,6 +352,8 @@ for (const test of [
   testBuildReviewDraftPreservesIntelligence,
   testBenchmarkThreshold,
   testSavePayloadIsDatabaseReady,
+  testSavePayloadNormalizesRoseAccentForDatabase,
+  testSaveReadinessMirrorsServerAndDatabaseConstraints,
   testPostSaveActionsArePractical,
   testDescriptorNormalization,
   testWineIdentityKeyNormalizesCaseWhitespaceAndVintage,

@@ -1,11 +1,11 @@
-import { buildSaveTastingPayload, normalizeFieldCaptureIdempotencyKey, type ReviewDraft, type SaveTastingPayload } from "@/lib/field-capture";
+import { normalizeFieldCaptureIdempotencyKey, type ReviewDraft } from "@/lib/field-capture";
 
 export type OfflineFieldCaptureDraftStatus = "queued" | "syncing" | "failed";
 
 export type OfflineFieldCaptureDraft = {
   id: string;
   idempotencyKey: string;
-  payload: SaveTastingPayload;
+  payload: ReviewDraft;
   createdAt: string;
   updatedAt: string;
   status: OfflineFieldCaptureDraftStatus;
@@ -73,11 +73,11 @@ export function createOfflineFieldCaptureDraft(input: {
 }): OfflineFieldCaptureDraft {
   const createdAt = input.createdAt ?? new Date().toISOString();
   const idempotencyKey = normalizeFieldCaptureIdempotencyKey(input.reviewDraft.idempotency_key) ?? createFallbackFieldCaptureKey(createdAt);
-  const payload = buildSaveTastingPayload({
+  const payload: ReviewDraft = {
     ...input.reviewDraft,
     idempotency_key: idempotencyKey,
     evidence_data_url: input.evidenceDataUrl ?? input.reviewDraft.evidence_data_url ?? null,
-  });
+  };
 
   return {
     id: makeDraftId(idempotencyKey, createdAt),

@@ -279,12 +279,15 @@ export function buildCaptureFollowUpHint(question: string | null | undefined, an
   return `Follow-up answer: ${cleanQuestion} ${cleanAnswer}`;
 }
 
-export function canSaveFieldCaptureDraft(draft: Pick<ReviewDraft, "producer" | "label" | "vintage">) {
-  if (!compact(draft.producer) && !compact(draft.label)) {
-    return { ok: false, reason: "Add at least a producer or label before saving this capture." };
+export function canSaveFieldCaptureDraft(draft: Pick<ReviewDraft, "producer" | "label" | "vintage" | "score">) {
+  if (!compact(draft.label)) {
+    return { ok: false, reason: "Add the wine label/name before saving this capture." };
   }
-  if (!draft.vintage && !compact(draft.label)) {
-    return { ok: false, reason: "Add a label or vintage before saving this capture." };
+  if (draft.vintage != null && (!Number.isInteger(draft.vintage) || draft.vintage < 1800 || draft.vintage > 2200)) {
+    return { ok: false, reason: "Use a valid four-digit vintage year, or leave vintage blank." };
+  }
+  if (draft.score != null && (!Number.isInteger(draft.score) || draft.score < 50 || draft.score > 100)) {
+    return { ok: false, reason: "Use a score from 50 to 100, or leave score blank." };
   }
   return { ok: true, reason: null };
 }
@@ -413,7 +416,7 @@ export function buildSaveTastingPayload(draft: ReviewDraft): SaveTastingPayload 
       subregion: candidate.subregion ?? null,
       country: candidate.country,
       varietal: candidate.varietal,
-      wine_type: candidate.wine_type,
+      wine_type: normalizeCellarWineType(candidate.wine_type),
     },
     save_mode: draft.save_mode ?? "memory_only",
     idempotency_key: idempotencyKey,
