@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ExternalLink, RefreshCw, ShoppingBag, TimerReset, Trophy, XCircle } from "lucide-react";
+import { CheckCircle2, ExternalLink, RefreshCw, ShoppingBag, Target, TimerReset, Trophy, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ const laneCopy = {
   dismissed: { title: "Dismissed", description: "No longer worth chasing.", icon: XCircle },
 } as const;
 
-function LaneCard({ item, onAction, busy }: { item: BuyAgainCommandItem; onAction: (id: string, action: BuyAgainAction) => void; busy: boolean }) {
+function LaneCard({ item, onAction, onCreateTarget, busy, creating }: { item: BuyAgainCommandItem; onAction: (id: string, action: BuyAgainAction) => void; onCreateTarget: (id: string) => void; busy: boolean; creating: boolean }) {
   return (
     <div className="rounded-3xl border border-border/70 bg-background p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -74,15 +74,16 @@ function LaneCard({ item, onAction, busy }: { item: BuyAgainCommandItem; onActio
             <a href={item.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Source</a>
           </Button>
         ) : null}
-        {item.lane !== "acquired" ? <Button size="sm" onClick={() => onAction(item.id, "acquired")} disabled={busy}>Mark acquired</Button> : null}
-        {item.lane !== "watch" && item.lane !== "acquired" && item.lane !== "dismissed" ? <Button variant="secondary" size="sm" onClick={() => onAction(item.id, "watch")} disabled={busy}>Watch</Button> : null}
-        {item.lane !== "dismissed" ? <Button variant="ghost" size="sm" onClick={() => onAction(item.id, "dismissed")} disabled={busy}>Dismiss</Button> : null}
+        {item.lane !== "acquired" && item.lane !== "dismissed" ? <Button variant="secondary" size="sm" onClick={() => onCreateTarget(item.id)} disabled={busy || creating}><Target className="mr-2 h-4 w-4" /> {creating ? "Sending" : "Send to Acquisition"}</Button> : null}
+        {item.lane !== "acquired" ? <Button size="sm" onClick={() => onAction(item.id, "acquired")} disabled={busy || creating}>Mark acquired</Button> : null}
+        {item.lane !== "watch" && item.lane !== "acquired" && item.lane !== "dismissed" ? <Button variant="secondary" size="sm" onClick={() => onAction(item.id, "watch")} disabled={busy || creating}>Watch</Button> : null}
+        {item.lane !== "dismissed" ? <Button variant="ghost" size="sm" onClick={() => onAction(item.id, "dismissed")} disabled={busy || creating}>Dismiss</Button> : null}
       </div>
     </div>
   );
 }
 
-function Lane({ name, items, onAction, busyId }: { name: keyof ReturnType<typeof buildBuyAgainCommandCenter>["lanes"]; items: BuyAgainCommandItem[]; onAction: (id: string, action: BuyAgainAction) => void; busyId: string | null }) {
+function Lane({ name, items, onAction, onCreateTarget, busyId, creatingId }: { name: keyof ReturnType<typeof buildBuyAgainCommandCenter>["lanes"]; items: BuyAgainCommandItem[]; onAction: (id: string, action: BuyAgainAction) => void; onCreateTarget: (id: string) => void; busyId: string | null; creatingId: string | null }) {
   const copy = laneCopy[name];
   const Icon = copy.icon;
   return (
@@ -95,7 +96,7 @@ function Lane({ name, items, onAction, busyId }: { name: keyof ReturnType<typeof
         <Badge variant="outline" className="rounded-full">{items.length}</Badge>
       </div>
       <div className="space-y-3">
-        {items.length ? items.map((item) => <LaneCard key={item.id} item={item} onAction={onAction} busy={busyId === item.id} />) : (
+        {items.length ? items.map((item) => <LaneCard key={item.id} item={item} onAction={onAction} onCreateTarget={onCreateTarget} busy={busyId === item.id} creating={creatingId === item.id} />) : (
           <div className="rounded-3xl border border-dashed bg-background/70 p-6 text-sm text-muted-foreground">No bottles in this lane.</div>
         )}
       </div>
@@ -108,6 +109,7 @@ export function BuyAgainLane() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [creatingId, setCreatingId] = useState<string | null>(null);
   const center = useMemo(() => buildBuyAgainCommandCenter(rows), [rows]);
 
   async function loadQueue() {
@@ -153,6 +155,24 @@ export function BuyAgainLane() {
     }
   }
 
+  async function createAcquisitionTarget(id: string) {
+    setCreatingId(id);
+    try {
+      const response = await fetch("/api/buy-again", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, desiredQuantity: 1 }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload.error ?? "Could not send Buy Again target to Acquisition Engine");
+      toast.success("Buy Again target sent to Acquisition Engine.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not send Buy Again target to Acquisition Engine");
+    } finally {
+      setCreatingId(null);
+    }
+  }
+
   return (
     <Card id="buy-again" className="rounded-[28px] border-border/70 bg-background/90 shadow-sm">
       <CardHeader>
@@ -191,10 +211,10 @@ export function BuyAgainLane() {
         ) : null}
         {!isLoading && rows.length ? (
           <div className="grid gap-4 xl:grid-cols-2">
-            <Lane name="buyNow" items={center.lanes.buyNow} onAction={updateStatus} busyId={busyId} />
-            <Lane name="watch" items={center.lanes.watch} onAction={updateStatus} busyId={busyId} />
-            <Lane name="acquired" items={center.lanes.acquired} onAction={updateStatus} busyId={busyId} />
-            <Lane name="dismissed" items={center.lanes.dismissed} onAction={updateStatus} busyId={busyId} />
+            <Lane name="buyNow" items={center.lanes.buyNow} onAction={updateStatus} onCreateTarget={createAcquisitionTarget} busyId={busyId} creatingId={creatingId} />
+            <Lane name="watch" items={center.lanes.watch} onAction={updateStatus} onCreateTarget={createAcquisitionTarget} busyId={busyId} creatingId={creatingId} />
+            <Lane name="acquired" items={center.lanes.acquired} onAction={updateStatus} onCreateTarget={createAcquisitionTarget} busyId={busyId} creatingId={creatingId} />
+            <Lane name="dismissed" items={center.lanes.dismissed} onAction={updateStatus} onCreateTarget={createAcquisitionTarget} busyId={busyId} creatingId={creatingId} />
           </div>
         ) : null}
       </CardContent>

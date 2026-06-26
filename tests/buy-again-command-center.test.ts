@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   buildBuyAgainCommandCenter,
+  buyAgainItemToAcquisitionTarget,
   nextBuyAgainStatus,
   type BuyAgainQueueRow,
 } from "../src/lib/buy-again-command-center";
@@ -102,8 +103,23 @@ function testStatusTransitions() {
   assert.ok(nextBuyAgainStatus("dismissed").dismissed_at);
 }
 
+function testBuyAgainConvertsToAcquisitionTarget() {
+  const payload = buyAgainItemToAcquisitionTarget(rows[0], { desiredQuantity: 3 });
+
+  assert.equal(payload.sourceKind, "buy_again");
+  assert.equal(payload.sourceId, "q-buy");
+  assert.equal(payload.wineTitle, "2021 Tapiz Alta Collection Cabernet Sauvignon");
+  assert.equal(payload.status, "buy_now");
+  assert.equal(payload.priority, "must_have");
+  assert.equal(payload.desiredQuantity, 3);
+  assert.equal(payload.targetPriceCents, 3000);
+  assert.equal(payload.maxPriceCents, 3600);
+  assert.match(payload.notes ?? "", /Buy Again/);
+}
+
 testBuildsOperationalLanes();
 testPriceHistoryAndConfidence();
 testStatusTransitions();
+testBuyAgainConvertsToAcquisitionTarget();
 
 console.log("buy-again-command-center tests passed");

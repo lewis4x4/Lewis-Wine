@@ -54,7 +54,10 @@ assert.ok(mode.shoppingBrief.includes("Buy 6 × 2021 Tapiz"));
 assert.ok(mode.budgetWarning === null);
 
 const payload = shoppingPickToAcquisitionTarget(mode.recommendations[0], "Benchmark Wine Shop");
+const repeatedPayload = shoppingPickToAcquisitionTarget(mode.recommendations[0], "Benchmark Wine Shop");
 assert.equal(payload.sourceKind, "shopping");
+assert.match(payload.sourceId ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+assert.equal(payload.sourceId, repeatedPayload.sourceId);
 assert.equal(payload.status, "buy_now");
 assert.equal(payload.targetPriceCents, 9200);
 assert.equal(payload.maxPriceCents, 11040);

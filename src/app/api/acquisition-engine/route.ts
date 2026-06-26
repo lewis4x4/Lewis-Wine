@@ -250,7 +250,8 @@ export async function GET() {
     const user = await currentUser(supabase);
     if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: targetRows, error: targetError } = await (supabase as any)
+    const client = supabase as any;
+    const { data: targetRows, error: targetError } = await client
       .from("acquisition_watchlist")
       .select("*")
       .eq("user_id", user.id)
@@ -260,8 +261,7 @@ export async function GET() {
     const targetIds = ((targetRows ?? []) as Record<string, unknown>[]).map((row) => String(row.id));
     let priceRows: Record<string, unknown>[] = [];
     if (targetIds.length) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      const { data, error } = await client
         .from("acquisition_price_observations")
         .select("*")
         .in("target_id", targetIds)
@@ -282,6 +282,8 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const user = await currentUser(supabase);
     if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = supabase as any;
     const url = new URL(request.url);
     if (url.searchParams.get("kind") === "refresh") {
       const input = refreshSchema.parse(await request.json());
@@ -291,11 +293,9 @@ export async function POST(request: Request) {
     }
     if (url.searchParams.get("kind") === "price") {
       const input = priceSchema.parse(await request.json());
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: target } = await (supabase as any).from("acquisition_watchlist").select("id,user_id").eq("id", input.targetId).eq("user_id", user.id).single();
+      const { data: target } = await client.from("acquisition_watchlist").select("id,user_id").eq("id", input.targetId).eq("user_id", user.id).single();
       if (!target) return NextResponse.json({ success: false, error: "Target not found" }, { status: 404 });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).from("acquisition_price_observations").insert({
+      const { data, error } = await client.from("acquisition_price_observations").insert({
         target_id: input.targetId,
         source_type: input.sourceType,
         source_name: input.sourceName ?? null,
@@ -308,15 +308,35 @@ export async function POST(request: Request) {
         notes: input.notes ?? null,
       }).select().single();
       if (error) throw error;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("acquisition_watchlist").update({ last_refreshed_at: new Date().toISOString(), best_price_observation_id: data.id }).eq("id", input.targetId).eq("user_id", user.id);
+      await client.from("acquisition_watchlist").update({ last_refreshed_at: new Date().toISOString(), best_price_observation_id: data.id }).eq("id", input.targetId).eq("user_id", user.id);
       return NextResponse.json({ success: true, observation: priceFromDb(data) });
     }
     const input = targetSchema.parse(await request.json());
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).from("acquisition_watchlist").insert(targetToDb(input, user.id)).select().single();
+    const row = targetToDb(input, user.id);
+    let existingTargetId: string | null = null;
+    if (input.sourceId) {
+      const { data: existing, error: existingError } = await client
+        .from("acquisition_watchlist")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("source_kind", input.sourceKind)
+        .eq("source_id", input.sourceId)
+        .maybeSingle();
+      if (existingError) throw existingError;
+      existingTargetId = existing?.id ? String(existing.id) : null;
+    }
+    const query = existingTargetId
+      ? client
+        .from("acquisition_watchlist")
+        .update(row)
+        .eq("id", existingTargetId)
+        .eq("user_id", user.id)
+      : client
+        .from("acquisition_watchlist")
+        .insert(row);
+    const { data, error } = await query.select().single();
     if (error) throw error;
-    return NextResponse.json({ success: true, target: targetFromDb(data) });
+    return NextResponse.json({ success: true, target: targetFromDb(data), replayed: Boolean(existingTargetId) });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Failed to save acquisition target" }, { status: 400 });
   }

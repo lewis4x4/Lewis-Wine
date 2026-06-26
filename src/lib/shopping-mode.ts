@@ -52,6 +52,7 @@ export type AcquisitionTargetPayload = {
   region: string | null;
   varietal: string | null;
   sourceKind: AcquisitionSourceKind;
+  sourceId?: string | null;
   status: AcquisitionStatus;
   priority: AcquisitionPriority;
   desiredQuantity: number;
@@ -277,16 +278,38 @@ function formatCents(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
 }
 
+function stableUuidFromText(value: string) {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  let h3 = 0xc0ffee;
+  let h4 = 0x9e3779b9;
+  for (let i = 0; i < value.length; i += 1) {
+    const ch = value.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ ch, 2246822507);
+    h4 = Math.imul(h4 ^ ch, 3266489909);
+  }
+  const bytes = [h1, h2, h3, h4].flatMap((hash) => [hash >>> 24, hash >>> 16, hash >>> 8, hash].map((part) => part & 0xff));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
 export function shoppingPickToAcquisitionTarget(recommendation: ShoppingRecommendation, retailer?: string | null): AcquisitionTargetPayload {
   const item = recommendation.item;
   const priceCents = item.price != null ? Math.round(item.price * 100) : null;
+  const wineTitle = [item.vintage, item.producer, item.label].filter(Boolean).join(" ");
+  const sourceId = stableUuidFromText(["shopping", retailer ?? "", wineTitle, item.region ?? "", item.varietal ?? "", item.price ?? "", item.availability].join("|"));
   return {
-    wineTitle: [item.vintage, item.producer, item.label].filter(Boolean).join(" "),
+    wineTitle,
     producer: item.producer ?? null,
     vintage: item.vintage ?? null,
     region: item.region ?? null,
     varietal: item.varietal ?? null,
     sourceKind: "shopping",
+    sourceId,
     status: recommendation.decision === "Buy Now" ? "buy_now" : "watching",
     priority: recommendation.acquisitionPriority,
     desiredQuantity: Math.max(1, recommendation.quantityToBuy || 1),

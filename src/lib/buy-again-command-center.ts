@@ -72,6 +72,23 @@ export type BuyAgainCommandCenter = {
   };
 };
 
+export type BuyAgainAcquisitionTargetPayload = {
+  wineTitle: string;
+  producer?: string | null;
+  vintage?: number | null;
+  region?: string | null;
+  varietal?: string | null;
+  sourceKind: "buy_again";
+  sourceId: string;
+  status: "buy_now" | "watching";
+  priority: "must_have" | "high" | "medium" | "low";
+  desiredQuantity: number;
+  targetPriceCents?: number | null;
+  maxPriceCents?: number | null;
+  nextRefreshAt: string;
+  notes: string;
+};
+
 function money(value?: number | null, currency = "USD") {
   if (value == null || !Number.isFinite(value)) return "Unknown";
   return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
@@ -198,6 +215,29 @@ export function buildBuyAgainCommandCenter(rows: BuyAgainQueueRow[], options: { 
       }, null),
     },
     lanes,
+  };
+}
+
+export function buyAgainItemToAcquisitionTarget(row: BuyAgainQueueRow, options: { desiredQuantity?: number; now?: Date } = {}): BuyAgainAcquisitionTargetPayload {
+  const best = bestObservation(row);
+  const title = titleFor(row.wine);
+  const targetPriceCents = row.target_price == null ? best?.price != null ? Math.round(best.price * 100) : null : Math.round(row.target_price * 100);
+  const strong = row.status === "active" && best != null && chooseLane(row, best, options.now ?? new Date()) === "buyNow";
+  return {
+    wineTitle: title,
+    producer: row.wine.producer ?? null,
+    vintage: row.wine.vintage ?? null,
+    region: row.wine.region ?? null,
+    varietal: row.wine.varietal ?? null,
+    sourceKind: "buy_again",
+    sourceId: row.id,
+    status: strong ? "buy_now" : "watching",
+    priority: strong ? "must_have" : "high",
+    desiredQuantity: Math.max(1, options.desiredQuantity ?? 1),
+    targetPriceCents,
+    maxPriceCents: targetPriceCents == null ? null : Math.round(targetPriceCents * 1.2),
+    nextRefreshAt: new Date((options.now ?? new Date()).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    notes: `Buy Again Command Center: ${title}. ${reasonsFor(row, strong ? "buyNow" : "watch", best).join(" ")}`,
   };
 }
 

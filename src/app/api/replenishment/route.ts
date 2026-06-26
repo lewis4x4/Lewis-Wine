@@ -221,9 +221,19 @@ export async function POST(request: Request) {
     const payload = replenishmentPromptToAcquisitionTarget(prompt);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = auth.supabase as any;
-    const { data: target, error: targetError } = await client
+    const row = targetPayloadToDb(payload, auth.user.id);
+    const { data: existingTarget, error: existingTargetError } = await client
       .from("acquisition_watchlist")
-      .insert(targetPayloadToDb(payload, auth.user.id))
+      .select("id")
+      .eq("user_id", auth.user.id)
+      .eq("source_kind", payload.sourceKind)
+      .eq("source_id", payload.sourceId)
+      .maybeSingle();
+    if (existingTargetError) throw existingTargetError;
+    const targetQuery = existingTarget?.id
+      ? client.from("acquisition_watchlist").update(row).eq("id", existingTarget.id).eq("user_id", auth.user.id)
+      : client.from("acquisition_watchlist").insert(row);
+    const { data: target, error: targetError } = await targetQuery
       .select()
       .single();
     if (targetError) throw targetError;
