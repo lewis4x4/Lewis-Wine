@@ -58,13 +58,56 @@ type SaveResult = {
   rating?: { id: string } | null;
 };
 
-function dataUrlFromFile(file: File) {
+const maxCaptureImageDataUrlChars = 5_500_000;
+const maxCaptureImageDimension = 1800;
+
+function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Could not read image"));
     reader.onload = () => resolve(String(reader.result));
     reader.readAsDataURL(file);
   });
+}
+
+function loadImageFromObjectUrl(objectUrl: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new window.Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Could not load image for capture"));
+    image.src = objectUrl;
+  });
+}
+
+async function dataUrlFromFile(file: File) {
+  if (typeof window === "undefined" || typeof document === "undefined") return readFileAsDataUrl(file);
+  if (file.size <= 3_500_000 && ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+    const original = await readFileAsDataUrl(file);
+    if (original.length <= maxCaptureImageDataUrlChars) return original;
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await loadImageFromObjectUrl(objectUrl);
+    const scale = Math.min(1, maxCaptureImageDimension / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Could not prepare image for capture");
+    context.drawImage(image, 0, 0, width, height);
+
+    for (const quality of [0.82, 0.72, 0.62, 0.52]) {
+      const compressed = canvas.toDataURL("image/jpeg", quality);
+      if (compressed.length <= maxCaptureImageDataUrlChars) return compressed;
+    }
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+
+  throw new Error("Photo is too large to prepare automatically. Please crop closer to the label and try again.");
 }
 
 async function labelScanFromDataUrl(dataUrl: string): Promise<LabelScanResult> {

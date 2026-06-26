@@ -40,7 +40,12 @@ function validateBase64Image(mediaType: string, base64: string): { error: string
 async function readLabelImage(request: NextRequest): Promise<LabelImagePayload | { error: string; status: number }> {
   const contentType = request.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
-    const body = await request.json() as { data_url?: string; image_base64?: string; media_type?: string };
+    let body: { data_url?: string; image_base64?: string; media_type?: string };
+    try {
+      body = await request.json() as { data_url?: string; image_base64?: string; media_type?: string };
+    } catch {
+      return { error: "Image payload was too large or incomplete. Please upload the label photo again.", status: 413 };
+    }
     const payload = body.data_url ? parseDataUrl(body.data_url) : body.image_base64 && body.media_type ? { mediaType: body.media_type as LabelImageMediaType, base64: body.image_base64 } : null;
     if (!payload) return { error: "No label image provided", status: 400 };
     const validationError = validateBase64Image(payload.mediaType, payload.base64);
