@@ -4,6 +4,7 @@ import { AcquisitionReceiptPanel } from "@/components/wine/acquisition-receipt-p
 import { BuyAgainLane } from "@/components/wine/buy-again-lane";
 import { CaptureCommandCard } from "@/components/wine/capture-command-card";
 import { ReplenishmentAutomationPanel } from "@/components/wine/replenishment-automation-panel";
+import { PortfolioRadarPanel } from "@/components/wine/portfolio-radar-panel";
 import { TasteGenomeDashboard } from "@/components/wine/taste-genome-dashboard";
 import { WineListAdvisor } from "@/components/wine/wine-list-advisor";
 import { BOUGHT_WINE_INTAKE, boughtWineIntakeHref } from "@/lib/purchase-intake";
@@ -22,6 +23,7 @@ export default function PourfolioIntelligencePage() {
           <p className="text-lg leading-8 text-muted-foreground">Capture why Brian loves a bottle, mark 94+ wines as benchmarks, find more with sourced evidence, and rank restaurant lists against his real palate.</p>
           <div className="flex flex-wrap gap-2 pt-3 text-sm">
             <Link href={boughtWineIntakeHref()} className="rounded-full border border-primary/30 bg-primary px-4 py-2 font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">{BOUGHT_WINE_INTAKE.primaryLabel}</Link>
+            <Link href="#portfolio-radar" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Portfolio Radar</Link>
             <Link href="/capture" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Capture bottle</Link>
             <Link href="#buy-again" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Buy Again</Link>
             <Link href="#replenishment" className="rounded-full border bg-background/80 px-4 py-2 font-medium transition-colors hover:bg-accent">Replenishment</Link>
@@ -33,6 +35,7 @@ export default function PourfolioIntelligencePage() {
           </div>
         </div>
       </section>
+      <PortfolioRadarPanel />
       <CaptureCommandCard />
       <BuyAgainLane />
       <ReplenishmentAutomationPanel />
