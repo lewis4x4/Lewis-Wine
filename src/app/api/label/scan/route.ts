@@ -3,11 +3,68 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropicApiKey } from "@/lib/anthropic-config";
 import { createClient } from "@/lib/supabase/server";
 import {
+  MAX_AI_IMAGE_UPLOAD_BYTES,
   checkRateLimit,
   isAllowedAiImageMimeType,
   validateAiImageUpload,
 } from "@/lib/api-security";
 import type { LabelScanResult } from "@/types/database";
+
+type LabelImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
+type LabelImagePayload = {
+  mediaType: LabelImageMediaType;
+  base64: string;
+};
+
+function parseDataUrl(dataUrl: string): LabelImagePayload | null {
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+  return { mediaType: match[1] as LabelImageMediaType, base64: match[2] };
+}
+
+function validateBase64Image(mediaType: string, base64: string): { error: string; status: number } | null {
+  if (!isAllowedAiImageMimeType(mediaType)) {
+    return { error: "Invalid image format. Please upload a JPEG, PNG, GIF, or WebP image.", status: 400 };
+  }
+  const normalized = base64.trim();
+  if (!normalized || !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized) || normalized.length % 4 !== 0) {
+    return { error: "Invalid image data. Please upload the label photo again.", status: 400 };
+  }
+  const byteLength = Buffer.byteLength(normalized, "base64");
+  if (!byteLength) return { error: "Invalid image data. Please upload the label photo again.", status: 400 };
+  if (byteLength > MAX_AI_IMAGE_UPLOAD_BYTES) return { error: "Image is too large. Maximum upload size is 8MB.", status: 400 };
+  return null;
+}
+
+async function readLabelImage(request: NextRequest): Promise<LabelImagePayload | { error: string; status: number }> {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const body = await request.json() as { data_url?: string; image_base64?: string; media_type?: string };
+    const payload = body.data_url ? parseDataUrl(body.data_url) : body.image_base64 && body.media_type ? { mediaType: body.media_type as LabelImageMediaType, base64: body.image_base64 } : null;
+    if (!payload) return { error: "No label image provided", status: 400 };
+    const validationError = validateBase64Image(payload.mediaType, payload.base64);
+    return validationError ?? payload;
+  }
+
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return { error: "Invalid image upload body. Please choose the label photo again.", status: 400 };
+  }
+  const file =
+    (formData.get("label") as File | null) ??
+    (formData.get("image") as File | null);
+
+  if (!file) return { error: "No label image provided", status: 400 };
+
+  const uploadError = validateAiImageUpload(file);
+  if (uploadError) return { error: uploadError, status: 400 };
+
+  const bytes = await file.arrayBuffer();
+  return { mediaType: file.type as LabelImageMediaType, base64: Buffer.from(bytes).toString("base64") };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -55,39 +112,13 @@ export async function POST(request: NextRequest) {
       apiKey,
     });
 
-    const formData = await request.formData();
-    const file =
-      (formData.get("label") as File | null) ??
-      (formData.get("image") as File | null);
-
-    if (!file) {
+    const image = await readLabelImage(request);
+    if ("error" in image) {
       return NextResponse.json(
-        { success: false, error: "No label image provided", wine: null, raw_text: "" },
-        { status: 400 }
+        { success: false, error: image.error, wine: null, raw_text: "" },
+        { status: image.status }
       );
     }
-
-    // Determine media type before buffering
-    const uploadError = validateAiImageUpload(file);
-    if (uploadError) {
-      return NextResponse.json(
-        { success: false, error: uploadError, wine: null, raw_text: "" },
-        { status: 400 }
-      );
-    }
-
-    const mediaType = file.type;
-
-    if (!isAllowedAiImageMimeType(mediaType)) {
-      return NextResponse.json(
-        { success: false, error: "Invalid image format. Please upload a JPEG, PNG, GIF, or WebP image.", wine: null, raw_text: "" },
-        { status: 400 }
-      );
-    }
-
-    // Convert file to base64 after validation
-    const bytes = await file.arrayBuffer();
-    const base64 = Buffer.from(bytes).toString("base64");
 
     // Call Claude Vision API
     const response = await anthropic.messages.create({
@@ -101,8 +132,8 @@ export async function POST(request: NextRequest) {
               type: "image",
               source: {
                 type: "base64",
-                media_type: mediaType,
-                data: base64,
+                media_type: image.mediaType,
+                data: image.base64,
               },
             },
             {

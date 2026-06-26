@@ -69,13 +69,10 @@ function dataUrlFromFile(file: File) {
 
 async function labelScanFromDataUrl(dataUrl: string): Promise<LabelScanResult> {
   const request = buildCaptureWineRequest(dataUrl);
-  const image = await fetch(`data:${request.media_type};base64,${request.image_base64}`).then((response) => response.blob());
-  const formData = new FormData();
-  formData.append("label", image, `field-capture.${request.media_type.split("/")[1] ?? "jpg"}`);
-
   const response = await fetch("/api/label/scan", {
     method: "POST",
-    body: formData,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ media_type: request.media_type, image_base64: request.image_base64 }),
   });
   const data = await response.json() as LabelScanResult;
   if (!response.ok || !data.success || !data.wine) throw new Error(data.error || "Could not read the label");
