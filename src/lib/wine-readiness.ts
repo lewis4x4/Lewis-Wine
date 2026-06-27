@@ -3,6 +3,10 @@ export type WineWindowInput = {
   drink_before?: string | null;
   peak_start?: string | null;
   peak_end?: string | null;
+  evidence_drink_after?: string | null;
+  evidence_drink_before?: string | null;
+  evidence_peak_start?: string | null;
+  evidence_peak_end?: string | null;
   reference_drink_after?: string | null;
   reference_drink_before?: string | null;
   reference_peak_start?: string | null;
@@ -25,7 +29,7 @@ export type WineReadinessPhase =
   | "drink_soon"
   | "past_peak"
   | "needs_review";
-export type WineReadinessSource = "inventory" | "wine_reference" | "partial" | "missing" | "invalid";
+export type WineReadinessSource = "inventory" | "drink_window_evidence" | "wine_reference" | "partial" | "missing" | "invalid";
 export type WineReadinessConfidence = "source-backed" | "reference-backed" | "partial" | "unknown" | "needs-review";
 export type WineReadinessNextAction =
   | "set_drink_window"
@@ -134,6 +138,10 @@ function resolveWindow(wine: WineWindowInput): WindowResolution {
   const inventoryEndRaw = firstValue(wine.drink_before);
   const inventoryPeakStartRaw = firstValue(wine.peak_start);
   const inventoryPeakEndRaw = firstValue(wine.peak_end);
+  const evidenceStartRaw = firstValue(wine.evidence_drink_after);
+  const evidenceEndRaw = firstValue(wine.evidence_drink_before);
+  const evidencePeakStartRaw = firstValue(wine.evidence_peak_start);
+  const evidencePeakEndRaw = firstValue(wine.evidence_peak_end);
   const referenceStartRaw = firstValue(
     wine.wine_reference_drink_window_start,
     wine.reference_drink_after,
@@ -147,21 +155,40 @@ function resolveWindow(wine: WineWindowInput): WindowResolution {
   const referencePeakStartRaw = firstValue(wine.wine_reference_peak_start, wine.reference_peak_start);
   const referencePeakEndRaw = firstValue(wine.wine_reference_peak_end, wine.reference_peak_end);
 
-  const startRaw = inventoryStartRaw ?? referenceStartRaw;
-  const endRaw = inventoryEndRaw ?? referenceEndRaw;
-  const peakStartRaw = inventoryPeakStartRaw ?? referencePeakStartRaw;
-  const peakEndRaw = inventoryPeakEndRaw ?? referencePeakEndRaw;
+  let source: WineReadinessSource = "missing";
+  let startRaw: string | null;
+  let endRaw: string | null;
+  let peakStartRaw: string | null;
+  let peakEndRaw: string | null;
+  if (inventoryStartRaw || inventoryEndRaw) {
+    source = "inventory";
+    startRaw = inventoryStartRaw;
+    endRaw = inventoryEndRaw;
+    peakStartRaw = inventoryPeakStartRaw;
+    peakEndRaw = inventoryPeakEndRaw;
+  } else if (evidenceStartRaw || evidenceEndRaw) {
+    source = "drink_window_evidence";
+    startRaw = evidenceStartRaw;
+    endRaw = evidenceEndRaw;
+    peakStartRaw = evidencePeakStartRaw;
+    peakEndRaw = evidencePeakEndRaw;
+  } else if (referenceStartRaw || referenceEndRaw) {
+    source = "wine_reference";
+    startRaw = referenceStartRaw;
+    endRaw = referenceEndRaw;
+    peakStartRaw = referencePeakStartRaw;
+    peakEndRaw = referencePeakEndRaw;
+  } else {
+    startRaw = null;
+    endRaw = null;
+    peakStartRaw = null;
+    peakEndRaw = null;
+  }
+
   const start = boundary(startRaw, "start");
   const end = boundary(endRaw, "end");
   const peakStart = boundary(peakStartRaw, "start");
   const peakEnd = boundary(peakEndRaw, "end");
-
-  let source: WineReadinessSource = "missing";
-  if (inventoryStartRaw || inventoryEndRaw) {
-    source = "inventory";
-  } else if (referenceStartRaw || referenceEndRaw) {
-    source = "wine_reference";
-  }
   if ((startRaw || endRaw) && (!start || !end)) {
     source = source === "missing" ? "partial" : source;
   }
@@ -219,7 +246,7 @@ function confidenceFor(resolution: WindowResolution): WineReadinessConfidence {
   if (!resolution.start && !resolution.end) return "unknown";
   if (!resolution.start || !resolution.end) return "partial";
   if (resolution.source === "wine_reference") return "reference-backed";
-  if (resolution.source === "inventory") return "source-backed";
+  if (resolution.source === "inventory" || resolution.source === "drink_window_evidence") return "source-backed";
   return "partial";
 }
 
@@ -265,9 +292,13 @@ function reasonForPhase(phase: WineReadinessPhase, resolution: WindowResolution)
     case "entering_window":
       return "The bottle is approaching the start of its drinking window.";
     case "ready":
-      return resolution.source === "wine_reference"
-        ? "Linked reference drink-window evidence says this bottle is ready."
-        : "The bottle is inside its drinking window.";
+      if (resolution.source === "wine_reference") {
+        return "Linked reference drink-window evidence says this bottle is ready.";
+      }
+      if (resolution.source === "drink_window_evidence") {
+        return "Accepted source-backed drink-window evidence says this bottle is ready.";
+      }
+      return "The bottle is inside its drinking window.";
     case "at_peak":
       return "The bottle is inside its modeled peak band.";
     case "drink_soon":
