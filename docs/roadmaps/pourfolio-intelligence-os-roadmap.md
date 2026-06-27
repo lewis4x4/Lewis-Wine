@@ -862,7 +862,7 @@ Record-only v1 uses a hosted Netlify scheduled function for app truth. Hermes ca
 
 ## Phase 6 — Outcome and Learning Loop
 
-**Status:** Needed to make the system compound.
+**Status:** Done for v1 in `fd8881a`; durable Portfolio Radar outcomes now close/open/dismiss prompts without rewriting source-backed evidence.
 
 ### Goal
 
@@ -904,11 +904,17 @@ Create/modify:
 - Restaurant/shopping choices become durable signals.
 - Action history appears in bottle timeline.
 
+Completed v1:
+
+- `fd8881a` adds `cellar_action_outcomes`, an authenticated replay-safe Portfolio Radar outcomes API, outcome-aware Radar suppression/summary logic, and UI affordances for marking actions opened/dismissed/skipped.
+- Outcomes are explicitly first-party learning records only; they do not rewrite trusted drink-window or valuation evidence.
+- Deeper restaurant/shopping/Tonight feedback loops can extend the same outcome spine later, but the autonomous roadmap's required action-outcome foundation is shipped.
+
 ---
 
 ## Phase 7 — Provider and Data-source Expansion
 
-**Status:** After evidence/action spine is working.
+**Status:** Later; human-approved source/budget decision outside the autonomous build loop.
 
 ### Goal
 
@@ -946,22 +952,18 @@ Improve valuation accuracy with better data sources.
 | Automated refresh queue foundation | Done | Commit `4e6bb44`; Portfolio Radar now derives cellar-wide refresh due items from readiness, accepted valuation evidence, stale evidence, high-value gaps, cooldowns, explicit skip reasons, and budget controls. |
 | Refresh execution ledger + API | Done | Commit `6123c96`; authenticated record-only runner persists due planned rows and planner skip summaries to `wine_intelligence_refreshes` without paid provider calls. |
 | Hosted schedule trigger + daily/weekly summary | Done | Commit `a2ce830`; Netlify daily scheduled function calls a protected server-side route that generates Brian's current refresh plan, records due/skipped rows, and returns daily/weekly summaries. |
-| Outcome/learning loop | Next | Build durable Insight → Action → Outcome learning so drink/buy/sell/skip/dismiss actions teach Pourfolio. |
-| Provider-backed valuation | Later | Build after evidence/action spine. |
+| Outcome/learning loop | Done | Commit `fd8881a`; durable action outcomes now close/open/dismiss Radar prompts without rewriting source-backed evidence. |
+| Provider-backed valuation | Later | Human-approved provider/data-source expansion remains outside the autonomous build loop until Brian chooses sources/budget. |
 
 ---
 
-## Recommended Next Build Slice
+## Recommended Next Decision
 
-Build **Outcome and Learning Loop v1**.
+The autonomous roadmap is complete. The remaining roadmap item is **Provider and Data-source Expansion**, which is intentionally marked Later because it needs Brian's source and budget choice before any paid/provider-backed valuation work starts.
 
-Why this next:
+If Brian wants to continue beyond the autonomous build loop, the next decision is which source path to authorize first: CellarTracker import/export hardening, Wine Market Journal, Wine-Searcher provider/pro, auction-comps provider, or manual broker/appraisal ingestion.
 
-- Portfolio Radar now surfaces actions and the scheduled refresh path records what needs attention.
-- Pourfolio still needs action outcomes so drink/buy/sell/skip/dismiss decisions close the loop instead of remaining advice.
-- The next spine should let opening a bottle, dismissing an alert, buying/replenishing, or passing on a recommendation become durable learning for future readiness, replenishment, and Brian-Fit decisions.
-
-Do not weaken auth/RLS, spend money, or change secrets. Routine non-destructive schema/deploy/smoke work is approved when needed to finish the slice safely; paid provider/LLM execution needs explicit budget controls and approval.
+Do not weaken auth/RLS, spend money, change secrets, scrape protected sources, or call paid provider/LLM paths without explicit budget/source approval.
 
 ---
 
