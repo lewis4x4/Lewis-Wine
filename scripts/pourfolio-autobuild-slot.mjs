@@ -63,12 +63,30 @@ function appendLog(event, details = {}) {
   fs.appendFileSync(logPath, `- ${nowIso()} ${event}${fields ? ` ${fields}` : ""}\n`);
 }
 
-function isStale(lock) {
-  if (!lock?.expiresAt) return false;
-  return Date.now() > new Date(lock.expiresAt).getTime();
+function staleInfo(lock) {
+  if (!lock) return { stale: false };
+
+  if (lock.expiresAt) {
+    const expiresAtMs = new Date(lock.expiresAt).getTime();
+    if (Number.isFinite(expiresAtMs) && Date.now() > expiresAtMs) {
+      return { stale: true, reason: "ttl_expired" };
+    }
+  }
+
+  const heartbeatTimeoutMinutes = Number(lock.heartbeatTimeoutMinutes ?? 35);
+  const heartbeatAt = lock.heartbeatAt || lock.startedAt;
+  if (heartbeatTimeoutMinutes > 0 && heartbeatAt) {
+    const heartbeatAtMs = new Date(heartbeatAt).getTime();
+    const heartbeatTimeoutMs = heartbeatTimeoutMinutes * 60 * 1000;
+    if (Number.isFinite(heartbeatAtMs) && Date.now() - heartbeatAtMs > heartbeatTimeoutMs) {
+      return { stale: true, reason: "heartbeat_timeout", heartbeatAt };
+    }
+  }
+
+  return { stale: false };
 }
 
-function archiveStaleLock(lock) {
+function archiveStaleLock(lock, info = staleInfo(lock)) {
   ensureFiles();
   const archivePath = path.join(staleDir, `${lock?.slotId ?? defaultSlotId()}.json`);
   try {
@@ -81,6 +99,9 @@ function archiveStaleLock(lock) {
     agent: lock?.agent,
     startedAt: lock?.startedAt,
     expiredAt: lock?.expiresAt,
+    staleReason: info.reason,
+    heartbeatAt: info.heartbeatAt || lock?.heartbeatAt,
+    heartbeatTimeoutMinutes: lock?.heartbeatTimeoutMinutes,
   });
 }
 
@@ -92,13 +113,15 @@ function print(payload, exitCode = 0) {
 function acquire(args) {
   ensureFiles();
   const existing = readJson(lockPath);
-  if (existing && isStale(existing)) {
-    archiveStaleLock(existing);
+  const existingStale = staleInfo(existing);
+  if (existing && existingStale.stale) {
+    archiveStaleLock(existing, existingStale);
   } else if (existing) {
     print({ acquired: false, reason: "busy", lock: existing, logPath: path.relative(repoRoot, logPath) }, 2);
   }
 
   const ttlMinutes = Number(args.ttlMinutes ?? 115);
+  const heartbeatTimeoutMinutes = Number(args.heartbeatTimeoutMinutes ?? 35);
   const slotId = args.slotId || defaultSlotId();
   const startedAt = nowIso();
   const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
@@ -107,8 +130,12 @@ function acquire(args) {
     status: "picked_up",
     agent: args.agent || `hermes-cron@${os.hostname()}`,
     pid: process.pid,
+    acquirePid: process.pid,
     startedAt,
     expiresAt,
+    heartbeatAt: startedAt,
+    heartbeatCount: 0,
+    heartbeatTimeoutMinutes,
     repoRoot,
     roadmapPath: "docs/roadmaps/pourfolio-intelligence-os-roadmap.md",
     queuePath: path.relative(repoRoot, queuePath),
@@ -126,6 +153,30 @@ function acquire(args) {
 
   appendLog("picked_up", { slot: slotId, agent: lock.agent, expiresAt, queue: path.relative(repoRoot, queuePath) });
   print({ acquired: true, lock, lockPath: path.relative(repoRoot, lockPath), logPath: path.relative(repoRoot, logPath) });
+}
+
+function heartbeat(args) {
+  ensureFiles();
+  const lock = readJson(lockPath);
+  if (!lock) {
+    print({ updated: false, reason: "no_active_slot", logPath: path.relative(repoRoot, logPath) }, 2);
+  }
+
+  const slotId = args.slotId || lock.slotId;
+  if (slotId !== lock.slotId) {
+    print({ updated: false, reason: "slot_mismatch", requestedSlotId: slotId, lock, logPath: path.relative(repoRoot, logPath) }, 2);
+  }
+
+  const heartbeatAt = nowIso();
+  const heartbeatCount = Number(lock.heartbeatCount ?? 0) + 1;
+  const nextLock = {
+    ...lock,
+    heartbeatAt,
+    heartbeatCount,
+    heartbeatSummary: args.summary || lock.heartbeatSummary || null,
+  };
+  fs.writeFileSync(lockPath, JSON.stringify(nextLock, null, 2));
+  print({ updated: true, slotId, heartbeatAt, heartbeatCount, heartbeatSummary: nextLock.heartbeatSummary, lockPath: path.relative(repoRoot, lockPath) });
 }
 
 function release(args, event) {
@@ -148,10 +199,11 @@ function release(args, event) {
 function status() {
   ensureFiles();
   const lock = readJson(lockPath);
+  const info = staleInfo(lock);
   const logTail = fs.existsSync(logPath)
     ? fs.readFileSync(logPath, "utf8").trim().split("\n").slice(-12)
     : [];
-  print({ busy: Boolean(lock && !isStale(lock)), stale: Boolean(lock && isStale(lock)), lock, queuePath: path.relative(repoRoot, queuePath), logPath: path.relative(repoRoot, logPath), logTail });
+  print({ busy: Boolean(lock && !info.stale), stale: Boolean(lock && info.stale), staleReason: info.reason, lock, queuePath: path.relative(repoRoot, queuePath), logPath: path.relative(repoRoot, logPath), logTail });
 }
 
 const args = parseArgs(process.argv.slice(2));
@@ -162,6 +214,9 @@ switch (args.command) {
   case "complete":
     release(args, "complete");
     break;
+  case "heartbeat":
+    heartbeat(args);
+    break;
   case "fail":
     release(args, "failed");
     break;
@@ -169,6 +224,6 @@ switch (args.command) {
     status();
     break;
   default:
-    process.stderr.write("Usage: node scripts/pourfolio-autobuild-slot.mjs acquire|complete|fail|status [--slot-id ID] [--ttl-minutes 115] [--summary TEXT] [--commit SHA] [--branch NAME]\n");
+    process.stderr.write("Usage: node scripts/pourfolio-autobuild-slot.mjs acquire|heartbeat|complete|fail|status [--slot-id ID] [--ttl-minutes 115] [--heartbeat-timeout-minutes 35] [--summary TEXT] [--commit SHA] [--branch NAME]\n");
     process.exit(64);
 }
