@@ -5,6 +5,7 @@ import {
   type PortfolioRadarInput,
   type PortfolioRadarCellarItem,
 } from "../src/lib/portfolio-radar";
+import { normalizeDrinkWindowObservation } from "../src/lib/drink-window-evidence";
 
 const asOf = "2026-06-24T12:00:00.000Z";
 
@@ -471,6 +472,72 @@ function testPortfolioRadarConsumesRicherReadinessPhases() {
   );
 }
 
+function testPortfolioRadarConsumesAcceptedDrinkWindowEvidenceWithoutInventoryOverwrite() {
+  const radar = buildPortfolioRadar({
+    asOf,
+    cellar: [
+      cellar({
+        id: "evidence-ready",
+        name: "Evidence Window Barolo",
+        vintage: 2016,
+        drink_after: null,
+        drink_before: null,
+        current_market_value_cents: 9000,
+        drink_window_observations: [
+          normalizeDrinkWindowObservation({
+            id: "dw-evidence-ready",
+            inventoryId: "evidence-ready",
+            sourceType: "winery",
+            sourceName: "Producer tech sheet",
+            sourceUrl: "https://example.com/barolo-tech-sheet.pdf",
+            truthLabel: "estimated",
+            reviewStatus: "accepted",
+            drinkAfter: "2022",
+            drinkBefore: "2032",
+            confidence: 84,
+            observedAt: "2026-06-01T00:00:00.000Z",
+          }),
+        ],
+      }),
+      cellar({
+        id: "draft-evidence-only",
+        name: "Draft Window Brunello",
+        vintage: 2018,
+        drink_after: null,
+        drink_before: null,
+        current_market_value_cents: 9000,
+        drink_window_observations: [
+          normalizeDrinkWindowObservation({
+            id: "dw-draft-only",
+            inventoryId: "draft-evidence-only",
+            sourceType: "winery",
+            sourceName: "Producer draft",
+            sourceUrl: "https://example.com/brunello-tech-sheet.pdf",
+            truthLabel: "estimated",
+            reviewStatus: "draft",
+            drinkAfter: "2024",
+            drinkBefore: "2030",
+            confidence: 90,
+            observedAt: "2026-06-01T00:00:00.000Z",
+          }),
+        ],
+      }),
+    ],
+  });
+
+  const ready = findAction(radar.actions, "drink_now", "evidence-ready");
+  assert.equal(ready.target.metadata.readinessPhase, "ready");
+  assert.equal(ready.target.metadata.readinessSource, "drink_window_evidence");
+  assert.equal(ready.target.metadata.normalizedDrinkAfter, "2022-01-01");
+  assert.equal(
+    radar.actions.some((action) => action.type === "missing_drink_window" && action.target.id === "evidence-ready"),
+    false
+  );
+
+  const draftOnly = findAction(radar.actions, "missing_drink_window", "draft-evidence-only");
+  assert.equal(draftOnly.target.metadata.readinessPhase, "missing_window");
+}
+
 function testValuationEvidenceActionsAndAiGuardrail() {
   const radar = buildPortfolioRadar(sampleInput());
 
@@ -592,6 +659,7 @@ function testPrioritizationAndDeterminism() {
 testRadarBuildsConcreteActionQueueFromAllInputs();
 testReadinessActionsUseTruthBeforePreference();
 testPortfolioRadarConsumesRicherReadinessPhases();
+testPortfolioRadarConsumesAcceptedDrinkWindowEvidenceWithoutInventoryOverwrite();
 testValuationEvidenceActionsAndAiGuardrail();
 testAcquisitionReplenishmentReceiptAndMemoryActions();
 testPrioritizationAndDeterminism();

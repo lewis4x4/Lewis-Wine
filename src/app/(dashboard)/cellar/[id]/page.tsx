@@ -17,6 +17,7 @@ import { MarketValueEditor, PricePerGlass } from "@/components/financial";
 import { PhotoGallery } from "@/components/photos";
 import { QRCodeGenerator } from "@/components/wine/qr-generator";
 import { PriceEvidencePanel } from "@/components/cellar/price-evidence-panel";
+import { DrinkWindowEvidencePanel } from "@/components/cellar/drink-window-evidence-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1253,6 +1254,13 @@ export default function WineDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <div id="drink-window-evidence">
+        <DrinkWindowEvidencePanel
+          inventoryId={id}
+          wineReferenceId={wine.wine_reference_id}
+        />
+      </div>
 
       <div id="current-intelligence">
         <PriceEvidencePanel

@@ -7,6 +7,7 @@ import {
 } from "./acquisition-engine";
 import type { CellarCommandWine } from "./cellar-command-center";
 import { isPriceObservationStale, type PriceObservation, type SourceType } from "./current-intelligence/price-observations";
+import { buildReadinessInputWithDrinkWindowEvidence, type DrinkWindowObservation } from "./drink-window-evidence";
 import {
   buildReplenishmentAutomation,
   type ReplenishmentAutomationInput,
@@ -107,6 +108,7 @@ export type PortfolioRadarCellarItem = CellarCommandWine & {
   wine_reference_peak_end?: string | null;
   drink_window_start?: string | null;
   drink_window_end?: string | null;
+  drink_window_observations?: DrinkWindowObservation[];
 };
 
 export type PortfolioRadarReceiptInput = AcquisitionReceiptInput & {
@@ -683,9 +685,10 @@ function buildCellarActions(
   const actions: PortfolioRadarAction[] = [];
 
   for (const wine of (input.cellar ?? []).filter((candidate) => candidate.quantity > 0)) {
-    const readinessProfile = getWineReadinessProfile(wine, { asOf: date });
+    const readinessBridge = buildReadinessInputWithDrinkWindowEvidence(wine, wine.drink_window_observations ?? [], { asOf });
+    const readinessProfile = getWineReadinessProfile(readinessBridge.wine, { asOf: date });
     const readiness = readinessProfile.legacyState;
-    const approachingPeak = isWineApproachingPeak(wine, { asOf: date, withinDays: 180 });
+    const approachingPeak = isWineApproachingPeak(readinessBridge.wine, { asOf: date, withinDays: 180 });
     const evidence = priceEvidenceSummary(wine, observationsByInventory.get(wine.id) ?? [], asOf);
 
     if (readiness === "past_peak" || approachingPeak) {

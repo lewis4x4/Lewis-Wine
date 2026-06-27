@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildAcquisitionEngine, type AcquisitionPriceObservation, type AcquisitionPriority, type AcquisitionSourceKind, type AcquisitionStatus, type AcquisitionTarget } from "@/lib/acquisition-engine";
 import type { PriceObservation } from "@/lib/current-intelligence/price-observations";
+import { drinkWindowObservationFromDb, isMissingDrinkWindowObservationTable } from "@/lib/drink-window-observation-records";
+import type { DrinkWindowObservation } from "@/lib/drink-window-evidence";
 import { isPriceObservationStale } from "@/lib/current-intelligence/price-observations";
 import { buildPortfolioRadar, type PortfolioRadarCellarItem } from "@/lib/portfolio-radar";
 import { buildReplenishmentAutomation, type ExistingAcquisitionTargetSignal, type ReplenishmentAcquiredSignal, type ReplenishmentAutomationInput, type ReplenishmentInventorySignal, type ReplenishmentRatingSignal, type ReplenishmentTastingSignal } from "@/lib/replenishment-automation";
@@ -40,7 +42,7 @@ function titleFromInventory(row: DbRow) {
   return vintage && !String(name).includes(String(vintage)) ? `${vintage} ${name}` : name;
 }
 
-function cellarItemFromDb(row: DbRow): PortfolioRadarCellarItem {
+function cellarItemFromDb(row: DbRow, drinkWindowObservations: DrinkWindowObservation[] = []): PortfolioRadarCellarItem {
   const reference = relation(row, "wine_reference");
   const observations = relationList(row, "wine_price_observations").map((observation) => priceObservationFromDb(observation, String(row.id), (row.wine_reference_id as string | null) ?? null));
   const accepted = observations.filter((observation) => observation.reviewStatus === "accepted");
@@ -73,6 +75,9 @@ function cellarItemFromDb(row: DbRow): PortfolioRadarCellarItem {
     brian_fit_confidence: null,
     tags: (row.tags as string[] | null) ?? null,
     created_at: (row.created_at as string | null) ?? null,
+    wine_reference_drink_window_start: reference?.drink_window_start != null ? String(reference.drink_window_start) : null,
+    wine_reference_drink_window_end: reference?.drink_window_end != null ? String(reference.drink_window_end) : null,
+    drink_window_observations: drinkWindowObservations,
     accepted_price_evidence_count: accepted.length,
     stale_price_evidence_count: accepted.filter((observation) => isPriceObservationStale(observation)).length,
     evidence_awaiting_review_count: observations.filter((observation) => observation.reviewStatus === "draft").length,
@@ -99,6 +104,34 @@ function priceObservationFromDb(row: DbRow, fallbackInventoryId?: string, fallba
     notes: (row.notes as string | null) ?? null,
     rawPayload: row.raw_payload ?? null,
   };
+}
+
+async function loadDrinkWindowObservations(client: SupabaseAnyClient, ownerId: string, inventoryIds: string[]) {
+  const byInventory = new Map<string, DrinkWindowObservation[]>();
+  if (inventoryIds.length === 0) return { byInventory, tableReady: true };
+
+  const { data, error } = await client
+    .from("wine_drink_window_observations")
+    .select("*")
+    .eq("owner_id", ownerId)
+    .in("inventory_id", inventoryIds)
+    .order("observed_at", { ascending: false });
+
+  if (error) {
+    if (isMissingDrinkWindowObservationTable(error)) {
+      return { byInventory, tableReady: false };
+    }
+    throw error;
+  }
+
+  for (const row of (data ?? []) as DbRow[]) {
+    const observation = drinkWindowObservationFromDb(row);
+    const current = byInventory.get(observation.inventoryId) ?? [];
+    current.push(observation);
+    byInventory.set(observation.inventoryId, current);
+  }
+
+  return { byInventory, tableReady: true };
 }
 
 function targetFromDb(row: DbRow): AcquisitionTarget {
@@ -231,7 +264,7 @@ export async function GET() {
         .from("cellar_inventory")
         .select(`
           id,cellar_id,wine_reference_id,custom_name,custom_producer,custom_vintage,custom_region,custom_wine_type,vintage,quantity,purchase_price_cents,purchase_location,drink_after,drink_before,status,consumed_date,current_market_value_cents,market_value_source,market_value_updated_at,low_stock_threshold,low_stock_alert_enabled,tags,created_at,
-          wine_reference(name,producer,region,wine_type,grape_varieties),
+          wine_reference(name,producer,region,wine_type,grape_varieties,drink_window_start,drink_window_end),
           ratings(id,inventory_id,wine_reference_id,score,tasting_date,tasting_notes,rating_signals(id)),
           wine_price_observations(id,inventory_id,wine_reference_id,source_type,source_name,source_url,observation_kind,truth_label,review_status,observed_price_cents,currency,bottle_size_ml,vintage,confidence,observed_at,notes,raw_payload)
         `)
@@ -242,7 +275,9 @@ export async function GET() {
       inventoryRows = (data ?? []) as DbRow[];
     }
 
-    const cellar = inventoryRows.map(cellarItemFromDb);
+    const inventoryIds = inventoryRows.map((row) => String(row.id));
+    const drinkWindowEvidence = await loadDrinkWindowObservations(client, auth.user.id, inventoryIds);
+    const cellar = inventoryRows.map((row) => cellarItemFromDb(row, drinkWindowEvidence.byInventory.get(String(row.id)) ?? []));
     const priceObservations = inventoryRows.flatMap((row) => relationList(row, "wine_price_observations").map((observation) => priceObservationFromDb(observation, String(row.id), (row.wine_reference_id as string | null) ?? null)));
 
     const { data: targetRows, error: targetError } = await client
@@ -304,6 +339,10 @@ export async function GET() {
           uniqueWines: cellar.length,
           bottles: cellar.reduce((sum, item) => sum + Math.max(0, item.quantity), 0),
           priceEvidence: priceObservations.length,
+          drinkWindowEvidence: {
+            tableReady: drinkWindowEvidence.tableReady,
+            observations: [...drinkWindowEvidence.byInventory.values()].reduce((sum, items) => sum + items.length, 0),
+          },
         },
         acquisition: acquisitionEngine.summary,
         replenishment: replenishmentAutomation.summary,
