@@ -151,6 +151,20 @@ function sampleInput(): PortfolioRadarInput {
         market_value_source: "retailer",
         accepted_price_evidence_count: 0,
       }),
+      cellar({
+        id: "sell-watch",
+        name: "Gained Ground Cabernet",
+        producer: "Value Estate",
+        region: "Napa Valley",
+        vintage: 2018,
+        quantity: 3,
+        drink_after: "2030",
+        drink_before: "2040",
+        purchase_price_cents: 10000,
+        current_market_value_cents: null,
+        brian_fit_score: 78,
+        accepted_price_evidence_count: 1,
+      }),
     ],
     priceObservations: [
       {
@@ -211,6 +225,21 @@ function sampleInput(): PortfolioRadarInput {
         currency: "USD",
         bottleSizeMl: 750,
         confidence: 78,
+        observedAt: "2026-06-23T12:00:00.000Z",
+      },
+      {
+        id: "sell-watch-market",
+        inventoryId: "sell-watch",
+        sourceType: "provider",
+        sourceName: "Verified market feed",
+        sourceUrl: "https://example.com/gained-ground-cabernet",
+        observationKind: "market_value",
+        truthLabel: "verified",
+        reviewStatus: "accepted",
+        observedPriceCents: 16500,
+        currency: "USD",
+        bottleSizeMl: 750,
+        confidence: 91,
         observedAt: "2026-06-23T12:00:00.000Z",
       },
     ],
@@ -391,6 +420,7 @@ function testRadarBuildsConcreteActionQueueFromAllInputs() {
   findAction(radar.actions, "investigate_missing_evidence", "ai-estimate-only");
   findAction(radar.actions, "investigate_missing_evidence", "stored-ai-market");
   findAction(radar.actions, "refresh_valuation", "stored-retailer-market");
+  findAction(radar.actions, "sell_watch", "sell-watch");
 }
 
 function testReadinessActionsUseTruthBeforePreference() {
@@ -603,6 +633,18 @@ function testValuationEvidenceActionsAndAiGuardrail() {
     ),
     false
   );
+
+  const sellWatch = findAction(radar.actions, "sell_watch", "sell-watch");
+  assert.equal(sellWatch.verb, "Review sell-watch");
+  assert.equal(sellWatch.sourceSurface, "portfolio_truth");
+  assert.equal(sellWatch.target.metadata.valuationPhase, "sell_watch");
+  assert.equal(sellWatch.target.metadata.marketValueCents, 16500);
+  assert.equal(sellWatch.target.metadata.marketValueObservationId, "sell-watch-market");
+  assert.equal(sellWatch.target.metadata.gainLossCents, 6500);
+  assert.equal(sellWatch.target.metadata.gainLossPercent, 0.65);
+  assert.match(sellWatch.reason, /65% gain/);
+  assert.match(sellWatch.reason, /review-only signal/i);
+  assert.equal(sellWatch.cta.action, "review_sell_watch");
 }
 
 function testAcquisitionReplenishmentReceiptAndMemoryActions() {

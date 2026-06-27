@@ -14,6 +14,10 @@ import {
   type ReplenishmentPrompt,
 } from "./replenishment-automation";
 import {
+  buildPortfolioValuationPosture,
+  type PortfolioValuationPosture,
+} from "./portfolio-valuations";
+import {
   getWineReadinessProfile,
   isWineApproachingPeak,
   type WineReadinessProfile,
@@ -25,6 +29,7 @@ export type PortfolioRadarActionType =
   | "missing_drink_window"
   | "review_price_evidence"
   | "refresh_valuation"
+  | "sell_watch"
   | "replenish"
   | "acquisition_buy"
   | "acquisition_watch"
@@ -204,6 +209,7 @@ const ACTION_TYPES: PortfolioRadarActionType[] = [
   "missing_drink_window",
   "review_price_evidence",
   "refresh_valuation",
+  "sell_watch",
   "replenish",
   "acquisition_buy",
   "acquisition_watch",
@@ -578,6 +584,47 @@ function buildRefreshValuationAction(
   });
 }
 
+function buildSellWatchAction(
+  wine: PortfolioRadarCellarItem,
+  valuation: PortfolioValuationPosture,
+  readinessProfile: WineReadinessProfile
+): PortfolioRadarAction {
+  const name = displayName(wine);
+  const gainPercent = valuation.gainLossPercent ?? 0;
+  const priority = gainPercent >= 0.5 ? 850 : 820;
+  return action({
+    type: "sell_watch",
+    priority,
+    severity: severityForPriority(priority),
+    verb: "Review sell-watch",
+    label: `Review sell-watch for ${name}`,
+    reason: `${valuation.sellWatch.reason} This is a review-only signal; Pourfolio will not list or sell anything automatically.`,
+    confidence: valuation.sellWatch.confidence,
+    sourceSurface: "portfolio_truth",
+    cta: {
+      label: "Review value trade-off",
+      href: `/cellar/${wine.id}?focus=sell-watch`,
+      action: "review_sell_watch",
+    },
+    target: targetForCellar(wine, {
+      ...readinessMetadata(readinessProfile),
+      valuationPhase: valuation.valuationPhase,
+      marketValueCents: valuation.market.valueCents,
+      marketValueSourceType: valuation.market.sourceType,
+      marketValueObservationId: valuation.market.observationId,
+      marketValueObservedAt: valuation.market.observedAt,
+      replacementPriceCents: valuation.replacement.valueCents,
+      replacementPriceObservationId: valuation.replacement.observationId,
+      purchasePriceCents: valuation.purchasePriceCents,
+      gainLossCents: valuation.gainLossCents,
+      gainLossPercent: valuation.gainLossPercent,
+      totalGainLossCents: valuation.totalGainLossCents,
+      brianFitScore: wine.brian_fit_score ?? null,
+      sellWatchConfidence: valuation.sellWatch.confidence,
+    }),
+  });
+}
+
 function buildInvestigateMissingEvidenceAction(
   wine: PortfolioRadarCellarItem,
   evidence: PriceEvidenceSummary
@@ -689,7 +736,21 @@ function buildCellarActions(
     const readinessProfile = getWineReadinessProfile(readinessBridge.wine, { asOf: date });
     const readiness = readinessProfile.legacyState;
     const approachingPeak = isWineApproachingPeak(readinessBridge.wine, { asOf: date, withinDays: 180 });
-    const evidence = priceEvidenceSummary(wine, observationsByInventory.get(wine.id) ?? [], asOf);
+    const observations = observationsByInventory.get(wine.id) ?? [];
+    const evidence = priceEvidenceSummary(wine, observations, asOf);
+    const valuation = buildPortfolioValuationPosture({
+      inventoryId: wine.id,
+      displayName: displayName(wine),
+      quantity: wine.quantity,
+      purchasePriceCents: wine.purchase_price_cents ?? null,
+      storedMarketValueCents: wine.current_market_value_cents ?? null,
+      storedMarketValueSource: wine.market_value_source ?? null,
+      storedMarketValueUpdatedAt: wine.market_value_updated_at ?? null,
+      brianFitScore: wine.brian_fit_score ?? null,
+      readinessPhase: readinessProfile.phase,
+      observations,
+      asOf,
+    });
 
     if (readiness === "past_peak" || approachingPeak) {
       actions.push(buildAtRiskAction(wine, readinessProfile, approachingPeak));
@@ -710,6 +771,10 @@ function buildCellarActions(
       actions.push(buildRefreshValuationAction(wine, evidence, false));
     } else if (shouldInvestigateMissingEvidence(wine, evidence)) {
       actions.push(buildInvestigateMissingEvidenceAction(wine, evidence));
+    }
+
+    if (valuation.sellWatch.shouldWatch && evidence.reviewCount === 0 && evidence.staleCount === 0) {
+      actions.push(buildSellWatchAction(wine, valuation, readinessProfile));
     }
 
     if (isLowStock(wine)) {

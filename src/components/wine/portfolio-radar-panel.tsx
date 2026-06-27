@@ -67,11 +67,12 @@ function formatCurrency(cents: number | null | undefined) {
 function briefFrom(radar: PortfolioRadar | null, sourceSummary: SourceSummary | null, hiddenCount: number) {
   if (!radar) return "Portfolio Radar is waiting for cellar, acquisition, replenishment, and price-evidence signals.";
   if (radar.actions.length === 0) return "No active Portfolio Radar actions. Pourfolio has no urgent cellar, evidence, acquisition, or replenishment moves right now.";
+  const valueActionCount = radar.summary.byType.refresh_valuation + radar.summary.byType.review_price_evidence + radar.summary.byType.sell_watch;
   const parts = [
     `${radar.summary.totalActions} prioritized action${radar.summary.totalActions === 1 ? "" : "s"}`,
     radar.summary.criticalCount ? `${radar.summary.criticalCount} critical` : null,
     radar.summary.byType.drink_now ? `${radar.summary.byType.drink_now} drink-now` : null,
-    radar.summary.byType.refresh_valuation || radar.summary.byType.review_price_evidence ? `${radar.summary.byType.refresh_valuation + radar.summary.byType.review_price_evidence} value/evidence` : null,
+    valueActionCount ? `${valueActionCount} value/evidence` : null,
     radar.summary.byType.acquisition_buy ? `${radar.summary.byType.acquisition_buy} buy-now` : null,
     radar.summary.byType.replenish ? `${radar.summary.byType.replenish} replenish` : null,
     hiddenCount ? `${hiddenCount} hidden locally` : null,
