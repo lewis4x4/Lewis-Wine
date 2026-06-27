@@ -55,8 +55,8 @@ Autonomous build status: complete
 | 1 | Portfolio Radar v1 / Pourfolio Today | Done | Shipped in `44c6223 Add Portfolio Radar intelligence queue`. |
 | 2 | Readiness Engine v2 | Done | Shipped in `4dee98a Add Readiness Engine v2 phase model`; Portfolio Radar consumes phase/source metadata. |
 | 3 | Source-backed drink-window evidence foundation | Done | Shipped in `3e41d99 Add drink-window evidence foundation`; local migration + pure review/apply bridge, not applied to production. |
-| 4 | Drink-window evidence review/apply API + Bottle Detail UI | Next | Persist, list, accept/edit/reject, and apply structured drink-window observations without silently overwriting cellar truth. |
-| 5 | Valuation Rollup + Sell-watch | Planned | Accepted evidence rolls up into value posture and sell/buy-watch actions. |
+| 4 | Drink-window evidence review/apply API + Bottle Detail UI | Done | Shipped in `0b1ea59 Add drink-window evidence review UI`; authenticated API, Bottle Detail review panel, and Portfolio Radar accepted-evidence consumption. |
+| 5 | Valuation Rollup + Sell-watch | Next | Accepted evidence rolls up into value posture and sell/buy-watch actions. |
 | 6 | Automated Refresh Queue | Planned | Due-selection, budget controls, skip reasons, schedule. |
 | 7 | Outcome and Learning Loop | Planned | Durable Insight → Action → Outcome learning. |
 | 8 | Provider and Data-source Expansion | Later | Provider integrations after the evidence/action spine is working. |
@@ -74,14 +74,14 @@ The only permitted cron-management action for the autonomous builder is pausing 
 
 ## Next Default Slice
 
-If no newer human instruction exists, the next run should start with **Drink-window evidence review/apply API + Bottle Detail UI**.
+If no newer human instruction exists, the next run should start with **Valuation Rollup + Sell-watch**.
 
 Minimum useful next slice:
 
-- Add an authenticated read/write API for structured drink-window observations, backed by the local `wine_drink_window_observations` migration once production migration approval exists.
-- Add Bottle Detail UI to list draft/accepted/rejected drink-window evidence and let Brian accept, edit, reject, or supersede an observation.
-- Apply accepted observations through the `drink-window-evidence` bridge so Readiness Engine v2 can consume them without silently overwriting inventory-level cellar truth.
-- Keep AI/public-web findings draft until reviewed; accepted `ai_inferred` rows must still not drive readiness automatically.
+- Derive a portfolio valuation posture from accepted price/drink-window evidence, purchase price, quantity, and readiness phase.
+- Add sell-watch / hold-value actions where value gain, quantity, Brian-Fit, and readiness make the trade-off worth reviewing.
+- Keep AI-inferred or draft evidence out of trusted value posture until reviewed.
+- Surface the resulting action in Portfolio Radar / Pourfolio Today without creating another manual-only panel.
 
 ## Acceptance Standard Per Slot
 

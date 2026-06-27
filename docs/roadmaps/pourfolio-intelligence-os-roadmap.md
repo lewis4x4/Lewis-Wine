@@ -937,8 +937,8 @@ Improve valuation accuracy with better data sources.
 | Portfolio Radar / Pourfolio Today | Done | Commit `44c6223`; authenticated local + hosted smokes generated 9 actions; Netlify deploy ready. |
 | Readiness Engine v2 | Done | Commit `4dee98a`; core richer phase model shipped and Portfolio Radar consumes phase/source metadata. |
 | Drink-window evidence foundation | Done | Commit `3e41d99`; local `wine_drink_window_observations` migration, helper/tests, and readiness bridge shipped; production migration not applied. |
-| Drink-window evidence review/apply API + UI | Next | Bottle Detail/API still need persist/list/accept/edit/reject/apply flow for structured drink-window observations. |
-| Valuation rollup | Planned | Evidence model exists; rollup from accepted observations into portfolio truth is incomplete. |
+| Drink-window evidence review/apply API + UI | Done | Commit `0b1ea59`; authenticated persist/list/accept/edit/reject API, Bottle Detail review panel, and Portfolio Radar accepted-evidence consumption shipped. |
+| Valuation rollup | Next | Evidence model exists; rollup from accepted observations into portfolio truth is incomplete. |
 | Automated refresh queue | Planned | Acquisition has next-refresh concepts; cellar-wide refresh not verified. |
 | Outcome/learning loop | Planned | Some flows capture data, but no unified Insight → Action → Outcome model yet. |
 | Provider-backed valuation | Later | Build after evidence/action spine. |
@@ -947,15 +947,15 @@ Improve valuation accuracy with better data sources.
 
 ## Recommended Next Build Slice
 
-Build **Drink-window evidence review/apply API + Bottle Detail UI**.
+Build **Valuation Rollup + Sell-watch**.
 
 Why this next:
 
-- The local structured observation table and pure readiness bridge now exist.
-- Readiness Engine v2 can consume accepted source-backed evidence without copying it into inventory truth.
-- The next gap is making the evidence reviewable and actionable in the app: persist/list draft rows, accept/edit/reject them, and feed accepted rows into Bottle Detail/Portfolio Radar readiness.
+- Structured price and drink-window evidence now have review/apply paths.
+- Portfolio Radar can consume accepted evidence without mutating cellar truth.
+- The next intelligence gap is turning accepted evidence, acquisition cost, readiness, Brian-Fit, and quantity into a value posture: hold, drink, sell-watch, or replenish.
 
-Do not apply the production Supabase migration automatically. Build the local API/UI path and pause on the remote migration boundary unless Brian explicitly approves applying `00022_drink_window_observations.sql`.
+Do not auto-sell, create listings, or treat AI/draft evidence as trusted value truth. Build a derived, reviewable action layer first and pause before any production schema or external marketplace action.
 
 ---
 
