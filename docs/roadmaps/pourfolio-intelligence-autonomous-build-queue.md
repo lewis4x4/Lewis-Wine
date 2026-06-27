@@ -36,8 +36,8 @@ node scripts/pourfolio-autobuild-slot.mjs status
 6. Before changing code, make sure the working tree is not dirty from another unfinished slice. Do not overwrite another agent’s work.
 7. Use TDD for core logic.
 8. Run targeted tests and `npm run check` before any commit/push when practical.
-9. Do not apply production Supabase migrations, change secrets, spend money, or send external communications.
-10. If schema work is needed, create the local migration and tests, but pause before production migration/deploy unless the code remains backward-compatible.
+9. Routine non-destructive Pourfolio production migrations, deploys, and hosted smokes needed to finish a slice are approved when credentials and a safe path are already available; still do not change secrets, spend money, send external communications, weaken auth/RLS, or make destructive/high-risk production changes.
+10. If schema work is needed, make migrations idempotent, apply/verify remote parity when safe, and pause only for destructive data changes, secrets, auth weakening, or unclear production risk.
 11. On success, call `complete`. On blocker/failure/tool limit, call `fail` with the next exact command.
 
 ## Current Roadmap Position
@@ -56,10 +56,11 @@ Autonomous build status: complete
 | 2 | Readiness Engine v2 | Done | Shipped in `4dee98a Add Readiness Engine v2 phase model`; Portfolio Radar consumes phase/source metadata. |
 | 3 | Source-backed drink-window evidence foundation | Done | Shipped in `3e41d99 Add drink-window evidence foundation`; local migration + pure review/apply bridge, not applied to production. |
 | 4 | Drink-window evidence review/apply API + Bottle Detail UI | Done | Shipped in `0b1ea59 Add drink-window evidence review UI`; authenticated API, Bottle Detail review panel, and Portfolio Radar accepted-evidence consumption. |
-| 5 | Valuation Rollup + Sell-watch | Next | Accepted evidence rolls up into value posture and sell/buy-watch actions. |
-| 6 | Automated Refresh Queue | Planned | Due-selection, budget controls, skip reasons, schedule. |
-| 7 | Outcome and Learning Loop | Planned | Durable Insight → Action → Outcome learning. |
-| 8 | Provider and Data-source Expansion | Later | Provider integrations after the evidence/action spine is working. |
+| 5 | Valuation Rollup + Sell-watch | Done | Shipped in `e09d6ca Add portfolio valuation sell-watch posture`; derived valuation posture rolls accepted market/replacement evidence into Portfolio Radar sell-watch without trusting AI/draft evidence. |
+| 6 | Automated Refresh Queue foundation | Done | Shipped in `4e6bb44 Add automated Portfolio Radar refresh queue`; due-selection, budget controls, skip reasons, and refresh-due Portfolio Radar actions. |
+| 7 | Refresh execution and schedule | Next | Cron/scheduled runner or hosted endpoint that executes due refreshes, persists results/skip summaries, and reports daily/weekly changes. |
+| 8 | Outcome and Learning Loop | Planned | Durable Insight → Action → Outcome learning. |
+| 9 | Provider and Data-source Expansion | Later | Provider integrations after the evidence/action spine is working. |
 
 ## Completion / Self-Pause Protocol
 
@@ -74,14 +75,14 @@ The only permitted cron-management action for the autonomous builder is pausing 
 
 ## Next Default Slice
 
-If no newer human instruction exists, the next run should start with **Valuation Rollup + Sell-watch**.
+If no newer human instruction exists, the next run should start with **Refresh execution and schedule**.
 
 Minimum useful next slice:
 
-- Derive a portfolio valuation posture from accepted price/drink-window evidence, purchase price, quantity, and readiness phase.
-- Add sell-watch / hold-value actions where value gain, quantity, Brian-Fit, and readiness make the trade-off worth reviewing.
-- Keep AI-inferred or draft evidence out of trusted value posture until reviewed.
-- Surface the resulting action in Portfolio Radar / Pourfolio Today without creating another manual-only panel.
+- Choose the concrete execution path for app truth: hosted scheduled endpoint/function preferred, Hermes only for briefing/notification.
+- Add a cron-safe refresh runner that reads the Portfolio Radar refresh plan, executes a bounded due set, and respects auth/RLS/safety boundaries.
+- Persist refresh run outcomes and skipped/deferred reasons so daily/weekly summaries can say what changed.
+- Keep budget limits and source-trust rules intact; do not let AI/draft evidence become trusted valuation/readiness truth.
 
 ## Acceptance Standard Per Slot
 

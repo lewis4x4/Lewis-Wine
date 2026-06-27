@@ -777,7 +777,7 @@ Create/modify:
 
 ## Phase 4 — Valuation Rollup + Sell-watch
 
-**Status:** Needed to satisfy market/replacement automation.
+**Status:** Done for derived v1 in `e09d6ca`; future work can persist valuation snapshots if needed.
 
 ### Goal
 
@@ -804,7 +804,7 @@ Create/modify:
 - Accepted `market_value` / `auction_comp` updates Market Value posture.
 - Accepted retailer/winery listing updates Replacement Price posture only.
 - `ai_inferred estimate` never updates Market Value or Replacement Price.
-- Portfolio Truth uses valuation posture rather than stale manual-only inventory fields.
+- Portfolio Radar uses the derived valuation posture before stale/manual-only inventory fields; durable Portfolio Truth snapshot persistence remains a later optional hardening step.
 - Price spike creates sell-watch action.
 - Price drop below acquisition target creates buy-watch action.
 - UI explains why a row was not trusted as Market/Replacement.
@@ -813,7 +813,7 @@ Create/modify:
 
 ## Phase 5 — Automated Refresh Queue
 
-**Status:** Needed to stop manual refresh dependence.
+**Status:** In progress; due-selection foundation shipped in `4e6bb44`, with scheduled execution/summary still next.
 
 ### Goal
 
@@ -938,8 +938,9 @@ Improve valuation accuracy with better data sources.
 | Readiness Engine v2 | Done | Commit `4dee98a`; core richer phase model shipped and Portfolio Radar consumes phase/source metadata. |
 | Drink-window evidence foundation | Done | Commit `3e41d99`; local `wine_drink_window_observations` migration, helper/tests, and readiness bridge shipped; production migration not applied. |
 | Drink-window evidence review/apply API + UI | Done | Commit `0b1ea59`; authenticated persist/list/accept/edit/reject API, Bottle Detail review panel, and Portfolio Radar accepted-evidence consumption shipped. |
-| Valuation rollup | Next | Evidence model exists; rollup from accepted observations into portfolio truth is incomplete. |
-| Automated refresh queue | Planned | Acquisition has next-refresh concepts; cellar-wide refresh not verified. |
+| Valuation rollup | Done | Commit `e09d6ca`; derived `portfolio-valuations` posture feeds Portfolio Radar sell-watch from accepted trusted evidence while ignoring AI/draft estimates. |
+| Automated refresh queue foundation | Done | Commit `4e6bb44`; Portfolio Radar now derives cellar-wide refresh due items from readiness, accepted valuation evidence, stale evidence, high-value gaps, cooldowns, explicit skip reasons, and budget controls. |
+| Refresh execution and schedule | Next | Due-selection is visible; a runner still needs to execute due refreshes, persist outcomes/skip summaries, and produce daily/weekly change summaries. |
 | Outcome/learning loop | Planned | Some flows capture data, but no unified Insight → Action → Outcome model yet. |
 | Provider-backed valuation | Later | Build after evidence/action spine. |
 
@@ -947,15 +948,15 @@ Improve valuation accuracy with better data sources.
 
 ## Recommended Next Build Slice
 
-Build **Valuation Rollup + Sell-watch**.
+Build **Refresh execution and schedule**.
 
 Why this next:
 
-- Structured price and drink-window evidence now have review/apply paths.
-- Portfolio Radar can consume accepted evidence without mutating cellar truth.
-- The next intelligence gap is turning accepted evidence, acquisition cost, readiness, Brian-Fit, and quantity into a value posture: hold, drink, sell-watch, or replenish.
+- Portfolio Radar now decides what needs refresh and why.
+- The remaining manual gap is executing those due refreshes safely and recording what changed.
+- A scheduled runner should use the due-selection plan, preserve budget/source-trust rules, and persist outcome/skip summaries for Brian-facing daily or weekly review.
 
-Do not auto-sell, create listings, or treat AI/draft evidence as trusted value truth. Build a derived, reviewable action layer first and pause before any production schema or external marketplace action.
+Do not weaken auth/RLS, spend money, or change secrets. Routine non-destructive schema/deploy/smoke work is approved when needed to finish the slice safely.
 
 ---
 
@@ -967,7 +968,7 @@ Do not auto-sell, create listings, or treat AI/draft evidence as trusted value t
 4. Do not mix unrelated Phase G / real-cellar trial files into Portfolio Radar commits.
 5. Use TDD for core logic.
 6. Run targeted tests and `npm run check` before commit when practical.
-7. For schema changes, pause before production migration unless Brian approves.
+7. For schema changes, use idempotent migrations and apply/verify routine non-destructive production parity when safe; pause for destructive data changes, auth/RLS weakening, secrets, or unclear production risk.
 8. Keep source-backed evidence separate from AI-inferred context.
 9. Every intelligence feature must produce one of:
    - insight
@@ -1008,7 +1009,7 @@ Potential defaults:
 - Brian-Fit below beloved/benchmark threshold.
 - Not in immediate drink/peak priority.
 
-Needs Brian preference.
+Derived v1 default adopted in `e09d6ca`: 30%+ gain or $100+/bottle gain, quantity/taste/readiness trade-off, and no immediate drink/peak priority. Brian can tune later after real use.
 
 ### 4. Should Portfolio Radar be schema-first or derived-only v1?
 
