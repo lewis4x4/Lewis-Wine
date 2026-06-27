@@ -59,8 +59,8 @@ Autonomous build status: complete
 | 5 | Valuation Rollup + Sell-watch | Done | Shipped in `e09d6ca Add portfolio valuation sell-watch posture`; derived valuation posture rolls accepted market/replacement evidence into Portfolio Radar sell-watch without trusting AI/draft evidence. |
 | 6 | Automated Refresh Queue foundation | Done | Shipped in `4e6bb44 Add automated Portfolio Radar refresh queue`; due-selection, budget controls, skip reasons, and refresh-due Portfolio Radar actions. |
 | 7 | Refresh execution ledger + API | Done | Shipped in `6123c96 Add Portfolio Radar refresh runner`; authenticated record-only POST runner persists due planned rows and planner skip summaries without paid provider calls. |
-| 8 | Hosted schedule trigger + daily/weekly summary | Next | Generate the current plan server-side on a schedule, invoke/own the runner safely, and summarize due/skipped/changed outcomes. |
-| 9 | Outcome and Learning Loop | Planned | Durable Insight → Action → Outcome learning. |
+| 8 | Hosted schedule trigger + daily/weekly summary | Done | Shipped in `a2ce830 Add scheduled Portfolio Radar refresh trigger`; Netlify daily scheduled function invokes a protected server-side route that generates Brian's current refresh plan, records due/skipped rows idempotently, and returns daily/weekly summaries. |
+| 9 | Outcome and Learning Loop | Next | Durable Insight → Action → Outcome learning. |
 | 10 | Provider and Data-source Expansion | Later | Provider integrations after the evidence/action spine is working. |
 
 ## Completion / Self-Pause Protocol
@@ -76,14 +76,14 @@ The only permitted cron-management action for the autonomous builder is pausing 
 
 ## Next Default Slice
 
-If no newer human instruction exists, the next run should start with **Hosted schedule trigger + daily/weekly summary**.
+If no newer human instruction exists, the next run should start with **Outcome and Learning Loop v1**.
 
 Minimum useful next slice:
 
-- Choose the concrete schedule path for app truth: hosted scheduled endpoint/function preferred, Hermes only for briefing/notification.
-- Generate the Portfolio Radar refresh plan server-side for Brian's owned cellar, then invoke or reuse the `buildPortfolioRefreshRun()` ledger path without trusting client-supplied plans.
-- Produce a daily/weekly summary from `wine_intelligence_refreshes` that says what was due, recorded, skipped/deferred, and what actually changed.
-- Keep budget limits and source-trust rules intact; do not enable paid provider/LLM refresh execution without explicit budget controls and approval.
+- Define the smallest durable outcome model that can close a Portfolio Radar action without overbuilding the full action system.
+- Start with drink/opening and dismiss/skip outcomes because they directly affect readiness alerts and future recommendations.
+- Keep source-backed evidence separate from user feedback; an outcome may tune recommendations, but it should not silently rewrite trusted drink-window or valuation evidence.
+- Surface the result where Brian can see that an action was closed and what Pourfolio learned.
 
 ## Acceptance Standard Per Slot
 

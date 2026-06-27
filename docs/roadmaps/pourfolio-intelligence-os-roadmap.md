@@ -813,7 +813,7 @@ Create/modify:
 
 ## Phase 5 — Automated Refresh Queue
 
-**Status:** In progress; due-selection foundation shipped in `4e6bb44`, record-only execution ledger/API shipped in `6123c96`, with hosted schedule trigger and daily/weekly summary still next.
+**Status:** Done for record-only scheduled v1 in `a2ce830`; due-selection foundation shipped in `4e6bb44`, ledger/API shipped in `6123c96`, and hosted schedule trigger plus daily/weekly summaries shipped in `a2ce830`. Future work can add paid/provider execution only behind explicit budget controls.
 
 ### Goal
 
@@ -831,8 +831,8 @@ Create/modify:
 - `src/lib/portfolio-radar-refresh.ts`
 - `src/lib/portfolio-radar-refresh-runner.ts`
 - `src/app/api/portfolio-radar/refresh/route.ts`
-- `src/app/api/portfolio-radar/refresh/route.ts` or cron-safe route/script
-- Hermes cron job / Netlify scheduled function decision pending
+- `src/app/api/portfolio-radar/refresh/scheduled/route.ts`
+- `netlify/functions/portfolio-radar-refresh-schedule.mjs`
 - `wine_intelligence_refreshes` use/extension
 - tests for due selection and skip reasons
 
@@ -848,21 +848,15 @@ Create/modify:
 Completed v1:
 
 - `6123c96` adds a record-only refresh runner and authenticated POST API that consumes a Portfolio Radar refresh plan, writes due rows as `planned`, writes planner skips as `skipped`, preserves source-trust/budget reasons, and makes zero paid provider calls.
+- `a2ce830` adds a Netlify daily scheduled function plus protected server-side route that generates Brian's current Portfolio Radar refresh plan, persists record-only due/skipped ledger rows idempotently by run id, and returns daily/weekly summaries of due, skipped/deferred, and completed/failed refresh activity.
 
-Still next:
+Future hardening:
 
-- Generate the plan server-side on a hosted schedule, invoke/own the runner without trusting client-supplied plans, and summarize due/skipped/changed outcomes for Brian.
+- Add actual provider/LLM execution only behind explicit budget controls and approval, and add assistant notification/briefing delivery if Brian wants the summaries pushed instead of queried.
 
-### Deployment decision needed
+### Deployment path chosen
 
-Choose one:
-
-1. Hermes cron job on Brian’s local machine.
-2. Netlify scheduled function.
-3. Supabase scheduled job/Edge function.
-4. Hybrid: local Hermes for personal assistant workflows, hosted scheduled job for app truth.
-
-Recommendation: hosted scheduled truth for app-critical refreshes; Hermes can summarize and notify.
+Record-only v1 uses a hosted Netlify scheduled function for app truth. Hermes can still summarize or notify separately if Brian wants the daily/weekly output pushed into a brief.
 
 ---
 
@@ -951,21 +945,21 @@ Improve valuation accuracy with better data sources.
 | Valuation rollup | Done | Commit `e09d6ca`; derived `portfolio-valuations` posture feeds Portfolio Radar sell-watch from accepted trusted evidence while ignoring AI/draft estimates. |
 | Automated refresh queue foundation | Done | Commit `4e6bb44`; Portfolio Radar now derives cellar-wide refresh due items from readiness, accepted valuation evidence, stale evidence, high-value gaps, cooldowns, explicit skip reasons, and budget controls. |
 | Refresh execution ledger + API | Done | Commit `6123c96`; authenticated record-only runner persists due planned rows and planner skip summaries to `wine_intelligence_refreshes` without paid provider calls. |
-| Hosted schedule trigger + daily/weekly summary | Next | Generate the current refresh plan server-side on schedule, invoke/own the runner safely, and summarize due/skipped/changed outcomes. |
-| Outcome/learning loop | Planned | Some flows capture data, but no unified Insight → Action → Outcome model yet. |
+| Hosted schedule trigger + daily/weekly summary | Done | Commit `a2ce830`; Netlify daily scheduled function calls a protected server-side route that generates Brian's current refresh plan, records due/skipped rows, and returns daily/weekly summaries. |
+| Outcome/learning loop | Next | Build durable Insight → Action → Outcome learning so drink/buy/sell/skip/dismiss actions teach Pourfolio. |
 | Provider-backed valuation | Later | Build after evidence/action spine. |
 
 ---
 
 ## Recommended Next Build Slice
 
-Build **Hosted schedule trigger + daily/weekly summary**.
+Build **Outcome and Learning Loop v1**.
 
 Why this next:
 
-- Portfolio Radar now decides what needs refresh and why.
-- The record-only runner/API can persist due and skipped refresh ledger rows without paid provider calls.
-- The remaining manual gap is generating that plan server-side on schedule and turning refresh ledger rows into a Brian-facing daily or weekly summary of what was due, skipped/deferred, and actually changed.
+- Portfolio Radar now surfaces actions and the scheduled refresh path records what needs attention.
+- Pourfolio still needs action outcomes so drink/buy/sell/skip/dismiss decisions close the loop instead of remaining advice.
+- The next spine should let opening a bottle, dismissing an alert, buying/replenishing, or passing on a recommendation become durable learning for future readiness, replenishment, and Brian-Fit decisions.
 
 Do not weaken auth/RLS, spend money, or change secrets. Routine non-destructive schema/deploy/smoke work is approved when needed to finish the slice safely; paid provider/LLM execution needs explicit budget controls and approval.
 
