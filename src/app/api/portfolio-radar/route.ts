@@ -6,6 +6,11 @@ import { drinkWindowObservationFromDb, isMissingDrinkWindowObservationTable } fr
 import type { DrinkWindowObservation } from "@/lib/drink-window-evidence";
 import { isPriceObservationStale } from "@/lib/current-intelligence/price-observations";
 import { buildPortfolioRadar, type PortfolioRadarCellarItem } from "@/lib/portfolio-radar";
+import {
+  applyPortfolioRadarOutcomes,
+  portfolioRadarOutcomeFromRecord,
+  type PortfolioRadarActionOutcome,
+} from "@/lib/portfolio-radar-outcomes";
 import type { PortfolioRefreshRecord } from "@/lib/portfolio-radar-refresh";
 import { buildReplenishmentAutomation, type ExistingAcquisitionTargetSignal, type ReplenishmentAcquiredSignal, type ReplenishmentAutomationInput, type ReplenishmentInventorySignal, type ReplenishmentRatingSignal, type ReplenishmentTastingSignal } from "@/lib/replenishment-automation";
 
@@ -123,6 +128,11 @@ function isMissingRefreshTable(error: { code?: string; message?: string }) {
   return error.code === "42P01" || (/wine_intelligence_refreshes/i.test(message) && /does not exist|schema cache/i.test(message));
 }
 
+function isMissingActionOutcomeTable(error: { code?: string; message?: string }) {
+  const message = error.message ?? "";
+  return error.code === "42P01" || (/cellar_action_outcomes/i.test(message) && /does not exist|schema cache/i.test(message));
+}
+
 async function loadRefreshRecords(client: SupabaseAnyClient, inventoryIds: string[]) {
   if (inventoryIds.length === 0) return { records: [] as PortfolioRefreshRecord[], tableReady: true };
   const { data, error } = await client
@@ -136,6 +146,20 @@ async function loadRefreshRecords(client: SupabaseAnyClient, inventoryIds: strin
     throw error;
   }
   return { records: ((data ?? []) as DbRow[]).map(refreshRecordFromDb), tableReady: true };
+}
+
+async function loadActionOutcomes(client: SupabaseAnyClient, ownerId: string) {
+  const { data, error } = await client
+    .from("cellar_action_outcomes")
+    .select("id,owner_id,action_dedupe_key,action_type,subject_type,subject_id,result_type,source_surface,maturity_feedback,suppress_until,notes,raw_payload,created_at")
+    .eq("owner_id", ownerId)
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (error) {
+    if (isMissingActionOutcomeTable(error)) return { records: [] as PortfolioRadarActionOutcome[], tableReady: false };
+    throw error;
+  }
+  return { records: ((data ?? []) as DbRow[]).map(portfolioRadarOutcomeFromRecord), tableReady: true };
 }
 
 async function loadDrinkWindowObservations(client: SupabaseAnyClient, ownerId: string, inventoryIds: string[]) {
@@ -356,7 +380,7 @@ export async function GET() {
     };
     const replenishmentAutomation = buildReplenishmentAutomation(replenishment);
 
-    const radar = buildPortfolioRadar({
+    const baseRadar = buildPortfolioRadar({
       asOf,
       cellar,
       priceObservations,
@@ -364,10 +388,13 @@ export async function GET() {
       replenishment,
       refreshes: refreshRecords.records,
     });
+    const actionOutcomes = await loadActionOutcomes(client, auth.user.id);
+    const radarWithOutcomes = applyPortfolioRadarOutcomes(baseRadar, actionOutcomes.records, { asOf });
 
     return NextResponse.json({
       success: true,
-      radar,
+      radar: radarWithOutcomes.radar,
+      outcomeSummary: radarWithOutcomes.outcomeSummary,
       sourceSummary: {
         cellar: {
           uniqueWines: cellar.length,
@@ -382,7 +409,12 @@ export async function GET() {
             records: refreshRecords.records.length,
           },
         },
-        refreshQueue: radar.refreshPlan.summary,
+        refreshQueue: radarWithOutcomes.radar.refreshPlan.summary,
+        outcomes: {
+          tableReady: actionOutcomes.tableReady,
+          records: actionOutcomes.records.length,
+          hiddenActions: radarWithOutcomes.hiddenActions.length,
+        },
         acquisition: acquisitionEngine.summary,
         replenishment: replenishmentAutomation.summary,
       },

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PortfolioRadar, PortfolioRadarAction, PortfolioRadarSeverity, PortfolioRadarSourceSurface } from "@/lib/portfolio-radar";
+import type { PortfolioRadarOutcomeResultType, PortfolioRadarOutcomeSummary } from "@/lib/portfolio-radar-outcomes";
 
 type SourceSummary = {
   cellar?: {
@@ -24,6 +25,11 @@ type SourceSummary = {
     highPriorityCount: number;
     deferredCount: number;
     estimatedCostUnits: number;
+  };
+  outcomes?: {
+    tableReady: boolean;
+    records: number;
+    hiddenActions: number;
   };
   acquisition?: {
     totalTargets: number;
@@ -45,6 +51,7 @@ type RadarPayload = {
   success: boolean;
   radar?: PortfolioRadar;
   sourceSummary?: SourceSummary;
+  outcomeSummary?: PortfolioRadarOutcomeSummary;
   error?: string;
 };
 
@@ -74,9 +81,11 @@ function formatCurrency(cents: number | null | undefined) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-function briefFrom(radar: PortfolioRadar | null, sourceSummary: SourceSummary | null, hiddenCount: number) {
+function briefFrom(radar: PortfolioRadar | null, sourceSummary: SourceSummary | null, hiddenCount: number, outcomeSummary: PortfolioRadarOutcomeSummary | null) {
   if (!radar) return "Portfolio Radar is waiting for cellar, acquisition, replenishment, and price-evidence signals.";
-  if (radar.actions.length === 0) return "No active Portfolio Radar actions. Pourfolio has no urgent cellar, evidence, acquisition, or replenishment moves right now.";
+  if (radar.actions.length === 0) return outcomeSummary?.closedActions
+    ? `No active Portfolio Radar actions. ${outcomeSummary.closedActions} outcome${outcomeSummary.closedActions === 1 ? "" : "s"} already closed the current queue without rewriting source evidence.`
+    : "No active Portfolio Radar actions. Pourfolio has no urgent cellar, evidence, acquisition, or replenishment moves right now.";
   const valueActionCount = radar.summary.byType.refresh_valuation + radar.summary.byType.review_price_evidence + radar.summary.byType.sell_watch;
   const parts = [
     `${radar.summary.totalActions} prioritized action${radar.summary.totalActions === 1 ? "" : "s"}`,
@@ -86,6 +95,7 @@ function briefFrom(radar: PortfolioRadar | null, sourceSummary: SourceSummary | 
     radar.summary.byType.acquisition_buy ? `${radar.summary.byType.acquisition_buy} buy-now` : null,
     radar.summary.byType.replenish ? `${radar.summary.byType.replenish} replenish` : null,
     sourceSummary?.refreshQueue?.dueCount ? `${sourceSummary.refreshQueue.dueCount} cellar refresh due` : null,
+    outcomeSummary?.closedActions ? `${outcomeSummary.closedActions} closed by outcomes` : null,
     hiddenCount ? `${hiddenCount} hidden locally` : null,
   ].filter(Boolean);
   const cellar = sourceSummary?.cellar;
@@ -93,7 +103,23 @@ function briefFrom(radar: PortfolioRadar | null, sourceSummary: SourceSummary | 
   return `${parts.join(" · ")}. ${sourcePart}`.trim();
 }
 
-function ActionRow({ action, onSnooze, onDismiss }: { action: PortfolioRadarAction; onSnooze: (action: PortfolioRadarAction) => void; onDismiss: (action: PortfolioRadarAction) => void }) {
+function canRecordOpening(action: PortfolioRadarAction) {
+  return action.subjectType === "cellar_item" && (action.type === "drink_now" || action.type === "at_risk_past_peak");
+}
+
+function ActionRow({
+  action,
+  onSnooze,
+  onDismiss,
+  onRecordOutcome,
+  isRecording,
+}: {
+  action: PortfolioRadarAction;
+  onSnooze: (action: PortfolioRadarAction) => void;
+  onDismiss: (action: PortfolioRadarAction) => void;
+  onRecordOutcome: (action: PortfolioRadarAction, resultType: PortfolioRadarOutcomeResultType) => void;
+  isRecording: boolean;
+}) {
   return (
     <div className="rounded-3xl border bg-background p-4 shadow-sm transition-colors hover:border-primary/30">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -117,8 +143,9 @@ function ActionRow({ action, onSnooze, onDismiss }: { action: PortfolioRadarActi
           <Button size="sm" asChild>
             <Link href={action.cta.href}>{action.cta.label}<ChevronRight className="ml-1 h-4 w-4" /></Link>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => onSnooze(action)}><Clock3 className="mr-2 h-4 w-4" /> Snooze</Button>
-          <Button variant="ghost" size="sm" onClick={() => onDismiss(action)}><EyeOff className="mr-2 h-4 w-4" /> Dismiss</Button>
+          {canRecordOpening(action) ? <Button variant="secondary" size="sm" disabled={isRecording} onClick={() => onRecordOutcome(action, "opened")}>{isRecording ? "Recording" : "Mark opened"}</Button> : null}
+          <Button variant="outline" size="sm" onClick={() => onSnooze(action)} disabled={isRecording}><Clock3 className="mr-2 h-4 w-4" /> Snooze</Button>
+          <Button variant="ghost" size="sm" onClick={() => onDismiss(action)} disabled={isRecording}><EyeOff className="mr-2 h-4 w-4" /> Dismiss</Button>
         </div>
       </div>
     </div>
@@ -128,9 +155,11 @@ function ActionRow({ action, onSnooze, onDismiss }: { action: PortfolioRadarActi
 export function PortfolioRadarPanel() {
   const [radar, setRadar] = useState<PortfolioRadar | null>(null);
   const [sourceSummary, setSourceSummary] = useState<SourceSummary | null>(null);
+  const [outcomeSummary, setOutcomeSummary] = useState<PortfolioRadarOutcomeSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUnauthorized, setIsUnauthorized] = useState(false);
   const [hidden, setHidden] = useState<Record<string, HiddenAction>>({});
+  const [recording, setRecording] = useState<Record<string, boolean>>({});
 
   async function loadRadar() {
     setIsLoading(true);
@@ -141,12 +170,14 @@ export function PortfolioRadarPanel() {
         setIsUnauthorized(true);
         setRadar(null);
         setSourceSummary(null);
+        setOutcomeSummary(null);
         return;
       }
       if (!response.ok || !payload.success || !payload.radar) throw new Error(payload.error ?? "Failed to load Portfolio Radar");
       setIsUnauthorized(false);
       setRadar(payload.radar);
       setSourceSummary(payload.sourceSummary ?? null);
+      setOutcomeSummary(payload.outcomeSummary ?? null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not load Portfolio Radar");
     } finally {
@@ -167,7 +198,7 @@ export function PortfolioRadarPanel() {
   }, [hidden, radar]);
 
   const hiddenCount = Math.max((radar?.actions.length ?? 0) - visibleActions.length, 0);
-  const brief = briefFrom(radar, sourceSummary, hiddenCount);
+  const brief = briefFrom(radar, sourceSummary, hiddenCount, outcomeSummary);
 
   function snooze(action: PortfolioRadarAction) {
     const until = Date.now() + 24 * 60 * 60 * 1000;
@@ -175,9 +206,49 @@ export function PortfolioRadarPanel() {
     toast.success(`Snoozed ${action.label} for 24 hours in this browser.`);
   }
 
+  async function recordOutcome(action: PortfolioRadarAction, resultType: PortfolioRadarOutcomeResultType) {
+    setRecording((current) => ({ ...current, [action.dedupeKey]: true }));
+    try {
+      const response = await fetch("/api/portfolio-radar/outcomes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actionDedupeKey: action.dedupeKey,
+          actionType: action.type,
+          subjectType: action.subjectType,
+          subjectId: action.subjectId,
+          resultType,
+          sourceSurface: action.sourceSurface,
+          rawPayload: {
+            actionLabel: action.label,
+            actionVerb: action.verb,
+            ctaAction: action.cta.action,
+            targetHref: action.target.href,
+            inventoryId: typeof action.target.metadata.inventoryId === "string" ? action.target.metadata.inventoryId : undefined,
+            evidencePolicy: "outcome_only_no_source_truth_overwrite",
+          },
+        }),
+      });
+      const payload = await response.json().catch(() => ({})) as { success?: boolean; error?: string; replayed?: boolean };
+      if (!response.ok || !payload.success) throw new Error(payload.error ?? "Failed to record outcome");
+      toast.success(payload.replayed ? "Outcome already recorded." : "Recorded outcome. Source windows and valuation evidence were not rewritten.");
+      await loadRadar();
+    } catch (error) {
+      if (resultType === "dismissed") {
+        setHidden((current) => ({ ...current, [action.dedupeKey]: { mode: "dismissed", until: null } }));
+      }
+      toast.error(error instanceof Error ? error.message : "Could not record Portfolio Radar outcome");
+    } finally {
+      setRecording((current) => {
+        const next = { ...current };
+        delete next[action.dedupeKey];
+        return next;
+      });
+    }
+  }
+
   function dismiss(action: PortfolioRadarAction) {
-    setHidden((current) => ({ ...current, [action.dedupeKey]: { mode: "dismissed", until: null } }));
-    toast.success(`Dismissed ${action.label} locally.`);
+    void recordOutcome(action, "dismissed");
   }
 
   return (
@@ -206,11 +277,13 @@ export function PortfolioRadarPanel() {
           <div className="rounded-2xl border bg-background/70 p-4"><div className="text-2xl font-semibold">{formatCurrency(sourceSummary?.acquisition?.estimatedBuyNowSpendCents)}</div><div className="text-xs uppercase tracking-wide text-muted-foreground">buy-now spend</div></div>
         </div>
 
+        {outcomeSummary?.closedActions ? <div className="rounded-3xl border border-primary/20 bg-background/70 p-4 text-sm text-muted-foreground"><span className="font-semibold text-foreground">Outcome learning:</span> {outcomeSummary.closedActions} action{outcomeSummary.closedActions === 1 ? "" : "s"} closed, including {outcomeSummary.openedBottles} opening{outcomeSummary.openedBottles === 1 ? "" : "s"} and {outcomeSummary.dismissedActions} dismissal{outcomeSummary.dismissedActions === 1 ? "" : "s"}. These suppress repeated Radar prompts without rewriting drink-window or valuation evidence.</div> : null}
+
         {isLoading ? <div className="rounded-3xl border bg-muted/20 p-8 text-center text-muted-foreground">Loading Portfolio Radar…</div> : null}
         {!isLoading && isUnauthorized ? <div className="rounded-3xl border border-dashed bg-muted/20 p-8 text-center"><h3 className="font-semibold">Sign in to see Pourfolio Today.</h3><p className="mt-1 text-sm text-muted-foreground">Portfolio Radar is built from Brian&apos;s private cellar, price evidence, acquisitions, and tasting memory.</p></div> : null}
         {!isLoading && !isUnauthorized && radar && radar.actions.length === 0 ? <div className="rounded-3xl border border-dashed bg-muted/20 p-8 text-center"><h3 className="font-semibold">No active radar actions.</h3><p className="mt-1 text-sm text-muted-foreground">Add bottles, price evidence, acquisition targets, or tasting memories and this becomes the operating queue.</p></div> : null}
         {!isLoading && !isUnauthorized && radar && radar.actions.length > 0 && visibleActions.length === 0 ? <div className="rounded-3xl border border-dashed bg-muted/20 p-8 text-center"><h3 className="font-semibold">All current actions are hidden locally.</h3><p className="mt-1 text-sm text-muted-foreground">Refresh or wait for snoozes to expire to bring them back.</p><Button className="mt-4" variant="outline" size="sm" onClick={() => setHidden({})}>Restore hidden actions</Button></div> : null}
-        {!isLoading && !isUnauthorized && visibleActions.length > 0 ? <div className="space-y-3">{visibleActions.map((action) => <ActionRow key={action.id} action={action} onSnooze={snooze} onDismiss={dismiss} />)}</div> : null}
+        {!isLoading && !isUnauthorized && visibleActions.length > 0 ? <div className="space-y-3">{visibleActions.map((action) => <ActionRow key={action.id} action={action} onSnooze={snooze} onDismiss={dismiss} onRecordOutcome={(item, resultType) => { void recordOutcome(item, resultType); }} isRecording={Boolean(recording[action.dedupeKey])} />)}</div> : null}
       </CardContent>
     </Card>
   );
