@@ -6,6 +6,7 @@ import { drinkWindowObservationFromDb, isMissingDrinkWindowObservationTable } fr
 import type { DrinkWindowObservation } from "@/lib/drink-window-evidence";
 import { isPriceObservationStale } from "@/lib/current-intelligence/price-observations";
 import { buildPortfolioRadar, type PortfolioRadarCellarItem } from "@/lib/portfolio-radar";
+import type { PortfolioRefreshRecord } from "@/lib/portfolio-radar-refresh";
 import { buildReplenishmentAutomation, type ExistingAcquisitionTargetSignal, type ReplenishmentAcquiredSignal, type ReplenishmentAutomationInput, type ReplenishmentInventorySignal, type ReplenishmentRatingSignal, type ReplenishmentTastingSignal } from "@/lib/replenishment-automation";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -104,6 +105,37 @@ function priceObservationFromDb(row: DbRow, fallbackInventoryId?: string, fallba
     notes: (row.notes as string | null) ?? null,
     rawPayload: row.raw_payload ?? null,
   };
+}
+
+function refreshRecordFromDb(row: DbRow): PortfolioRefreshRecord {
+  return {
+    id: String(row.id),
+    inventoryId: String(row.inventory_id),
+    scope: String(row.scope ?? "quick"),
+    status: String(row.status ?? "completed"),
+    startedAt: String(row.started_at ?? row.created_at ?? new Date(0).toISOString()),
+    completedAt: (row.completed_at as string | null) ?? null,
+  };
+}
+
+function isMissingRefreshTable(error: { code?: string; message?: string }) {
+  const message = error.message ?? "";
+  return error.code === "42P01" || (/wine_intelligence_refreshes/i.test(message) && /does not exist|schema cache/i.test(message));
+}
+
+async function loadRefreshRecords(client: SupabaseAnyClient, inventoryIds: string[]) {
+  if (inventoryIds.length === 0) return { records: [] as PortfolioRefreshRecord[], tableReady: true };
+  const { data, error } = await client
+    .from("wine_intelligence_refreshes")
+    .select("id,inventory_id,scope,status,started_at,completed_at")
+    .in("inventory_id", inventoryIds)
+    .order("started_at", { ascending: false })
+    .limit(500);
+  if (error) {
+    if (isMissingRefreshTable(error)) return { records: [] as PortfolioRefreshRecord[], tableReady: false };
+    throw error;
+  }
+  return { records: ((data ?? []) as DbRow[]).map(refreshRecordFromDb), tableReady: true };
 }
 
 async function loadDrinkWindowObservations(client: SupabaseAnyClient, ownerId: string, inventoryIds: string[]) {
@@ -279,6 +311,7 @@ export async function GET() {
     const drinkWindowEvidence = await loadDrinkWindowObservations(client, auth.user.id, inventoryIds);
     const cellar = inventoryRows.map((row) => cellarItemFromDb(row, drinkWindowEvidence.byInventory.get(String(row.id)) ?? []));
     const priceObservations = inventoryRows.flatMap((row) => relationList(row, "wine_price_observations").map((observation) => priceObservationFromDb(observation, String(row.id), (row.wine_reference_id as string | null) ?? null)));
+    const refreshRecords = await loadRefreshRecords(client, inventoryIds);
 
     const { data: targetRows, error: targetError } = await client
       .from("acquisition_watchlist")
@@ -329,6 +362,7 @@ export async function GET() {
       priceObservations,
       acquisition: { targets, priceObservations: acquisitionPriceObservations },
       replenishment,
+      refreshes: refreshRecords.records,
     });
 
     return NextResponse.json({
@@ -343,7 +377,12 @@ export async function GET() {
             tableReady: drinkWindowEvidence.tableReady,
             observations: [...drinkWindowEvidence.byInventory.values()].reduce((sum, items) => sum + items.length, 0),
           },
+          refreshHistory: {
+            tableReady: refreshRecords.tableReady,
+            records: refreshRecords.records.length,
+          },
         },
+        refreshQueue: radar.refreshPlan.summary,
         acquisition: acquisitionEngine.summary,
         replenishment: replenishmentAutomation.summary,
       },

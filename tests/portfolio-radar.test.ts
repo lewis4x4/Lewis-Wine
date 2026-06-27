@@ -581,15 +581,19 @@ function testValuationEvidenceActionsAndAiGuardrail() {
   assert.equal(stale.verb, "Refresh");
   assert.equal(stale.target.metadata.stalePriceEvidenceCount, 1);
   assert.equal(stale.target.metadata.marketValueCents, 14000);
+  assert.equal(stale.target.metadata.refreshScope, "pricing");
+  assert.match(String(stale.target.metadata.refreshReasons), /stale_market_value/);
   assert.match(stale.reason, /stale/i);
 
   const missing = findAction(radar.actions, "refresh_valuation", "missing-price");
   assert.equal(missing.target.metadata.marketValueCents, null);
+  assert.match(String(missing.target.metadata.refreshReasons), /missing_market_value/);
   assert.match(missing.reason, /No trusted market value/i);
 
   const replacementOnly = findAction(radar.actions, "refresh_valuation", "replacement-only");
   assert.equal(replacementOnly.target.metadata.marketValueCents, null);
   assert.equal(replacementOnly.target.metadata.replacementPriceCents, 7000);
+  assert.match(String(replacementOnly.target.metadata.refreshReasons), /missing_market_value/);
   assert.match(replacementOnly.reason, /No trusted market value/i);
 
   const aiOnly = findAction(radar.actions, "investigate_missing_evidence", "ai-estimate-only");

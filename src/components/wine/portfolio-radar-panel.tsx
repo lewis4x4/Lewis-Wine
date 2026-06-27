@@ -14,6 +14,16 @@ type SourceSummary = {
     uniqueWines: number;
     bottles: number;
     priceEvidence: number;
+    refreshHistory?: {
+      tableReady: boolean;
+      records: number;
+    };
+  };
+  refreshQueue?: {
+    dueCount: number;
+    highPriorityCount: number;
+    deferredCount: number;
+    estimatedCostUnits: number;
   };
   acquisition?: {
     totalTargets: number;
@@ -75,6 +85,7 @@ function briefFrom(radar: PortfolioRadar | null, sourceSummary: SourceSummary | 
     valueActionCount ? `${valueActionCount} value/evidence` : null,
     radar.summary.byType.acquisition_buy ? `${radar.summary.byType.acquisition_buy} buy-now` : null,
     radar.summary.byType.replenish ? `${radar.summary.byType.replenish} replenish` : null,
+    sourceSummary?.refreshQueue?.dueCount ? `${sourceSummary.refreshQueue.dueCount} cellar refresh due` : null,
     hiddenCount ? `${hiddenCount} hidden locally` : null,
   ].filter(Boolean);
   const cellar = sourceSummary?.cellar;
@@ -191,7 +202,7 @@ export function PortfolioRadarPanel() {
         <div className="grid gap-3 md:grid-cols-4">
           <div className="rounded-2xl border bg-background/70 p-4"><div className="text-2xl font-semibold">{radar?.summary.totalActions ?? 0}</div><div className="text-xs uppercase tracking-wide text-muted-foreground">actions</div></div>
           <div className="rounded-2xl border bg-background/70 p-4"><div className="text-2xl font-semibold">{radar?.summary.criticalCount ?? 0}</div><div className="text-xs uppercase tracking-wide text-muted-foreground">critical</div></div>
-          <div className="rounded-2xl border bg-background/70 p-4"><div className="text-2xl font-semibold">{sourceSummary?.acquisition?.refreshDueCount ?? 0}</div><div className="text-xs uppercase tracking-wide text-muted-foreground">refresh due</div></div>
+          <div className="rounded-2xl border bg-background/70 p-4"><div className="text-2xl font-semibold">{sourceSummary?.refreshQueue?.dueCount ?? radar?.refreshPlan.summary.dueCount ?? sourceSummary?.acquisition?.refreshDueCount ?? 0}</div><div className="text-xs uppercase tracking-wide text-muted-foreground">cellar refresh due</div></div>
           <div className="rounded-2xl border bg-background/70 p-4"><div className="text-2xl font-semibold">{formatCurrency(sourceSummary?.acquisition?.estimatedBuyNowSpendCents)}</div><div className="text-xs uppercase tracking-wide text-muted-foreground">buy-now spend</div></div>
         </div>
 

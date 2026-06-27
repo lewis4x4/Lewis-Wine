@@ -18,6 +18,13 @@ import {
   type PortfolioValuationPosture,
 } from "./portfolio-valuations";
 import {
+  buildPortfolioRefreshQueue,
+  type PortfolioRefreshBudget,
+  type PortfolioRefreshPlan,
+  type PortfolioRefreshQueueItem,
+  type PortfolioRefreshRecord,
+} from "./portfolio-radar-refresh";
+import {
   getWineReadinessProfile,
   isWineApproachingPeak,
   type WineReadinessProfile,
@@ -140,6 +147,9 @@ export type PortfolioRadarInput = {
   replenishment?: ReplenishmentAutomationInput;
   receipts?: PortfolioRadarReceiptInput[];
   tastingMemoryDrafts?: PortfolioRadarTastingMemoryDraft[];
+  refreshes?: PortfolioRefreshRecord[];
+  refreshPlan?: PortfolioRefreshPlan;
+  refreshBudget?: PortfolioRefreshBudget;
   actionLimit?: number;
 };
 
@@ -156,6 +166,7 @@ export type PortfolioRadar = {
   asOf: string;
   actions: PortfolioRadarAction[];
   summary: PortfolioRadarSummary;
+  refreshPlan: PortfolioRefreshPlan;
 };
 
 type PriceEvidenceSummary = {
@@ -549,28 +560,48 @@ function buildReviewPriceEvidenceAction(
   });
 }
 
+function formatRefreshReason(reason: PortfolioRefreshQueueItem["reasons"][number]) {
+  switch (reason) {
+    case "missing_market_value": return "No trusted market value is available";
+    case "missing_replacement_price": return "missing replacement price";
+    case "stale_market_value": return "stale market evidence";
+    case "stale_replacement_price": return "stale replacement evidence";
+    case "high_value_watch": return "high-value bottle needs a tighter refresh cadence";
+    case "readiness_transition": return "readiness is changing";
+    case "unresolved_radar_action": return "existing radar action still needs fresh evidence";
+  }
+}
+
 function buildRefreshValuationAction(
   wine: PortfolioRadarCellarItem,
   evidence: PriceEvidenceSummary,
-  stale: boolean
+  refresh: boolean | PortfolioRefreshQueueItem
 ): PortfolioRadarAction {
   const name = displayName(wine);
-  const priority = stale ? 920 : 780;
+  const queueItem = typeof refresh === "boolean" ? null : refresh;
+  const stale = typeof refresh === "boolean"
+    ? refresh
+    : refresh.reasons.includes("stale_market_value") || refresh.reasons.includes("stale_replacement_price");
+  const priority = queueItem?.priority ?? (stale ? 920 : 780);
+  const queueReason = queueItem
+    ? `Refresh queue selected this bottle for ${queueItem.reasons.map(formatRefreshReason).join("; ")}. Scope: ${queueItem.scope}; budget cost: ${queueItem.costUnits} ${queueItem.costUnits === 1 ? "unit" : "units"}.`
+    : stale
+      ? "Trusted market or replacement evidence is stale; refresh before treating the displayed value as decision-grade."
+      : "No trusted market value is available; refresh valuation before relying on portfolio truth.";
+  const ctaHref = queueItem?.targetHref ?? `/cellar/${wine.id}?focus=valuation-refresh`;
   return action({
     type: "refresh_valuation",
     priority,
     severity: severityForPriority(priority),
-    verb: "Refresh",
-    label: `Refresh valuation for ${name}`,
-    reason: stale
-      ? "Trusted market or replacement evidence is stale; refresh before treating the displayed value as decision-grade."
-      : "No trusted market value is available; refresh valuation before relying on portfolio truth.",
-    confidence: stale ? 88 : 76,
+    verb: queueItem?.scope === "readiness" ? "Refresh maturity" : "Refresh",
+    label: queueItem?.scope === "readiness" ? `Refresh maturity signal for ${name}` : `Refresh valuation for ${name}`,
+    reason: queueReason,
+    confidence: queueItem ? 82 : stale ? 88 : 76,
     sourceSurface: "portfolio_truth",
     cta: {
-      label: "Refresh valuation",
-      href: `/cellar/${wine.id}?focus=valuation-refresh`,
-      action: "refresh_valuation",
+      label: queueItem?.scope === "readiness" ? "Review maturity" : "Refresh valuation",
+      href: ctaHref,
+      action: queueItem?.expectedAction ?? "refresh_valuation",
     },
     target: targetForCellar(wine, {
       evidenceAwaitingReview: evidence.reviewCount,
@@ -580,6 +611,11 @@ function buildRefreshValuationAction(
       trustedMarketObservationId: evidence.trustedMarketObservation?.id ?? null,
       trustedReplacementObservationId: evidence.trustedReplacementObservation?.id ?? null,
       aiInferredObservedPriceCents: evidence.aiInferredObservedPriceCents,
+      refreshScope: queueItem?.scope ?? null,
+      refreshReasons: queueItem?.reasons.join(",") ?? null,
+      refreshCostTier: queueItem?.costTier ?? null,
+      refreshCostUnits: queueItem?.costUnits ?? null,
+      refreshNextAt: queueItem?.nextRefreshAt ?? null,
     }),
   });
 }
@@ -710,25 +746,57 @@ function isLowStock(wine: PortfolioRadarCellarItem) {
     wine.quantity <= wine.low_stock_threshold;
 }
 
-function shouldRefreshMissingValuation(wine: PortfolioRadarCellarItem, evidence: PriceEvidenceSummary) {
-  if (evidence.marketValueCents != null) return false;
-  if (evidence.aiInferredObservedPriceCents != null && evidence.replacementPriceCents == null) return false;
-  return wine.purchase_price_cents != null || evidence.replacementPriceCents != null || (wine.accepted_price_evidence_count ?? 0) === 0;
-}
-
 function shouldInvestigateMissingEvidence(wine: PortfolioRadarCellarItem, evidence: PriceEvidenceSummary) {
   if (evidence.marketValueCents != null || evidence.replacementPriceCents != null) return false;
   if (evidence.aiInferredObservedPriceCents != null) return true;
   return wine.purchase_price_cents == null && (wine.accepted_price_evidence_count ?? 0) === 0;
 }
 
+function refreshPlanCellarItem(wine: PortfolioRadarCellarItem, asOf: string, date: Date) {
+  const readinessBridge = buildReadinessInputWithDrinkWindowEvidence(wine, wine.drink_window_observations ?? [], { asOf });
+  const readinessProfile = getWineReadinessProfile(readinessBridge.wine, { asOf: date });
+  return {
+    id: wine.id,
+    displayName: displayName(wine),
+    quantity: wine.quantity,
+    purchasePriceCents: wine.purchase_price_cents ?? null,
+    currentMarketValueCents: wine.current_market_value_cents ?? null,
+    marketValueSource: wine.market_value_source ?? null,
+    marketValueUpdatedAt: wine.market_value_updated_at ?? null,
+    drinkAfter: wine.drink_after ?? null,
+    drinkBefore: wine.drink_before ?? null,
+    readinessPhase: readinessProfile.phase,
+    readinessConfidence: readinessProfile.confidence,
+    acceptedPriceEvidenceCount: wine.accepted_price_evidence_count ?? null,
+    stalePriceEvidenceCount: wine.stale_price_evidence_count ?? null,
+    evidenceAwaitingReviewCount: wine.evidence_awaiting_review_count ?? null,
+    brianFitScore: wine.brian_fit_score ?? null,
+  };
+}
+
+function buildRefreshPlan(input: PortfolioRadarInput, asOf: string, date: Date) {
+  return input.refreshPlan ?? buildPortfolioRefreshQueue({
+    asOf,
+    cellar: (input.cellar ?? []).map((wine) => refreshPlanCellarItem(wine, asOf, date)),
+    priceObservations: input.priceObservations ?? [],
+    refreshes: input.refreshes ?? [],
+    budget: input.refreshBudget,
+  });
+}
+
+function groupRefreshQueueItems(plan: PortfolioRefreshPlan) {
+  return new Map(plan.items.map((item) => [item.inventoryId, item]));
+}
+
 function buildCellarActions(
   input: PortfolioRadarInput,
   asOf: string,
   date: Date,
-  tastingDraftInventoryIds: Set<string>
+  tastingDraftInventoryIds: Set<string>,
+  refreshPlan: PortfolioRefreshPlan
 ) {
   const observationsByInventory = groupPriceObservations(input.priceObservations ?? []);
+  const refreshItemsByInventory = groupRefreshQueueItems(refreshPlan);
   const actions: PortfolioRadarAction[] = [];
 
   for (const wine of (input.cellar ?? []).filter((candidate) => candidate.quantity > 0)) {
@@ -762,13 +830,18 @@ function buildCellarActions(
       actions.push(buildMissingWindowAction(wine, readinessProfile));
     }
 
+    const refreshItem = refreshItemsByInventory.get(wine.id) ?? null;
+    const readinessAlreadyActioned = refreshItem?.scope === "readiness" && (
+      readiness === "past_peak" ||
+      readiness === "ready" ||
+      readiness === "drink_soon" ||
+      readinessProfile.phase === "missing_window" ||
+      approachingPeak
+    );
     if (evidence.reviewCount > 0) {
       actions.push(buildReviewPriceEvidenceAction(wine, evidence));
-    }
-    if (evidence.staleCount > 0) {
-      actions.push(buildRefreshValuationAction(wine, evidence, true));
-    } else if (shouldRefreshMissingValuation(wine, evidence)) {
-      actions.push(buildRefreshValuationAction(wine, evidence, false));
+    } else if (refreshItem && !readinessAlreadyActioned) {
+      actions.push(buildRefreshValuationAction(wine, evidence, refreshItem));
     } else if (shouldInvestigateMissingEvidence(wine, evidence)) {
       actions.push(buildInvestigateMissingEvidenceAction(wine, evidence));
     }
@@ -1044,8 +1117,10 @@ export function buildPortfolioRadar(input: PortfolioRadarInput): PortfolioRadar 
       .filter((id): id is string => Boolean(id))
   );
 
+  const refreshPlan = buildRefreshPlan(input, asOf, date);
+
   const actions = dedupeActions([
-    ...buildCellarActions(input, asOf, date, tastingDraftInventoryIds),
+    ...buildCellarActions(input, asOf, date, tastingDraftInventoryIds, refreshPlan),
     ...buildReplenishmentActions(input),
     ...buildAcquisitionActions(input, asOf),
     ...buildReceiptActions(input, asOf),
@@ -1056,5 +1131,6 @@ export function buildPortfolioRadar(input: PortfolioRadarInput): PortfolioRadar 
     asOf,
     actions,
     summary: summarize(actions),
+    refreshPlan,
   };
 }

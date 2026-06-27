@@ -40,6 +40,8 @@ function testRouteFeedsTheRadarContractWithoutReDerivingInTheUi() {
   assertIncludes(routeSource, "acquisition: { targets, priceObservations: acquisitionPriceObservations }");
   assertIncludes(routeSource, "replenishment,");
   assertIncludes(routeSource, "sourceSummary");
+  assertIncludes(routeSource, "loadRefreshRecords(client, inventoryIds)");
+  assertIncludes(routeSource, "refreshQueue: radar.refreshPlan.summary");
 }
 
 function testPortfolioRadarRendersBeforeLegacyPanelStack() {
