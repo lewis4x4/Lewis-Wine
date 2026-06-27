@@ -813,7 +813,7 @@ Create/modify:
 
 ## Phase 5 — Automated Refresh Queue
 
-**Status:** In progress; due-selection foundation shipped in `4e6bb44`, with scheduled execution/summary still next.
+**Status:** In progress; due-selection foundation shipped in `4e6bb44`, record-only execution ledger/API shipped in `6123c96`, with hosted schedule trigger and daily/weekly summary still next.
 
 ### Goal
 
@@ -829,6 +829,8 @@ Create/modify:
 
 - Supabase migration for refresh queue if needed
 - `src/lib/portfolio-radar-refresh.ts`
+- `src/lib/portfolio-radar-refresh-runner.ts`
+- `src/app/api/portfolio-radar/refresh/route.ts`
 - `src/app/api/portfolio-radar/refresh/route.ts` or cron-safe route/script
 - Hermes cron job / Netlify scheduled function decision pending
 - `wine_intelligence_refreshes` use/extension
@@ -842,6 +844,14 @@ Create/modify:
 - LLM budget is capped.
 - Skipped refreshes record reason.
 - Daily/weekly summary says what changed.
+
+Completed v1:
+
+- `6123c96` adds a record-only refresh runner and authenticated POST API that consumes a Portfolio Radar refresh plan, writes due rows as `planned`, writes planner skips as `skipped`, preserves source-trust/budget reasons, and makes zero paid provider calls.
+
+Still next:
+
+- Generate the plan server-side on a hosted schedule, invoke/own the runner without trusting client-supplied plans, and summarize due/skipped/changed outcomes for Brian.
 
 ### Deployment decision needed
 
@@ -940,7 +950,8 @@ Improve valuation accuracy with better data sources.
 | Drink-window evidence review/apply API + UI | Done | Commit `0b1ea59`; authenticated persist/list/accept/edit/reject API, Bottle Detail review panel, and Portfolio Radar accepted-evidence consumption shipped. |
 | Valuation rollup | Done | Commit `e09d6ca`; derived `portfolio-valuations` posture feeds Portfolio Radar sell-watch from accepted trusted evidence while ignoring AI/draft estimates. |
 | Automated refresh queue foundation | Done | Commit `4e6bb44`; Portfolio Radar now derives cellar-wide refresh due items from readiness, accepted valuation evidence, stale evidence, high-value gaps, cooldowns, explicit skip reasons, and budget controls. |
-| Refresh execution and schedule | Next | Due-selection is visible; a runner still needs to execute due refreshes, persist outcomes/skip summaries, and produce daily/weekly change summaries. |
+| Refresh execution ledger + API | Done | Commit `6123c96`; authenticated record-only runner persists due planned rows and planner skip summaries to `wine_intelligence_refreshes` without paid provider calls. |
+| Hosted schedule trigger + daily/weekly summary | Next | Generate the current refresh plan server-side on schedule, invoke/own the runner safely, and summarize due/skipped/changed outcomes. |
 | Outcome/learning loop | Planned | Some flows capture data, but no unified Insight → Action → Outcome model yet. |
 | Provider-backed valuation | Later | Build after evidence/action spine. |
 
@@ -948,15 +959,15 @@ Improve valuation accuracy with better data sources.
 
 ## Recommended Next Build Slice
 
-Build **Refresh execution and schedule**.
+Build **Hosted schedule trigger + daily/weekly summary**.
 
 Why this next:
 
 - Portfolio Radar now decides what needs refresh and why.
-- The remaining manual gap is executing those due refreshes safely and recording what changed.
-- A scheduled runner should use the due-selection plan, preserve budget/source-trust rules, and persist outcome/skip summaries for Brian-facing daily or weekly review.
+- The record-only runner/API can persist due and skipped refresh ledger rows without paid provider calls.
+- The remaining manual gap is generating that plan server-side on schedule and turning refresh ledger rows into a Brian-facing daily or weekly summary of what was due, skipped/deferred, and actually changed.
 
-Do not weaken auth/RLS, spend money, or change secrets. Routine non-destructive schema/deploy/smoke work is approved when needed to finish the slice safely.
+Do not weaken auth/RLS, spend money, or change secrets. Routine non-destructive schema/deploy/smoke work is approved when needed to finish the slice safely; paid provider/LLM execution needs explicit budget controls and approval.
 
 ---
 

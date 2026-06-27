@@ -58,9 +58,10 @@ Autonomous build status: complete
 | 4 | Drink-window evidence review/apply API + Bottle Detail UI | Done | Shipped in `0b1ea59 Add drink-window evidence review UI`; authenticated API, Bottle Detail review panel, and Portfolio Radar accepted-evidence consumption. |
 | 5 | Valuation Rollup + Sell-watch | Done | Shipped in `e09d6ca Add portfolio valuation sell-watch posture`; derived valuation posture rolls accepted market/replacement evidence into Portfolio Radar sell-watch without trusting AI/draft evidence. |
 | 6 | Automated Refresh Queue foundation | Done | Shipped in `4e6bb44 Add automated Portfolio Radar refresh queue`; due-selection, budget controls, skip reasons, and refresh-due Portfolio Radar actions. |
-| 7 | Refresh execution and schedule | Next | Cron/scheduled runner or hosted endpoint that executes due refreshes, persists results/skip summaries, and reports daily/weekly changes. |
-| 8 | Outcome and Learning Loop | Planned | Durable Insight → Action → Outcome learning. |
-| 9 | Provider and Data-source Expansion | Later | Provider integrations after the evidence/action spine is working. |
+| 7 | Refresh execution ledger + API | Done | Shipped in `6123c96 Add Portfolio Radar refresh runner`; authenticated record-only POST runner persists due planned rows and planner skip summaries without paid provider calls. |
+| 8 | Hosted schedule trigger + daily/weekly summary | Next | Generate the current plan server-side on a schedule, invoke/own the runner safely, and summarize due/skipped/changed outcomes. |
+| 9 | Outcome and Learning Loop | Planned | Durable Insight → Action → Outcome learning. |
+| 10 | Provider and Data-source Expansion | Later | Provider integrations after the evidence/action spine is working. |
 
 ## Completion / Self-Pause Protocol
 
@@ -75,14 +76,14 @@ The only permitted cron-management action for the autonomous builder is pausing 
 
 ## Next Default Slice
 
-If no newer human instruction exists, the next run should start with **Refresh execution and schedule**.
+If no newer human instruction exists, the next run should start with **Hosted schedule trigger + daily/weekly summary**.
 
 Minimum useful next slice:
 
-- Choose the concrete execution path for app truth: hosted scheduled endpoint/function preferred, Hermes only for briefing/notification.
-- Add a cron-safe refresh runner that reads the Portfolio Radar refresh plan, executes a bounded due set, and respects auth/RLS/safety boundaries.
-- Persist refresh run outcomes and skipped/deferred reasons so daily/weekly summaries can say what changed.
-- Keep budget limits and source-trust rules intact; do not let AI/draft evidence become trusted valuation/readiness truth.
+- Choose the concrete schedule path for app truth: hosted scheduled endpoint/function preferred, Hermes only for briefing/notification.
+- Generate the Portfolio Radar refresh plan server-side for Brian's owned cellar, then invoke or reuse the `buildPortfolioRefreshRun()` ledger path without trusting client-supplied plans.
+- Produce a daily/weekly summary from `wine_intelligence_refreshes` that says what was due, recorded, skipped/deferred, and what actually changed.
+- Keep budget limits and source-trust rules intact; do not enable paid provider/LLM refresh execution without explicit budget controls and approval.
 
 ## Acceptance Standard Per Slot
 
