@@ -54,11 +54,12 @@ Autonomous build status: complete
 |---:|---|---|---|
 | 1 | Portfolio Radar v1 / Pourfolio Today | Done | Shipped in `44c6223 Add Portfolio Radar intelligence queue`. |
 | 2 | Readiness Engine v2 | Done | Shipped in `4dee98a Add Readiness Engine v2 phase model`; Portfolio Radar consumes phase/source metadata. |
-| 3 | Source-backed drink-window evidence | Next | Structured drink-window observations/review/apply flow. |
-| 4 | Valuation Rollup + Sell-watch | Planned | Accepted evidence rolls up into value posture and sell/buy-watch actions. |
-| 5 | Automated Refresh Queue | Planned | Due-selection, budget controls, skip reasons, schedule. |
-| 6 | Outcome and Learning Loop | Planned | Durable Insight → Action → Outcome learning. |
-| 7 | Provider and Data-source Expansion | Later | Provider integrations after the evidence/action spine is working. |
+| 3 | Source-backed drink-window evidence foundation | Done | Shipped in `3e41d99 Add drink-window evidence foundation`; local migration + pure review/apply bridge, not applied to production. |
+| 4 | Drink-window evidence review/apply API + Bottle Detail UI | Next | Persist, list, accept/edit/reject, and apply structured drink-window observations without silently overwriting cellar truth. |
+| 5 | Valuation Rollup + Sell-watch | Planned | Accepted evidence rolls up into value posture and sell/buy-watch actions. |
+| 6 | Automated Refresh Queue | Planned | Due-selection, budget controls, skip reasons, schedule. |
+| 7 | Outcome and Learning Loop | Planned | Durable Insight → Action → Outcome learning. |
+| 8 | Provider and Data-source Expansion | Later | Provider integrations after the evidence/action spine is working. |
 
 ## Completion / Self-Pause Protocol
 
@@ -73,19 +74,14 @@ The only permitted cron-management action for the autonomous builder is pausing 
 
 ## Next Default Slice
 
-If no newer human instruction exists, the next run should start with **Source-backed Drink-window Evidence**.
+If no newer human instruction exists, the next run should start with **Drink-window evidence review/apply API + Bottle Detail UI**.
 
-Minimum useful first slice:
+Minimum useful next slice:
 
-- Add a local, idempotent migration or pure model scaffolding for structured drink-window observations, without applying production migrations automatically.
-- Add helper/tests for reviewable drink-window evidence:
-  - source type/name/url
-  - proposed drink-after/drink-before
-  - optional peak-start/peak-end
-  - confidence
-  - review status
-  - applicability to inventory/reference readiness
-- Wire the evidence shape toward Readiness Engine v2 without letting AI/public-web findings silently overwrite cellar truth.
+- Add an authenticated read/write API for structured drink-window observations, backed by the local `wine_drink_window_observations` migration once production migration approval exists.
+- Add Bottle Detail UI to list draft/accepted/rejected drink-window evidence and let Brian accept, edit, reject, or supersede an observation.
+- Apply accepted observations through the `drink-window-evidence` bridge so Readiness Engine v2 can consume them without silently overwriting inventory-level cellar truth.
+- Keep AI/public-web findings draft until reviewed; accepted `ai_inferred` rows must still not drive readiness automatically.
 
 ## Acceptance Standard Per Slot
 

@@ -741,7 +741,7 @@ Modify:
 
 ## Phase 3 — Source-backed Drink-window Evidence
 
-**Status:** Needed to make readiness trustworthy.
+**Status:** In progress; foundation shipped, review/apply API + UI is next.
 
 ### Goal
 
@@ -755,7 +755,9 @@ Add source-backed drink-window observations and review/apply flow.
 
 Create/modify:
 
-- Supabase migration for `wine_drink_window_observations`
+- `supabase/migrations/00022_drink_window_observations.sql` — local structured observation table; not yet applied to production.
+- `src/lib/drink-window-evidence.ts` — pure normalization/validation/selection/readiness bridge.
+- `tests/drink-window-evidence.test.ts` — proof that accepted source-backed observations can feed Readiness Engine v2 and AI/draft rows cannot.
 - `src/lib/current-intelligence/*`
 - `src/app/api/bottle-intelligence/refresh/[id]/route.ts`
 - `src/components/cellar/price-evidence-panel.tsx` or a new readiness evidence panel
@@ -934,7 +936,8 @@ Improve valuation accuracy with better data sources.
 | Buy Again / Shopping / Replenishment handoff to Acquisition | Done | Commit `0a53bab`; local full check passed before push. Hosted smoke for `0a53bab` still recommended. |
 | Portfolio Radar / Pourfolio Today | Done | Commit `44c6223`; authenticated local + hosted smokes generated 9 actions; Netlify deploy ready. |
 | Readiness Engine v2 | Done | Commit `4dee98a`; core richer phase model shipped and Portfolio Radar consumes phase/source metadata. |
-| Drink-window evidence observations | Next | Schema supports generic drink-window evidence kind but no full structured apply path verified. |
+| Drink-window evidence foundation | Done | Commit `3e41d99`; local `wine_drink_window_observations` migration, helper/tests, and readiness bridge shipped; production migration not applied. |
+| Drink-window evidence review/apply API + UI | Next | Bottle Detail/API still need persist/list/accept/edit/reject/apply flow for structured drink-window observations. |
 | Valuation rollup | Planned | Evidence model exists; rollup from accepted observations into portfolio truth is incomplete. |
 | Automated refresh queue | Planned | Acquisition has next-refresh concepts; cellar-wide refresh not verified. |
 | Outcome/learning loop | Planned | Some flows capture data, but no unified Insight → Action → Outcome model yet. |
@@ -944,15 +947,15 @@ Improve valuation accuracy with better data sources.
 
 ## Recommended Next Build Slice
 
-Build **Source-backed Drink-window Evidence**.
+Build **Drink-window evidence review/apply API + Bottle Detail UI**.
 
 Why this next:
 
-- Readiness Engine v2 now has the richer phase model.
-- The next gap is making drink-window truth sourced, reviewable, and explainable.
-- This gives Portfolio Radar trustworthy inputs for missing-window, entering-window, at-peak, drink-soon, and past-peak actions.
+- The local structured observation table and pure readiness bridge now exist.
+- Readiness Engine v2 can consume accepted source-backed evidence without copying it into inventory truth.
+- The next gap is making the evidence reviewable and actionable in the app: persist/list draft rows, accept/edit/reject them, and feed accepted rows into Bottle Detail/Portfolio Radar readiness.
 
-Do not start with providers or more scraping. Build the evidence/review/apply spine first, then let providers feed it.
+Do not apply the production Supabase migration automatically. Build the local API/UI path and pause on the remote migration boundary unless Brian explicitly approves applying `00022_drink_window_observations.sql`.
 
 ---
 
