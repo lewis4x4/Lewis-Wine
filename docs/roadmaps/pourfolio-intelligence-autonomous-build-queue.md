@@ -42,7 +42,7 @@ node scripts/pourfolio-autobuild-slot.mjs status
 
 ## Current Roadmap Position
 
-Autonomous build status: `active`
+Autonomous build status: `complete`
 
 When all actionable slices are `Done` and no row is `Next`, `Planned`, or `Blocked`, change this to:
 
@@ -60,8 +60,8 @@ Autonomous build status: complete
 | 6 | Automated Refresh Queue foundation | Done | Shipped in `4e6bb44 Add automated Portfolio Radar refresh queue`; due-selection, budget controls, skip reasons, and refresh-due Portfolio Radar actions. |
 | 7 | Refresh execution ledger + API | Done | Shipped in `6123c96 Add Portfolio Radar refresh runner`; authenticated record-only POST runner persists due planned rows and planner skip summaries without paid provider calls. |
 | 8 | Hosted schedule trigger + daily/weekly summary | Done | Shipped in `a2ce830 Add scheduled Portfolio Radar refresh trigger`; Netlify daily scheduled function invokes a protected server-side route that generates Brian's current refresh plan, records due/skipped rows idempotently, and returns daily/weekly summaries. |
-| 9 | Outcome and Learning Loop | Next | Durable Insight → Action → Outcome learning. |
-| 10 | Provider and Data-source Expansion | Later | Provider integrations after the evidence/action spine is working. |
+| 9 | Outcome and Learning Loop | Done | Shipped in `fd8881a Add Portfolio Radar outcome learning loop`; durable action outcomes now close/open/dismiss Radar prompts without rewriting source-backed evidence. |
+| 10 | Provider and Data-source Expansion | Later | Human-approved provider/data-source expansion remains outside the autonomous build loop until Brian chooses sources/budget. |
 
 ## Completion / Self-Pause Protocol
 
