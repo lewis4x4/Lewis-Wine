@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import {
-  buildCellarTrackerObservationDraft,
+  buildCellarTrackerImportDraft,
   matchCellarTrackerRowToInventory,
   normalizeCellarTrackerRow,
   parseCellarTrackerCsv,
@@ -26,12 +26,14 @@ export async function POST(request: Request) {
     if (error) throw error;
 
     const normalizedRows = parseCellarTrackerCsv(input.csv).map(normalizeCellarTrackerRow);
-    const drafts = normalizedRows.map((row) => buildCellarTrackerObservationDraft(row, matchCellarTrackerRowToInventory(row, inventory ?? [])));
-    const observations = drafts.flatMap((draft) => [draft.marketObservation, draft.purchaseObservation].filter(Boolean));
+    const drafts = normalizedRows.map((row) => buildCellarTrackerImportDraft(row, matchCellarTrackerRowToInventory(row, inventory ?? [])));
+    const observations = drafts.flatMap((draft) => draft.priceObservations);
+    const drinkWindowObservations = drafts.map((draft) => draft.drinkWindowObservation).filter(Boolean);
+    let saved = 0;
 
     if (input.acceptMatched && observations.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("wine_price_observations").insert(observations.map((observation: any) => ({
+      const { data: inserted, error: insertError } = await (supabase as any).from("wine_price_observations").insert(observations.map((observation: any) => ({
         inventory_id: observation.inventoryId,
         wine_reference_id: observation.wineReferenceId,
         source_type: observation.sourceType,
@@ -39,7 +41,7 @@ export async function POST(request: Request) {
         source_url: observation.sourceUrl,
         observation_kind: observation.observationKind,
         truth_label: observation.truthLabel,
-        review_status: "accepted",
+        review_status: observation.reviewStatus,
         observed_price_cents: observation.observedPriceCents,
         currency: observation.currency,
         bottle_size_ml: observation.bottleSizeMl,
@@ -48,7 +50,9 @@ export async function POST(request: Request) {
         observed_at: observation.observedAt,
         notes: observation.notes,
         raw_payload: observation.rawPayload ?? {},
-      })));
+      }))).select("id");
+      if (insertError) throw insertError;
+      saved = inserted?.length ?? observations.length;
     }
 
     return NextResponse.json({
@@ -58,7 +62,9 @@ export async function POST(request: Request) {
       ambiguous: drafts.filter((draft) => draft.match.status === "ambiguous").length,
       unmatched: drafts.filter((draft) => draft.match.status === "unmatched").length,
       observations,
-      saved: input.acceptMatched ? observations.length : 0,
+      drinkWindowObservations,
+      reviewWarnings: drafts.flatMap((draft) => draft.reviewWarnings),
+      saved,
     });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Failed to import CellarTracker CSV" }, { status: 400 });
