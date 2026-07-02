@@ -53,7 +53,7 @@ export function AlertsDashboard() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 rounded-[28px] border border-border/60 bg-background/96 p-4 shadow-sm">
       <h2 className="font-playfair text-xl font-semibold">Alerts</h2>
 
       {/* Low Stock Wines */}

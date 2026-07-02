@@ -276,9 +276,7 @@ export default function CellarPage() {
       )}
 
       {/* Alerts Dashboard */}
-      <div className="rounded-[28px] border border-border/60 bg-background/96 p-1 shadow-sm">
-        <AlertsDashboard />
-      </div>
+      <AlertsDashboard />
 
       {/* Search & Filter */}
       {!isLoading && inventory && inventory.length > 0 && (

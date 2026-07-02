@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Runs typecheck, lint, every test suite, and a full production build.
+      # The suite is hermetic — no env vars or live services required.
+      - name: Check
+        run: npm run check

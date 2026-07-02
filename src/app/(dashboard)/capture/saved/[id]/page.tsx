@@ -155,7 +155,7 @@ export default function CaptureSavedPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-20">
-      <section className="overflow-hidden rounded-[2rem] border bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.22),transparent_36%),linear-gradient(135deg,hsl(var(--background)),hsl(var(--muted)/0.55))] p-6 shadow-sm md:p-8">
+      <section className="overflow-hidden rounded-[2rem] border bg-[radial-gradient(circle_at_top_left,color-mix(in_oklab,var(--primary)_22%,transparent),transparent_36%),linear-gradient(135deg,var(--background),color-mix(in_oklab,var(--muted)_55%,transparent))] p-6 shadow-sm md:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-4">
             <Badge className="rounded-full px-3 py-1"><CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Saved tasting memory</Badge>

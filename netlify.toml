@@ -1,0 +1,17 @@
+# Deploy configuration lives in the repo so the site is reproducible.
+# Required environment variables (set in the Netlify UI, never committed):
+#   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+#   SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY,
+#   POURFOLIO_CRON_SECRET, POURFOLIO_REFRESH_OWNER_ID
+
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  directory = "netlify/functions"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

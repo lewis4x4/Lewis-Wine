@@ -12,13 +12,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { buildAcquisitionReceipt, parseReceiptText, type AcquisitionReceiptItem } from "@/lib/acquisition-receipt";
 
-const demoReceipt = `Benchmark Wine Shop
+const sampleReceipt = `Benchmark Wine Shop
 2026-06-24
 2 x 2021 Tapiz Alta Collection Cabernet Sauvignon Mendoza @ $92.00
 1 x 2020 Lewis Cellars Reserve Cabernet Napa Valley @ $210.00
 Subtotal $394.00
 Tax $27.58
 Total $421.58`;
+const sampleVendor = "Benchmark Wine Shop";
+const sampleNotes = "Bought after Shopping Mode recommendation; house restock for steak dinners.";
 
 function formatCents(cents: number | null | undefined) {
   if (cents == null) return "—";
@@ -45,9 +47,9 @@ function ReceiptItemCard({ item }: { item: AcquisitionReceiptItem }) {
 }
 
 export function AcquisitionReceiptPanel() {
-  const [vendor, setVendor] = useState("Benchmark Wine Shop");
-  const [notes, setNotes] = useState("Bought after Shopping Mode recommendation; house restock for steak dinners.");
-  const [receiptText, setReceiptText] = useState(demoReceipt);
+  const [vendor, setVendor] = useState("");
+  const [notes, setNotes] = useState("");
+  const [receiptText, setReceiptText] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const parsed = useMemo(() => parseReceiptText(receiptText), [receiptText]);
@@ -114,7 +116,22 @@ export function AcquisitionReceiptPanel() {
           <div className="space-y-2"><Label>Notes / why bought</Label><Input value={notes} onChange={(event) => setNotes(event.target.value)} /></div>
           <div className="flex items-end"><Button onClick={saveReceipt} disabled={isSaving || !receipt.items.length}><RefreshCw className="mr-2 h-4 w-4" /> {isSaving ? "Saving" : "Save receipt"}</Button></div>
         </div>
-        <Textarea rows={7} value={receiptText} onChange={(event) => setReceiptText(event.target.value)} />
+        <Textarea rows={7} value={receiptText} onChange={(event) => setReceiptText(event.target.value)} placeholder="Paste receipt text here — vendor, date, and one line per wine (e.g. 2 x 2021 Producer Label Region @ $92.00)." />
+        {!receiptText.trim() ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => {
+              setVendor(sampleVendor);
+              setNotes(sampleNotes);
+              setReceiptText(sampleReceipt);
+            }}
+          >
+            Load sample receipt
+          </Button>
+        ) : null}
         <div className="grid gap-3 md:grid-cols-3">
           <div className="rounded-3xl border bg-background/70 p-4"><div className="text-xs font-semibold uppercase tracking-wide text-primary">Purchase story</div><p className="mt-2 text-sm text-muted-foreground">{receipt.purchaseStory}</p>{notice ? <p className="mt-2 text-sm text-primary">{notice}</p> : null}</div>
           <div className="rounded-3xl border bg-background/70 p-4"><div className="text-xs font-semibold uppercase tracking-wide text-primary">Closeout</div><p className="mt-2 text-sm text-muted-foreground">Linked Acquisition targets become acquired; unlinked bottles enter cellar with verified purchase-price evidence.</p></div>

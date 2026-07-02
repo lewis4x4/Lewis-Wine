@@ -258,9 +258,7 @@ function WishlistCard({
       <CardContent className="p-4">
         <div className="flex justify-between items-start">
           <div className="flex-1 min-w-0">
-            <Link href={`/wishlist/${item.id}`} className="hover:underline">
-              <h3 className="font-semibold truncate">{wineName}</h3>
-            </Link>
+            <h3 className="font-semibold truncate">{wineName}</h3>
             {producer && (
               <p className="text-sm text-muted-foreground truncate">{producer}</p>
             )}

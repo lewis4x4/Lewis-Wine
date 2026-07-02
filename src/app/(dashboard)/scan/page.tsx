@@ -93,28 +93,6 @@ export default function ScanPage() {
         </Link>
       </div>
 
-      {actualState === "scanning" && (
-        <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
-          <CardHeader>
-            <CardTitle className="font-playfair text-2xl">Scan intake view</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-xl border bg-background/80 p-4">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
-              <p className="mt-2 text-sm text-foreground">Choose the fastest reliable path to turn a real-world bottle or purchase into structured cellar data.</p>
-            </div>
-            <div className="rounded-xl border bg-background/80 p-4">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
-              <p className="mt-2 text-sm text-foreground">Use barcode for speed, label scan for detail, and receipt scan when multiple bottles entered the system at once.</p>
-            </div>
-            <div className="rounded-xl border bg-background/80 p-4">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
-              <p className="mt-2 text-sm text-foreground">If intake is messy, everything downstream gets weaker, from Bottle Brain to value truth to Tonight Engine.</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Scan Options */}
       {actualState === "scanning" && (
         <div className="grid gap-4 md:grid-cols-3 mb-6">

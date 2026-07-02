@@ -39,14 +39,31 @@ export default async function DashboardPage() {
         .single<{ id: string }>();
 
     if (!cellar) {
-        // Handle new user state - maybe redirect to onboarding or show empty state
+        // New-user state: the signup trigger normally creates a cellar, but if
+        // it didn't (pre-trigger accounts, trigger failure) create one inline
+        // mirroring handle_new_user instead of linking to a page that doesn't exist.
+        async function createCellar() {
+            "use server";
+            const actionSupabase = await createClient();
+            const { data: { user: actionUser } } = await actionSupabase.auth.getUser();
+            if (!actionUser) redirect("/login");
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (actionSupabase as any)
+                .from("profiles")
+                .upsert({ id: actionUser.id }, { onConflict: "id" });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (actionSupabase as any)
+                .from("cellars")
+                .insert({ owner_id: actionUser.id, name: "My Cellar" });
+            redirect("/cellar");
+        }
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
                 <h2 className="text-3xl font-playfair font-bold">Welcome to Pourfolio</h2>
                 <p className="text-muted-foreground max-w-md">Let&apos;s set up your first cellar to get started.</p>
-                <Link href="/onboarding">
-                    <Button size="lg">Create My Cellar</Button>
-                </Link>
+                <form action={createCellar}>
+                    <Button size="lg" type="submit">Create My Cellar</Button>
+                </form>
             </div>
         );
     }
@@ -393,13 +410,13 @@ export default async function DashboardPage() {
 
                     <Card className="rounded-[28px] border border-border/60 bg-background/96 shadow-sm">
                         <CardHeader>
-                            <CardTitle className="tracking-tight">Storage status</CardTitle>
+                            <CardTitle className="tracking-tight">Cellar readiness</CardTitle>
                             <CardDescription>
-                                Capacity usage
+                                Bottles in their drinking window
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            <StorageProgress name="Total Capacity" current={totalBottles} max={100} />
+                            <StorageProgress name="Ready to drink" current={readyToDrinkCount} max={totalBottles} />
                         </CardContent>
                     </Card>
                 </div>
@@ -447,12 +464,12 @@ function KPICard({ title, value, change, icon, trend }: {
 }
 
 function StorageProgress({ name, current, max }: { name: string, current: number, max: number }) {
-    const percentage = Math.min(Math.round((current / max) * 100), 100);
+    const percentage = max > 0 ? Math.min(Math.round((current / max) * 100), 100) : 0;
     return (
         <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">
                 <span className="font-medium">{name}</span>
-                <span className="text-muted-foreground">{current} / {max}+ bottles</span>
+                <span className="text-muted-foreground">{current} of {max} bottles</span>
             </div>
             <Progress value={percentage} className="h-2" />
         </div>

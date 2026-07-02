@@ -10,8 +10,15 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
-  // Skip auth during build or when env vars are missing
+  // Skip auth during build or when env vars are missing — but never fail
+  // open in a running production deployment.
   if (!supabaseUrl || !supabaseAnonKey) {
+    if (process.env.NODE_ENV === "production") {
+      return new NextResponse(
+        "Server misconfigured: Supabase environment variables are missing.",
+        { status: 500 }
+      );
+    }
     return supabaseResponse;
   }
 

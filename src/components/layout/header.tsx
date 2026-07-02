@@ -27,6 +27,7 @@ const moreNav = [
   { href: "/ratings", label: "Ratings" },
   { href: "/analytics", label: "Analytics" },
   { href: "/bottle-brain", label: "Bottle Brain" },
+  { href: "/blind-tasting", label: "Blind Tasting" },
   { href: "/jarvis/voice", label: "Voice Capture" },
   { href: "/shopping", label: "Shopping" },
   { href: "/wishlist", label: "Wishlist" },

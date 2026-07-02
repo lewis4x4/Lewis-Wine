@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { useCellar, useAddToInventory } from "@/lib/hooks/use-cellar";
+import { useCellar, useCellarInventory, useAddToInventory } from "@/lib/hooks/use-cellar";
+import type { CellarInventory, WineReference, Rating } from "@/types/database";
 
 // Define the shape of our CSV import
 type CSVRow = {
@@ -22,17 +23,72 @@ type CSVRow = {
     Notes?: string;
 };
 
+type ExportRow = CellarInventory & {
+    wine_reference: WineReference | null;
+    ratings: Rating[] | null;
+};
+
+function csvCell(value: string | number | null | undefined) {
+    if (value == null) return "";
+    const text = String(value);
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function centsToDollars(cents: number | null | undefined) {
+    return cents == null ? "" : (cents / 100).toFixed(2);
+}
+
 export function DataTools() {
     const { data: cellar } = useCellar();
+    const { data: inventory, isLoading: isInventoryLoading } = useCellarInventory();
     const addToInventory = useAddToInventory();
 
     const [isImporting, setIsImporting] = useState(false);
     const [importStats, setImportStats] = useState<{ total: number; success: number; failed: number } | null>(null);
 
     const handleExport = () => {
-        // TODO: Implement actual export by fetching all inventory
-        // For now we toast
-        toast.info("Export feature coming soon! (Fetching all data...)");
+        const rows = (inventory ?? []) as ExportRow[];
+        if (!rows.length) {
+            toast.info("Nothing to export yet — the cellar is empty.");
+            return;
+        }
+        const header = [
+            "Name", "Producer", "Vintage", "Region", "Type", "Quantity", "Status",
+            "Purchase Price", "Market Value", "Purchase Date", "Drink After",
+            "Drink Before", "Location", "Avg Rating", "Notes",
+        ];
+        const lines = rows.map((row) => {
+            const ratings = row.ratings ?? [];
+            const avgRating = ratings.length
+                ? Math.round(ratings.reduce((sum, rating) => sum + rating.score, 0) / ratings.length)
+                : "";
+            return [
+                row.wine_reference?.name || row.custom_name || "Unknown Wine",
+                row.wine_reference?.producer || row.custom_producer || "",
+                row.vintage ?? row.custom_vintage ?? "",
+                row.wine_reference?.region || row.custom_region || "",
+                row.wine_reference?.wine_type || "",
+                row.quantity ?? "",
+                row.status ?? "",
+                centsToDollars(row.purchase_price_cents),
+                centsToDollars(row.current_market_value_cents),
+                row.purchase_date ?? "",
+                row.drink_after ?? "",
+                row.drink_before ?? "",
+                row.simple_location ?? "",
+                avgRating,
+                row.notes ?? "",
+            ].map(csvCell).join(",");
+        });
+        const csv = [header.join(","), ...lines].join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `pourfolio-cellar-${new Date().toISOString().slice(0, 10)}.csv`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+        toast.success(`Exported ${rows.length} bottles.`);
     };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -126,9 +182,9 @@ export function DataTools() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Button variant="outline" onClick={handleExport} className="w-full">
+                        <Button variant="outline" onClick={handleExport} disabled={isInventoryLoading} className="w-full">
                             <FileSpreadsheet className="mr-2 h-4 w-4" />
-                            Download CSV
+                            {isInventoryLoading ? "Loading inventory…" : "Download CSV"}
                         </Button>
                     </CardContent>
                 </Card>

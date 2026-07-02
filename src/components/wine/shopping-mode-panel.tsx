@@ -62,11 +62,18 @@ function PickCard({ label, pick, onAdd, busy }: { label: string; pick: ShoppingR
 }
 
 export function ShoppingModePanel() {
-  const [retailer, setRetailer] = useState("Benchmark Wine Shop");
-  const [context, setContext] = useState("stocking the house before a steak dinner");
+  const [retailer, setRetailer] = useState("");
+  const [context, setContext] = useState("");
   const [desiredQuantity, setDesiredQuantity] = useState(6);
-  const [budget, setBudget] = useState("650");
-  const [text, setText] = useState(demoText);
+  const [budget, setBudget] = useState("");
+  const [text, setText] = useState("");
+
+  function loadSample() {
+    setRetailer("Sample Wine Shop");
+    setContext("stocking the house before a steak dinner");
+    setBudget("650");
+    setText(demoText);
+  }
   const [busyId, setBusyId] = useState<string | null>(null);
   const [serverBusy, setServerBusy] = useState(false);
   const [serverNotice, setServerNotice] = useState<string | null>(null);
@@ -135,13 +142,18 @@ export function ShoppingModePanel() {
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid gap-4 lg:grid-cols-[1fr_1fr_140px_140px_auto]">
-          <div className="space-y-2"><Label>Retailer</Label><Input value={retailer} onChange={(event) => setRetailer(event.target.value)} /></div>
-          <div className="space-y-2"><Label>Context</Label><Input value={context} onChange={(event) => setContext(event.target.value)} /></div>
+          <div className="space-y-2"><Label>Retailer</Label><Input value={retailer} onChange={(event) => setRetailer(event.target.value)} placeholder="Which shop or allocation?" /></div>
+          <div className="space-y-2"><Label>Context</Label><Input value={context} onChange={(event) => setContext(event.target.value)} placeholder="e.g. restocking house reds" /></div>
           <div className="space-y-2"><Label>Qty target</Label><Input type="number" min={1} value={desiredQuantity} onChange={(event) => setDesiredQuantity(Math.max(1, Number(event.target.value) || 1))} /></div>
           <div className="space-y-2"><Label>Budget</Label><Input value={budget} onChange={(event) => setBudget(event.target.value)} /></div>
           <div className="flex items-end"><Button onClick={rankWithPrivateProfile} disabled={serverBusy}><RefreshCw className="mr-2 h-4 w-4" /> {serverBusy ? "Ranking" : "Rank"}</Button></div>
         </div>
-        <Textarea rows={6} value={text} onChange={(event) => setText(event.target.value)} />
+        <Textarea rows={6} value={text} onChange={(event) => setText(event.target.value)} placeholder="One wine per line, e.g. 2021 Producer Label Region $92 available" />
+        {!text.trim() ? (
+          <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={loadSample}>
+            Try a sample shelf
+          </Button>
+        ) : null}
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-3xl border bg-background/70 p-4"><div className="text-xs font-semibold uppercase tracking-wide text-primary">Shopping brief</div><p className="mt-2 text-lg font-medium">{localResult.shoppingBrief}</p>{localResult.budgetWarning ? <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">{localResult.budgetWarning}</p> : null}{serverNotice ? <p className="mt-2 text-sm text-muted-foreground">{serverNotice}</p> : null}</div>
           <div className="rounded-3xl border bg-background/70 p-4"><div className="text-xs font-semibold uppercase tracking-wide text-primary">Photo-first path</div><p className="mt-2 text-sm text-muted-foreground">Upload/OCR gets wired through the same parser next; paste mode is the deterministic backbone.</p><Label className="mt-4 flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed p-4 text-sm text-muted-foreground"><Upload className="h-4 w-4" /> Photo import staged<input type="file" accept="image/*" className="hidden" onChange={() => toast.info("Photo shopping import is staged; paste OCR text for this slice.")} /></Label></div>

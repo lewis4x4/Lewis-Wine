@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { AcquisitionEnginePanel } from "@/components/wine/acquisition-engine-panel";
 import { AcquisitionReceiptPanel } from "@/components/wine/acquisition-receipt-panel";
 import { BuyAgainLane } from "@/components/wine/buy-again-lane";
 import { CaptureCommandCard } from "@/components/wine/capture-command-card";
+import { IntelligenceDeepLink } from "@/components/wine/intelligence-deep-link";
 import { ReplenishmentAutomationPanel } from "@/components/wine/replenishment-automation-panel";
 import { PortfolioRadarPanel } from "@/components/wine/portfolio-radar-panel";
 import { TasteGenomeDashboard } from "@/components/wine/taste-genome-dashboard";
@@ -16,6 +18,9 @@ export const metadata = {
 export default function PourfolioIntelligencePage() {
   return (
     <div className="space-y-8">
+      <Suspense fallback={null}>
+        <IntelligenceDeepLink />
+      </Suspense>
       <section className="rounded-[32px] border border-border/70 bg-gradient-to-br from-primary/10 via-background to-background p-6 shadow-sm md:p-8">
         <p className="text-sm font-medium uppercase tracking-[0.24em] text-primary">Pourfolio Intelligence</p>
         <div className="mt-3 max-w-4xl space-y-3">

@@ -105,27 +105,6 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background">
-        <CardHeader>
-          <CardTitle className="font-playfair text-2xl">System preference view</CardTitle>
-          <CardDescription>Settings should support the operating model, not get in its way.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-xl border bg-background/80 p-4">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">What matters now</div>
-            <p className="mt-2 text-sm text-foreground">This is where account identity, cellar tracking behavior, and data tools stay aligned with the way you actually use Pourfolio.</p>
-          </div>
-          <div className="rounded-xl border bg-background/80 p-4">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Best next move</div>
-            <p className="mt-2 text-sm text-foreground">Keep settings minimal, legible, and tied to real outcomes like cleaner location tracking and safer data operations.</p>
-          </div>
-          <div className="rounded-xl border bg-background/80 p-4">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Risk if ignored</div>
-            <p className="mt-2 text-sm text-foreground">If settings feel like a dump of controls, trust falls and the product starts feeling more technical than premium.</p>
-          </div>
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <CardTitle>Profile</CardTitle>

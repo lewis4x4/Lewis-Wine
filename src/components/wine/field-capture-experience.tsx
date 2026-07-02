@@ -172,8 +172,8 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
   const [score, setScore] = useState<number | null>(initialDemo ? initialScore : null);
   const [buyAgain, setBuyAgain] = useState<BuyAgain>(initialDemo ? initialBuyAgain : "maybe");
   const [occasion, setOccasion] = useState(initialDemo ? initialOccasion : "");
-  const [descriptors, setDescriptors] = useState(initialDescriptors);
-  const [notes, setNotes] = useState(initialNotes);
+  const [descriptors, setDescriptors] = useState(initialDemo ? initialDescriptors : "");
+  const [notes, setNotes] = useState(initialDemo ? initialNotes : "");
   const [saveMode, setSaveMode] = useState<FieldCaptureSaveMode>(initialSaveMode ?? (inventoryId ? "link_existing_inventory" : "memory_only"));
   const [result, setResult] = useState<SaveResult | null>(null);
   const [followUpQuestion, setFollowUpQuestion] = useState<string | null>(null);
@@ -235,8 +235,8 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
     if (!scan.wine) throw new Error("No candidate returned from label scan");
     const nextCandidate = buildFieldCaptureCandidateFromLabelScan(scan.wine);
     setCandidate(nextCandidate);
-    setDescriptors(scan.wine.detected_descriptors?.join(", ") || initialDescriptors);
-    setNotes(scan.wine.suggested_tasting_note || scan.raw_text || initialNotes);
+    setDescriptors(scan.wine.detected_descriptors?.join(", ") ?? "");
+    setNotes(scan.wine.suggested_tasting_note || scan.raw_text || "");
     setFollowUpQuestion(null);
     setStage("review");
     return true;
@@ -418,7 +418,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-24 md:pb-8">
-      <section className="overflow-hidden rounded-[2rem] border bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.18),transparent_34%),linear-gradient(135deg,hsl(var(--background)),hsl(var(--muted)/0.55))] p-5 shadow-sm md:p-8">
+      <section className="overflow-hidden rounded-[2rem] border bg-[radial-gradient(circle_at_top_left,color-mix(in_oklab,var(--primary)_18%,transparent),transparent_34%),linear-gradient(135deg,var(--background),color-mix(in_oklab,var(--muted)_55%,transparent))] p-5 shadow-sm md:p-8">
         <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
           <div className="space-y-4">
             <Badge className="rounded-full px-3 py-1">Field Intelligence</Badge>

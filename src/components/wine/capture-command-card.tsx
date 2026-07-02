@@ -41,7 +41,7 @@ export function CaptureCommandCard() {
           <div className="rounded-2xl border bg-background/75 p-4">
             <Camera className="mb-3 h-5 w-5 text-primary" />
             <div className="font-semibold">Photo → review</div>
-            <p className="mt-1 text-sm text-muted-foreground">Bottle image extraction stays behind the protected Supabase capture-wine function.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Bottle image extraction runs through the authenticated, rate-limited label scan API.</p>
           </div>
           <div className="rounded-2xl border bg-background/75 p-4">
             <CheckCircle2 className="mb-3 h-5 w-5 text-primary" />

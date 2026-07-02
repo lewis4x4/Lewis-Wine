@@ -185,9 +185,7 @@ function VisitCard({
         <div className="flex justify-between items-start">
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <Link href={`/visits/${visit.id}`} className="hover:underline">
-                <h3 className="font-semibold text-lg">{visit.winery_name}</h3>
-              </Link>
+              <h3 className="font-semibold text-lg">{visit.winery_name}</h3>
               <Badge variant="outline">
                 {VISIT_TYPE_LABELS[visit.visit_type]}
               </Badge>
@@ -257,12 +255,6 @@ function VisitCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <Link href={`/visits/${visit.id}`}>View Details</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href={`/visits/${visit.id}/edit`}>Edit Visit</Link>
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={onDelete} className="text-red-600">
                 Delete
               </DropdownMenuItem>

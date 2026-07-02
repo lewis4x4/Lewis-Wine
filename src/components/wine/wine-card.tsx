@@ -101,7 +101,7 @@ export function WineCard({ wine, locationMode = "simple", brianFit, onQuantityCh
 
             <div className="min-w-0 flex-1">
               <Link href={`/cellar/${wine.id}`} className="block group/link">
-                <h3 className="text-[28px] font-semibold leading-[1.05] tracking-tight text-foreground transition-colors group-hover/link:text-primary sm:text-[30px]">
+                <h3 className="text-lg font-semibold leading-snug tracking-tight text-foreground transition-colors group-hover/link:text-primary sm:text-xl">
                   <span className="line-clamp-2">{name}</span>
                 </h3>
               </Link>
@@ -143,23 +143,17 @@ export function WineCard({ wine, locationMode = "simple", brianFit, onQuantityCh
             )}
           </div>
 
-          <div className="mt-5 grid gap-3 rounded-3xl border border-border/60 bg-muted/20 p-4 text-sm">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">What matters now</div>
-              <div className="mt-1 font-medium text-foreground">{whatMattersNow}</div>
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Best next move</div>
-              <div className="mt-1 font-medium text-foreground">{nextMove}</div>
-            </div>
-            {brianFit && (
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Why Brian may like it</div>
-                <div className="mt-1 font-medium text-foreground">{brianFit.reason}</div>
-                <div className="mt-1 text-xs text-muted-foreground">{brianFit.confidence}% confidence</div>
-              </div>
-            )}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-normal">
+              {whatMattersNow}
+            </Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1 text-xs font-normal">
+              {nextMove}
+            </Badge>
           </div>
+          {brianFit && (
+            <p className="mt-2 line-clamp-1 text-xs text-muted-foreground">{brianFit.reason}</p>
+          )}
 
           {/* Drinking Window Progress */}
           {drinkingWindow && (
@@ -213,7 +207,7 @@ export function WineCard({ wine, locationMode = "simple", brianFit, onQuantityCh
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 w-7 p-0 hover:bg-background"
+                className="h-11 w-11 p-0 hover:bg-background"
                 onClick={() => onQuantityChange(wine.id, -1)}
                 disabled={wine.quantity <= 0}
               >
@@ -225,7 +219,7 @@ export function WineCard({ wine, locationMode = "simple", brianFit, onQuantityCh
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 w-7 p-0 hover:bg-background"
+                className="h-11 w-11 p-0 hover:bg-background"
                 onClick={() => onQuantityChange(wine.id, 1)}
               >
                 +

@@ -90,7 +90,7 @@ export default function BlindTastingPage() {
 
         // Check Varietal (String includes check for MVP)
         // In a real app, use structured Varietal IDs
-        const actualVarietal = mysteryWine.wine_reference?.varietal || "";
+        const actualVarietal = (mysteryWine.wine_reference?.grape_varieties ?? []).join(", ");
         if (guess.varietal && actualVarietal.toLowerCase().includes(guess.varietal.toLowerCase())) {
             points += 30;
             breakdown.push("Varietal: Spot on! (+30)");

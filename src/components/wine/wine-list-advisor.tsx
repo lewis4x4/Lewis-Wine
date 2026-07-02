@@ -84,14 +84,22 @@ function RecommendationRow({ recommendation }: { recommendation: RestaurantRecom
 }
 
 export function WineListAdvisor() {
-  const [restaurant, setRestaurant] = useState("Fixture Steakhouse");
-  const [cuisine, setCuisine] = useState("steakhouse dinner");
-  const [context, setContext] = useState("impressive but not silly");
-  const [pastedText, setPastedText] = useState(sampleText);
+  const [restaurant, setRestaurant] = useState("");
+  const [cuisine, setCuisine] = useState("");
+  const [context, setContext] = useState("");
+  const [pastedText, setPastedText] = useState("");
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<RestaurantModeResult>(() => buildRestaurantMode({ restaurant: "Fixture Steakhouse", cuisine: "steakhouse dinner", context: "impressive but not silly", profile: fallbackProfile, items: parseRestaurantWineText(sampleText) }));
+  const [result, setResult] = useState<RestaurantModeResult>(() => emptyResult());
+
+  function loadSample() {
+    setRestaurant("Sample Steakhouse");
+    setCuisine("steakhouse dinner");
+    setContext("impressive but not silly");
+    setPastedText(sampleText);
+    setResult(buildRestaurantMode({ restaurant: "Sample Steakhouse", cuisine: "steakhouse dinner", context: "impressive but not silly", profile: fallbackProfile, items: parseRestaurantWineText(sampleText) }));
+  }
 
   const primaryCount = useMemo(() => `${result.summary.pour} pour · ${result.summary.consider} consider · ${result.summary.skip} skip`, [result.summary]);
 
@@ -152,16 +160,21 @@ export function WineListAdvisor() {
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_auto]">
-          <div className="space-y-2"><Label>Restaurant</Label><Input value={restaurant} onChange={(event) => setRestaurant(event.target.value)} /></div>
-          <div className="space-y-2"><Label>Cuisine / occasion</Label><Input value={cuisine} onChange={(event) => setCuisine(event.target.value)} /></div>
-          <div className="space-y-2"><Label>Decision style</Label><Input value={context} onChange={(event) => setContext(event.target.value)} /></div>
+          <div className="space-y-2"><Label>Restaurant</Label><Input value={restaurant} onChange={(event) => setRestaurant(event.target.value)} placeholder="Where are you?" /></div>
+          <div className="space-y-2"><Label>Cuisine / occasion</Label><Input value={cuisine} onChange={(event) => setCuisine(event.target.value)} placeholder="e.g. steakhouse dinner" /></div>
+          <div className="space-y-2"><Label>Decision style</Label><Input value={context} onChange={(event) => setContext(event.target.value)} placeholder="e.g. impressive but not silly" /></div>
           <div className="flex items-end"><Button type="button" onClick={advise} disabled={isLoading} className="w-full"><RefreshCw className="mr-2 h-4 w-4" />{isLoading ? "Ranking" : "Rank list"}</Button></div>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-2">
             <Label>Paste wine list text</Label>
-            <textarea value={pastedText} onChange={(event) => setPastedText(event.target.value)} className="min-h-40 w-full rounded-2xl border bg-background p-4 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring" />
+            <textarea value={pastedText} onChange={(event) => setPastedText(event.target.value)} placeholder="One wine per line, e.g. 2021 Producer Label, Region 92" className="min-h-40 w-full rounded-2xl border bg-background p-4 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring" />
+            {!pastedText.trim() ? (
+              <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={loadSample}>
+                Try a sample list
+              </Button>
+            ) : null}
           </div>
           <div className="rounded-3xl border border-dashed bg-background/70 p-5">
             <div className="flex items-center gap-2 font-medium"><Camera className="h-5 w-5" /> Photo-first flow</div>
