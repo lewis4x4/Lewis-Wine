@@ -3,6 +3,8 @@
 **Scope:** full local repo including the two unpushed commits (`19d24f9`, `cb2a5f2`).
 **Method:** 9 parallel review agents (product journeys, UX, roadmap gaps, architecture, security, data integrity, PWA/offline, dead code, production readiness), followed by adversarial verification of every serious claim (63 claims independently re-checked against the code; 60 confirmed, 3 refuted and corrected below), followed by a 3-lens strategy panel (product visionary / pragmatic engineer / daily user). Every finding cites a file and line that a verifier re-read. Static review only — no live Supabase or hosted app was exercised.
 
+**Post-review update (2026-07-01, later same day):** the important-fix tier was executed (commits `2cc3894`..`5dee47a`) and the fix for §5's biggest confirmed gap — migrations `00024`–`00026` (consumption ledger, write-path idempotency, durable rate-limit counters) — was verified live against production via direct SQL queries. Two corrections to the findings below: (1) the claim that `00022` "was never applied to production" (§5, §10) was **live-verified false** — both `00022` and `00023` were already applied; the roadmap doc's status table was stale, not the code. (2) The wine-identity `UNIQUE` index risk flagged in migration `00025` was checked against production data before applying (zero duplicate wine identities found) and is now live with RLS confirmed enabled on both new tables. See `docs/security-checklist.md` for the current state of the remaining (dashboard-only) items.
+
 ---
 
 ## The thesis

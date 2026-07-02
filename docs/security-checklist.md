@@ -9,10 +9,14 @@ them.
       "Allow new users to sign up" off; same for Google OAuth). This is a
       single-user app; any self-registered account can reach authenticated AI
       endpoints. `supabase/config.toml` only governs local dev.
-- [ ] **Apply migrations 00024–00026** (`consumption ledger`,
-      `write-path idempotency`, `api_usage_counters`). Also verify 00022/00023
-      are applied — the roadmap status table says 00022 never reached
-      production, and the app silently degrades when it's missing.
+- [x] **Apply migrations 00024–00026** (`consumption ledger`,
+      `write-path idempotency`, `api_usage_counters`). Applied 2026-07-01 and
+      verified in production: RLS enabled on both new tables, both
+      idempotency columns present, `idx_wines_identity_unique` live and the
+      old plain `idx_wines_dedupe` dropped, `authenticated` can execute
+      `consume_api_quota`. Also confirmed 00022/00023 were already applied —
+      the roadmap status table's claim that 00022 never reached production
+      was stale/incorrect.
 - [ ] **Undeploy the deleted edge functions**: `capture-wine` and `find-more`
       were removed from the repo (dead code; capture-wine called Claude Vision
       with no auth). If they were ever deployed:
