@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropicApiKey } from "@/lib/anthropic-config";
 import { createClient } from "@/lib/supabase/server";
 import {
-  checkRateLimit,
+  checkDurableRateLimit,
   isAllowedAiImageMimeType,
   validateAiImageUpload,
 } from "@/lib/api-security";
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const rateLimit = checkRateLimit(`receipt-scan:${user.id}`);
+    const rateLimit = await checkDurableRateLimit(supabase, user.id, "receipt-scan");
     if (!rateLimit.allowed) {
       return NextResponse.json(
         {

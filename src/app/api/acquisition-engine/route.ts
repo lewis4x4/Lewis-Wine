@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAnthropicApiKey } from "@/lib/anthropic-config";
 import { countAnthropicWebSearchUses, emptyAnthropicTelemetry, estimateAnthropicCostUsd, pricingForAnthropicModel, type AnthropicRefreshTelemetry } from "@/lib/current-intelligence/anthropic-telemetry";
+import { AI_WEB_SEARCH_DAILY_MAX_REQUESTS, AI_WEB_SEARCH_DAILY_WINDOW_MS, checkDurableRateLimit } from "@/lib/api-security";
 import { createClient } from "@/lib/supabase/server";
 import {
   buildAcquisitionEngine,
@@ -204,6 +205,12 @@ async function refreshAcquisitionTarget(supabase: Awaited<ReturnType<typeof crea
     .single();
   if (targetError || !targetRow) return { response: NextResponse.json({ success: false, error: "Target not found" }, { status: 404 }) };
   const target = targetFromDb(targetRow);
+  // Shared daily budget across web-search AI endpoints — the expensive spend
+  // surface previously had no cap at all.
+  const spendCap = await checkDurableRateLimit(supabase, userId, "ai-web-search", AI_WEB_SEARCH_DAILY_MAX_REQUESTS, AI_WEB_SEARCH_DAILY_WINDOW_MS);
+  if (!spendCap.allowed) {
+    return { response: NextResponse.json({ success: false, error: "Daily AI web-search budget reached. Try again tomorrow." }, { status: 429 }) };
+  }
   const anthropic = await synthesizeAcquisitionPriceCandidates(target);
   const candidates = [...(input.candidates ?? []), ...anthropic.candidates];
   const normalized = normalizeAcquisitionPriceCandidates(candidates);

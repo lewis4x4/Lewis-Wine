@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { AI_WEB_SEARCH_DAILY_MAX_REQUESTS, AI_WEB_SEARCH_DAILY_WINDOW_MS, checkDurableRateLimit } from "@/lib/api-security";
 import { getAnthropicApiKey } from "@/lib/anthropic-config";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -119,6 +120,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const plan = buildRefreshPlan(wine as BottleSearchRecord, input.scope, existing, new Date().toISOString());
     if (plan.skipReason && !input.force) {
       return NextResponse.json({ success: true, skipped: true, plan, gaps: [plan.skipReason], evidence: [], observations: [] });
+    }
+
+    // Shared daily budget across web-search AI endpoints — the expensive
+    // spend surface previously had no cap at all.
+    const spendCap = await checkDurableRateLimit(supabase, user.id, "ai-web-search", AI_WEB_SEARCH_DAILY_MAX_REQUESTS, AI_WEB_SEARCH_DAILY_WINDOW_MS);
+    if (!spendCap.allowed) {
+      return NextResponse.json({ success: false, error: "Daily AI web-search budget reached. Try again tomorrow." }, { status: 429 });
     }
 
     const anthropic = await synthesizeWithAnthropic(wine as BottleSearchRecord, input.scope);

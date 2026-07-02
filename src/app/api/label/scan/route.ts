@@ -4,7 +4,7 @@ import { getAnthropicApiKey } from "@/lib/anthropic-config";
 import { createClient } from "@/lib/supabase/server";
 import {
   MAX_AI_IMAGE_UPLOAD_BYTES,
-  checkRateLimit,
+  checkDurableRateLimit,
   isAllowedAiImageMimeType,
   validateAiImageUpload,
 } from "@/lib/api-security";
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const rateLimit = checkRateLimit(`label-scan:${user.id}`);
+    const rateLimit = await checkDurableRateLimit(supabase, user.id, "label-scan");
     if (!rateLimit.allowed) {
       return NextResponse.json(
         {

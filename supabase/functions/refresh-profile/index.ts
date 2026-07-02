@@ -18,7 +18,13 @@ function supabase() {
 
 async function userIdFromRequest(req: Request) {
   const auth = req.headers.get("Authorization") ?? "";
-  if (!auth) return Deno.env.get("POURFOLIO_FIXTURE_OWNER_ID") ?? null;
+  if (!auth) {
+    // Fixture owner is a test affordance only. This function runs with the
+    // service-role key, so an ungated fallback would let header-less callers
+    // act as the fixture user; require explicit fixture mode.
+    if (fixtureEnabled()) return Deno.env.get("POURFOLIO_FIXTURE_OWNER_ID") ?? null;
+    return null;
+  }
   const { data, error } = await supabase().auth.getUser(auth.replace(/^Bearer\s+/i, ""));
   if (error) throw error;
   return data.user?.id ?? null;
