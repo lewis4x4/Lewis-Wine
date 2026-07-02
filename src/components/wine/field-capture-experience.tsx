@@ -19,6 +19,7 @@ import {
   getOfflineFieldCaptureDrafts,
   markOfflineFieldCaptureDraftFailed,
   markOfflineFieldCaptureDraftSyncing,
+  resetStuckOfflineFieldCaptureDrafts,
   saveOfflineFieldCaptureDraft,
   type OfflineFieldCaptureDraft,
 } from "@/lib/offline-field-capture-drafts";
@@ -27,6 +28,7 @@ import {
   buildCaptureFollowUpHint,
   buildCaptureWineRequest,
   buildFieldCaptureCandidateFromLabelScan,
+  buildManualFieldCaptureCandidate,
   buildReviewDraft,
   canSaveFieldCaptureDraft,
   createPostSaveActions,
@@ -166,6 +168,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
   const inputRef = useRef<HTMLInputElement>(null);
   const captureSequenceRef = useRef(0);
   const idempotencyKeyRef = useRef(createFieldCaptureIdempotencyKey());
+  const syncRef = useRef<(() => Promise<void>) | null>(null);
   const [stage, setStage] = useState<Stage>(initialDemo ? "review" : "photo");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [candidate, setCandidate] = useState<CaptureWineCandidate | null>(initialDemo ? tapizDemoCandidate : null);
@@ -189,11 +192,22 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Drafts stuck in "syncing" from a killed session should retry, not
+    // strand as forever-in-progress.
+    resetStuckOfflineFieldCaptureDrafts(window.localStorage);
     refreshOfflineDrafts();
-    window.addEventListener("online", refreshOfflineDrafts);
+    const handleOnline = () => {
+      refreshOfflineDrafts();
+      // Sync queued captures automatically on reconnect instead of waiting
+      // for a manual "Sync all" tap.
+      if (getOfflineFieldCaptureDrafts(window.localStorage).length > 0) {
+        void syncRef.current?.();
+      }
+    };
+    window.addEventListener("online", handleOnline);
     window.addEventListener("offline", refreshOfflineDrafts);
     return () => {
-      window.removeEventListener("online", refreshOfflineDrafts);
+      window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", refreshOfflineDrafts);
     };
   }, []);
@@ -245,9 +259,11 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
   async function handleFile(file: File) {
     const sequence = captureSequenceRef.current + 1;
     captureSequenceRef.current = sequence;
+    let capturedDataUrl: string | null = null;
     try {
       const dataUrl = await dataUrlFromFile(file);
       if (sequence !== captureSequenceRef.current) return;
+      capturedDataUrl = dataUrl;
       idempotencyKeyRef.current = createFieldCaptureIdempotencyKey();
       setCandidate(null);
       setResult(null);
@@ -259,11 +275,23 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
       if (completed) toast.success("Bottle parsed. Review before saving.", { id: "field-capture" });
     } catch (error) {
       if (sequence !== captureSequenceRef.current) return;
-      setCandidate(null);
       setResult(null);
-      setImageDataUrl(null);
-      setStage("photo");
-      toast.error(error instanceof Error ? error.message : "Could not parse bottle", { id: "field-capture" });
+      if (capturedDataUrl) {
+        // Never discard the photo on a failed scan (offline, API error):
+        // fall back to manual entry so the capture can still be completed
+        // and queued for sync.
+        setCandidate(buildManualFieldCaptureCandidate());
+        setDescriptors("");
+        setNotes("");
+        setFollowUpQuestion(null);
+        setStage("review");
+        toast.warning("Label scan unavailable — photo kept. Fill in the bottle details manually.", { id: "field-capture" });
+      } else {
+        setCandidate(null);
+        setImageDataUrl(null);
+        setStage("photo");
+        toast.error(error instanceof Error ? error.message : "Could not parse bottle", { id: "field-capture" });
+      }
     }
   }
 
@@ -300,12 +328,23 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
       else toast.info(`Queued field capture: ${offlineDraft.id}`);
       return offlineDraft;
     } catch (error) {
-      const message = error instanceof DOMException && error.name === "QuotaExceededError"
-        ? "Offline storage is full. Please crop or retake the label photo, or save when back online."
-        : error instanceof Error
-          ? error.message
-          : "Could not queue this capture offline.";
-      toast.error(message);
+      if (error instanceof DOMException && error.name === "QuotaExceededError") {
+        // Photo evidence blew the localStorage quota. Retry without the
+        // photo so the tasting itself survives rather than losing everything.
+        try {
+          const offlineDraft = saveOfflineFieldCaptureDraft(
+            window.localStorage,
+            createOfflineFieldCaptureDraft({ reviewDraft: draft, evidenceDataUrl: null }),
+          );
+          refreshOfflineDrafts();
+          toast.warning("Offline storage was full — capture queued without the photo. Retake the label shot after syncing if you need it.");
+          return offlineDraft;
+        } catch {
+          toast.error("Offline storage is full. Sync or delete queued captures, then try again.");
+          return null;
+        }
+      }
+      toast.error(error instanceof Error ? error.message : "Could not queue this capture offline.");
       return null;
     }
   }
@@ -349,6 +388,7 @@ export function FieldCaptureExperience({ initialDemo = false, inventoryId = null
       setStage(draft ? "review" : "photo");
     }
   }
+  syncRef.current = syncOfflineFieldDrafts;
 
   async function retryOfflineFieldDraft(offlineDraft: OfflineFieldCaptureDraft) {
     if (typeof window === "undefined") return;

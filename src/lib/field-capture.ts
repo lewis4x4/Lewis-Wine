@@ -272,6 +272,24 @@ export function buildFieldCaptureCandidateFromLabelScan(wine: FieldCaptureLabelS
   return candidate;
 }
 
+// Fallback candidate for when the label scan fails (offline, API error):
+// the photo is kept and every field is editable so the capture can still be
+// completed manually and queued for sync.
+export function buildManualFieldCaptureCandidate(): CaptureWineCandidate {
+  return {
+    producer: null,
+    label: null,
+    vintage: null,
+    region: null,
+    subregion: null,
+    country: null,
+    varietal: null,
+    wine_type: "red",
+    confidence: null,
+    ambiguous_fields: ["producer", "label", "vintage", "region", "varietal"],
+  };
+}
+
 export function buildCaptureFollowUpHint(question: string | null | undefined, answer: string) {
   const cleanAnswer = compact(answer);
   const cleanQuestion = compact(question);

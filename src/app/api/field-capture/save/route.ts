@@ -363,9 +363,14 @@ export async function POST(request: Request) {
       : error && typeof error === "object" && "message" in error
         ? String((error as { message?: unknown }).message)
         : "Failed to save field capture";
+    // User-correctable evidence-input problems stay 4xx; everything else
+    // (Supabase/storage/unknown failures) must be 5xx so the client-side
+    // offline queue classifier retries instead of blaming the user.
+    const isUserCorrectable = /^Evidence /.test(message);
+    if (!isUserCorrectable) console.error("Field capture save failed", error);
     return NextResponse.json(
-      { success: false, error: message },
-      { status: 400 }
+      { success: false, error: isUserCorrectable ? message : "Field capture could not be saved right now." },
+      { status: isUserCorrectable ? 400 : 500 }
     );
   }
 }

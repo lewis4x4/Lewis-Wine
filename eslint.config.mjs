@@ -13,6 +13,9 @@ const eslintConfig = defineConfig([
     "build/**",
     "supabase/functions/**",
     "next-env.d.ts",
+    // Generated service worker bundle (serwist build):
+    "public/sw.js",
+    "public/sw.js.map",
   ]),
 ]);
 

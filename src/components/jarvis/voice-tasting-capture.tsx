@@ -95,6 +95,8 @@ export function VoiceTastingCapture() {
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [editingTranscript, setEditingTranscript] = useState("");
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const finalTranscriptRef = useRef("");
+  const syncRef = useRef<(() => Promise<void>) | null>(null);
 
   const speechSupported = useMemo(() => {
     if (typeof window === "undefined") return false;
@@ -115,11 +117,18 @@ export function VoiceTastingCapture() {
     };
 
     refreshState();
-    window.addEventListener("online", refreshState);
+    const handleOnline = () => {
+      refreshState();
+      // Sync queued tastings automatically on reconnect.
+      if (getOfflineTastingDrafts(window.localStorage).length > 0) {
+        void syncRef.current?.();
+      }
+    };
+    window.addEventListener("online", handleOnline);
     window.addEventListener("offline", refreshState);
 
     return () => {
-      window.removeEventListener("online", refreshState);
+      window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", refreshState);
     };
   }, []);
@@ -144,15 +153,21 @@ export function VoiceTastingCapture() {
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-US";
+    // Interim results arrive as cumulative snapshots; appending them garbles
+    // dictation ("ninety ninety six ninety six points"). Keep committed final
+    // text in a ref and rebuild the transcript as final + latest interim.
+    finalTranscriptRef.current = transcript.trim();
     recognition.onresult = (event) => {
-      let nextFinal = "";
-      let nextInterim = "";
+      let interim = "";
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index];
-        if (result.isFinal) nextFinal += result[0].transcript;
-        else nextInterim += result[0].transcript;
+        if (result.isFinal) {
+          finalTranscriptRef.current = `${finalTranscriptRef.current} ${result[0].transcript}`.trim();
+        } else {
+          interim += result[0].transcript;
+        }
       }
-      setTranscript((current) => `${current.replace(/\s+$/, "")} ${nextFinal || nextInterim}`.trim());
+      setTranscript(`${finalTranscriptRef.current} ${interim}`.trim());
     };
     recognition.onend = () => setIsListening(false);
     recognitionRef.current = recognition;
@@ -275,6 +290,7 @@ export function VoiceTastingCapture() {
       setIsBusy(false);
     }
   };
+  syncRef.current = syncOfflineDrafts;
 
   const retryOfflineDraft = async (offlineDraft: OfflineTastingDraft) => {
     if (typeof window === "undefined") return;
@@ -329,6 +345,9 @@ export function VoiceTastingCapture() {
   };
 
   const canSave = Boolean(transcript.trim()) && draft?.status === "ready_to_save" && Boolean(selectedInventoryId || draft.matchedWine?.id);
+  // Offline, the preview call (and thus ready_to_save) is unreachable — allow
+  // queueing any non-empty transcript; matching happens at sync time.
+  const canQueueOffline = Boolean(transcript.trim()) && !isOnline;
 
   return (
     <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
@@ -379,9 +398,9 @@ export function VoiceTastingCapture() {
               <Sparkles className="h-4 w-4" />
               {isBusy ? "Structuring..." : "Preview draft"}
             </Button>
-            <Button className="h-11 rounded-full" variant="outline" onClick={save} disabled={isBusy || !canSave}>
+            <Button className="h-11 rounded-full" variant="outline" onClick={save} disabled={isBusy || (!canSave && !canQueueOffline)}>
               <Save className="h-4 w-4" />
-              Save tasting
+              {isOnline ? "Save tasting" : "Queue offline"}
             </Button>
           </div>
 

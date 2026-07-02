@@ -1,16 +1,9 @@
 import path from "node:path";
 import type { NextConfig } from "next";
-import withPWAInit from "@ducanh2912/next-pwa";
 
-const withPWA = withPWAInit({
-  dest: "public",
-  disable: process.env.NODE_ENV === "development",
-  register: true,
-  reloadOnOnline: true,
-  cacheOnFrontEndNav: true,
-  aggressiveFrontEndNavCaching: true,
-});
-
+// Service worker: built by `serwist build serwist.config.mjs` (see the build
+// script) because webpack-plugin PWA integrations are silently skipped by
+// Turbopack builds. Registration happens via <SerwistProvider> in layout.tsx.
 const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
@@ -33,4 +26,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withPWA(nextConfig);
+export default nextConfig;

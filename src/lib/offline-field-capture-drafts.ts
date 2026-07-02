@@ -17,6 +17,19 @@ export type OfflineFieldCaptureDraftStorage = Pick<Storage, "getItem" | "setItem
 
 export const OFFLINE_FIELD_CAPTURE_DRAFTS_KEY = "pourfolio:offline-field-capture-drafts:v1";
 
+export const MAX_OFFLINE_FIELD_CAPTURE_DRAFTS = 20;
+
+// Thrown instead of silently discarding the oldest reviewed capture when the
+// queue is full (a trade tasting is exactly 20+ wines).
+export class OfflineFieldCaptureQueueFullError extends Error {
+  constructor() {
+    super(
+      `Offline queue is full (${MAX_OFFLINE_FIELD_CAPTURE_DRAFTS} captures). Sync or delete queued captures before adding more.`
+    );
+    this.name = "OfflineFieldCaptureQueueFullError";
+  }
+}
+
 function safeParseDrafts(raw: string | null): OfflineFieldCaptureDraft[] {
   if (!raw) return [];
   try {
@@ -108,10 +121,30 @@ export function saveOfflineFieldCaptureDraft(storage: OfflineFieldCaptureDraftSt
     updatedAt: draft.updatedAt || new Date().toISOString(),
   };
 
-  if (existingIndex >= 0) drafts[existingIndex] = nextDraft;
-  else drafts.unshift(nextDraft);
-  writeDrafts(storage, drafts.slice(0, 20));
+  if (existingIndex >= 0) {
+    drafts[existingIndex] = nextDraft;
+  } else {
+    if (drafts.length >= MAX_OFFLINE_FIELD_CAPTURE_DRAFTS) {
+      throw new OfflineFieldCaptureQueueFullError();
+    }
+    drafts.unshift(nextDraft);
+  }
+  writeDrafts(storage, drafts);
   return nextDraft;
+}
+
+// Drafts stuck in "syncing" (app killed mid-sync) read as in-progress forever;
+// reset them to "queued" at load so they are retried instead of stranded.
+export function resetStuckOfflineFieldCaptureDrafts(storage: OfflineFieldCaptureDraftStorage) {
+  const drafts = getOfflineFieldCaptureDrafts(storage);
+  if (!drafts.some((draft) => draft.status === "syncing")) return drafts;
+  const nextDrafts = drafts.map((draft) =>
+    draft.status === "syncing"
+      ? { ...draft, status: "queued" as const, updatedAt: new Date().toISOString() }
+      : draft,
+  );
+  writeDrafts(storage, nextDrafts);
+  return nextDrafts;
 }
 
 export function deleteOfflineFieldCaptureDraft(storage: OfflineFieldCaptureDraftStorage, id: string) {
