@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ReceiptText, RefreshCw, ScanLine, Trophy } from "lucide-react";
 import { toast } from "sonner";
@@ -52,6 +52,9 @@ export function AcquisitionReceiptPanel() {
   const [receiptText, setReceiptText] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // One key per form session: a retry after a failed submit replays instead
+  // of duplicating bottles/price evidence. Rotated after each success.
+  const idempotencyKeyRef = useRef<string>(`receipt-${crypto.randomUUID()}`);
   const parsed = useMemo(() => parseReceiptText(receiptText), [receiptText]);
   const receipt = useMemo(() => buildAcquisitionReceipt({
     vendor: vendor || parsed.vendor,
@@ -82,6 +85,7 @@ export function AcquisitionReceiptPanel() {
           receiptText,
           notes,
           items: receipt.items,
+          idempotencyKey: idempotencyKeyRef.current,
         }),
       });
       const payload = await response.json();
@@ -90,7 +94,8 @@ export function AcquisitionReceiptPanel() {
         return;
       }
       if (!response.ok || !payload.success) throw new Error(payload.error ?? "Failed to capture receipt");
-      toast.success("Acquisition receipt captured.");
+      idempotencyKeyRef.current = `receipt-${crypto.randomUUID()}`;
+      toast.success(payload.replayed ? "Receipt was already captured." : "Acquisition receipt captured.");
       setNotice(payload.purchaseStory ?? "Receipt saved.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not capture receipt");

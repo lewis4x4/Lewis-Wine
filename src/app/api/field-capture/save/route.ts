@@ -139,20 +139,23 @@ export async function POST(request: Request) {
     const existingReplay = await replayExistingCapture();
     if (existingReplay) return existingReplay;
 
-    const vintageFilter = client
-      .from("wines")
-      .select("id,producer,label,vintage,region,varietal")
-      .eq("owner_id", userId);
-    const { data: existingRows, error: lookupError } = payload.wine.vintage == null
-      ? await vintageFilter.is("vintage", null).limit(200)
-      : await vintageFilter.eq("vintage", payload.wine.vintage).limit(200);
-    if (lookupError) throw lookupError;
+    async function findExistingWineByIdentity() {
+      const query = client
+        .from("wines")
+        .select("id,producer,label,vintage,region,varietal")
+        .eq("owner_id", userId);
+      const { data: rows, error } = payload.wine.vintage == null
+        ? await query.is("vintage", null).limit(200)
+        : await query.eq("vintage", payload.wine.vintage).limit(200);
+      if (error) throw error;
+      return ((rows ?? []) as Record<string, unknown>[]).find((row) => buildWineIdentityKey({
+        producer: (row.producer as string | null) ?? null,
+        label: (row.label as string | null) ?? null,
+        vintage: (row.vintage as number | null) ?? null,
+      }) === wineIdentityKey) ?? null;
+    }
 
-    const existingWine = ((existingRows ?? []) as Record<string, unknown>[]).find((row) => buildWineIdentityKey({
-      producer: (row.producer as string | null) ?? null,
-      label: (row.label as string | null) ?? null,
-      vintage: (row.vintage as number | null) ?? null,
-    }) === wineIdentityKey) ?? null;
+    const existingWine = await findExistingWineByIdentity();
 
     let reusedWine = Boolean(existingWine);
     let wine = existingWine;
@@ -164,9 +167,22 @@ export async function POST(request: Request) {
         .select("id,producer,label,vintage,region,varietal")
         .single();
 
-      if (wineError || !insertedWine) throw wineError ?? new Error("Wine save returned no row");
-      wine = insertedWine;
-      reusedWine = false;
+      if (wineError) {
+        // Concurrent capture created the same identity first (unique index
+        // idx_wines_identity_unique) — reuse it instead of failing.
+        if ((wineError as { code?: string }).code === "23505") {
+          const concurrentWine = await findExistingWineByIdentity();
+          if (concurrentWine) {
+            wine = concurrentWine;
+            reusedWine = true;
+          }
+        }
+        if (!wine) throw wineError;
+      } else {
+        if (!insertedWine) throw new Error("Wine save returned no row");
+        wine = insertedWine;
+        reusedWine = false;
+      }
     }
 
     const savedWine = wine as Record<string, unknown>;
@@ -226,11 +242,37 @@ export async function POST(request: Request) {
       }
       if (cellarError || !cellar) return NextResponse.json({ success: false, error: "No cellar found" }, { status: 404 });
       const cellarPayload = buildFieldCaptureCellarPayload(draft, { cellarId: String(cellar.id), quantity: payload.quantity, labelImageUrl: evidencePath });
-      const { data: inventory, error: inventoryError } = await client
+      // Stamp the same idempotency key that covers tastings/ratings so a
+      // retried save cannot insert a second bottle (unique partial index in
+      // migration 00025).
+      let { data: inventory, error: inventoryError } = await client
         .from("cellar_inventory")
-        .insert(cellarPayload)
+        .insert({ ...cellarPayload, field_capture_idempotency_key: payload.idempotency_key ?? null })
         .select("id,wine_reference_id")
         .single();
+      if (inventoryError) {
+        const code = (inventoryError as { code?: string }).code;
+        if (code === "23505" && payload.idempotency_key) {
+          const replayInventory = await client
+            .from("cellar_inventory")
+            .select("id,wine_reference_id")
+            .eq("field_capture_idempotency_key", payload.idempotency_key)
+            .maybeSingle();
+          if (replayInventory.error) throw replayInventory.error;
+          inventory = replayInventory.data;
+          inventoryError = null;
+        } else if (code === "42703") {
+          // Column missing: migration 00025 not applied yet — save without
+          // the key rather than failing the capture.
+          const fallback = await client
+            .from("cellar_inventory")
+            .insert(cellarPayload)
+            .select("id,wine_reference_id")
+            .single();
+          inventory = fallback.data;
+          inventoryError = fallback.error;
+        }
+      }
       if (inventoryError || !inventory) throw inventoryError ?? new Error("Cellar inventory save returned no row");
       linkedInventory = { id: String(inventory.id), wine_reference_id: inventory.wine_reference_id ?? null };
     }
@@ -303,9 +345,26 @@ export async function POST(request: Request) {
 
     const buyAgainPayload = buildFieldCaptureBuyAgainQueuePayload(draft, { ownerId: userId, wineId: String(savedWine.id) });
     if (buyAgainPayload) {
-      const { data: queueRow, error: queueError } = await client
+      // Preserve user workflow state: a re-capture must never flip an
+      // acquired/dismissed queue item back to active.
+      const { data: existingQueueRow, error: existingQueueError } = await client
         .from("buy_again_queue")
-        .upsert(buyAgainPayload, { onConflict: "owner_id,wine_id" })
+        .select("id")
+        .eq("owner_id", userId)
+        .eq("wine_id", String(savedWine.id))
+        .maybeSingle();
+      if (existingQueueError) throw existingQueueError;
+      const queueUpdate = { ...(buyAgainPayload as Record<string, unknown>) };
+      delete queueUpdate.status;
+      const queueWrite = existingQueueRow?.id
+        ? client
+          .from("buy_again_queue")
+          .update(queueUpdate)
+          .eq("id", existingQueueRow.id)
+        : client
+          .from("buy_again_queue")
+          .insert(buyAgainPayload);
+      const { data: queueRow, error: queueError } = await queueWrite
         .select("id")
         .single();
       if (queueError || !queueRow) throw queueError ?? new Error("Buy Again queue save returned no row");
@@ -325,10 +384,14 @@ export async function POST(request: Request) {
           .eq("source_id", acquisitionPayload.source_id)
           .maybeSingle();
         if (existingAcquisitionError) throw existingAcquisitionError;
+        // On update, never overwrite lifecycle state: re-tasting a wine that
+        // was already ordered/acquired must not reset it to "watching".
+        const acquisitionUpdate = { ...(acquisitionPayload as Record<string, unknown>) };
+        delete acquisitionUpdate.status;
         const acquisitionQuery = existingAcquisitionRow?.id
           ? client
             .from("acquisition_watchlist")
-            .update(acquisitionPayload)
+            .update(acquisitionUpdate)
             .eq("id", existingAcquisitionRow.id)
             .eq("user_id", userId)
           : client

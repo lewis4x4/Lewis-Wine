@@ -37,6 +37,7 @@ const receiptSchema = z.object({
   receiptText: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   items: z.array(itemSchema).optional(),
+  idempotencyKey: z.string().min(8).max(120).optional(),
 });
 
 function parseBody(body: z.infer<typeof receiptSchema>): AcquisitionReceiptInput {
@@ -153,7 +154,60 @@ export async function POST(request: Request) {
     const { data: cellar, error: cellarError } = await client.from("cellars").select("id").eq("owner_id", auth.user.id).limit(1).single();
     if (cellarError || !cellar) return NextResponse.json({ success: false, error: "No cellar found" }, { status: 404 });
 
-    const { data: receiptRow, error: receiptError } = await client.from("acquisition_receipts").insert(receiptToDb(receipt, auth.user.id)).select().single();
+    // Replay guard: a retry after a mid-loop failure (or a double submit)
+    // must not re-insert bottles and price evidence (unique index in 00025).
+    const userId = auth.user.id;
+    const idempotencyKey = body.idempotencyKey ?? null;
+    async function findExistingReceipt() {
+      if (!idempotencyKey) return null;
+      const { data: existing, error } = await client
+        .from("acquisition_receipts")
+        .select()
+        .eq("user_id", userId)
+        .eq("idempotency_key", idempotencyKey)
+        .maybeSingle();
+      // 42703 = idempotency_key column missing (migration 00025 not applied);
+      // degrade to the pre-idempotency behavior instead of failing the save.
+      if (error && (error as { code?: string }).code !== "42703") throw error;
+      return existing ?? null;
+    }
+
+    async function replayResponse(existingReceipt: { id: string }) {
+      const { data: replayedItems, error: replayedItemsError } = await client
+        .from("acquisition_receipt_items")
+        .select()
+        .eq("receipt_id", existingReceipt.id);
+      if (replayedItemsError) throw replayedItemsError;
+      return NextResponse.json({
+        success: true,
+        replayed: true,
+        receipt: existingReceipt,
+        items: replayedItems ?? [],
+        summary: receipt.summary,
+        purchaseStory: receipt.purchaseStory,
+      });
+    }
+
+    const replayedReceipt = await findExistingReceipt();
+    if (replayedReceipt) return replayResponse(replayedReceipt);
+
+    let { data: receiptRow, error: receiptError } = await client
+      .from("acquisition_receipts")
+      .insert({ ...receiptToDb(receipt, auth.user.id), idempotency_key: idempotencyKey })
+      .select()
+      .single();
+    if (receiptError) {
+      const code = (receiptError as { code?: string }).code;
+      if (code === "23505" && idempotencyKey) {
+        // Lost a race with a concurrent identical submit — replay it.
+        const concurrent = await findExistingReceipt();
+        if (concurrent) return replayResponse(concurrent);
+      } else if (code === "42703") {
+        const fallback = await client.from("acquisition_receipts").insert(receiptToDb(receipt, auth.user.id)).select().single();
+        receiptRow = fallback.data;
+        receiptError = fallback.error;
+      }
+    }
     if (receiptError) throw receiptError;
 
     const savedItems = [];

@@ -160,20 +160,49 @@ export function useConsumeWine() {
   const supabase = createClient();
 
   return useMutation({
+    // Consuming decrements quantity by one (a 6-bottle lot keeps its other 5)
+    // and records a ledger event; the row only flips to consumed at zero.
     mutationFn: async (id: string) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      const client = supabase as any;
+      const { data: current, error: readError } = await client
         .from("cellar_inventory")
-        .update({
-          status: "consumed",
-          consumed_date: new Date().toISOString().split("T")[0],
-          quantity: 0,
-        })
+        .select("id, quantity, status")
+        .eq("id", id)
+        .single();
+      if (readError) throw readError;
+
+      const currentQuantity = Math.max(0, Number(current?.quantity ?? 0));
+      const consumedCount = currentQuantity > 0 ? 1 : 0;
+      const nextQuantity = Math.max(0, currentQuantity - 1);
+      const updates: Record<string, unknown> = { quantity: nextQuantity };
+      if (nextQuantity === 0) {
+        updates.status = "consumed";
+        updates.consumed_date = new Date().toISOString().split("T")[0];
+      }
+
+      const { data, error } = await client
+        .from("cellar_inventory")
+        .update(updates)
         .eq("id", id)
         .select()
         .single();
-
       if (error) throw error;
+
+      if (consumedCount > 0) {
+        const { error: eventError } = await client
+          .from("cellar_consumption_events")
+          .insert({
+            inventory_id: id,
+            event_type: "consumed",
+            quantity: consumedCount,
+            quantity_after: nextQuantity,
+          });
+        // A missing ledger table (migration not yet applied) must not block
+        // the consume itself; anything else should surface.
+        if (eventError && eventError.code !== "42P01") throw eventError;
+      }
+
       return data as CellarInventory;
     },
     onSuccess: () => {
@@ -216,7 +245,8 @@ export function useRestoreWine() {
   return useMutation({
     mutationFn: async ({ id, quantity = 1 }: { id: string; quantity?: number }) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      const client = supabase as any;
+      const { data, error } = await client
         .from("cellar_inventory")
         .update({
           status: "in_cellar",
@@ -228,6 +258,17 @@ export function useRestoreWine() {
         .single();
 
       if (error) throw error;
+
+      const { error: eventError } = await client
+        .from("cellar_consumption_events")
+        .insert({
+          inventory_id: id,
+          event_type: "restored",
+          quantity: Math.max(1, quantity),
+          quantity_after: quantity,
+        });
+      if (eventError && eventError.code !== "42P01") throw eventError;
+
       return data as CellarInventory;
     },
     onSuccess: () => {
