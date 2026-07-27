@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   buildCaptureFollowUpHint,
   buildCaptureWineRequest,
@@ -345,6 +346,17 @@ function testFieldCaptureDownstreamSkipsNonBuyAgainCaptures() {
   assert.equal(buildFieldCaptureAcquisitionTargetPayload(draft, { userId: "user-1", sourceId: "queue-1" }), null);
 }
 
+function testFieldCaptureSaveRouteReplaysAndRepairsDownstreamSideEffects() {
+  const route = readFileSync("src/app/api/field-capture/save/route.ts", "utf8");
+  assert.match(route, /async function ensureBuyAgainSideEffects/);
+  assert.match(route, /const repaired = await ensureBuyAgainSideEffects/);
+  assert.match(route, /buy_again_queue: repaired\.buyAgainQueue/);
+  assert.match(route, /acquisition_target: repaired\.acquisitionTarget/);
+  assert.match(route, /if \(\(error as \{ code\?: string \}\)\.code === "23505"\)/);
+  assert.match(route, /delete queueUpdate\.status/);
+  assert.match(route, /delete acquisitionUpdate\.status/);
+}
+
 for (const test of [
   testBuildCaptureRequestFromDataUrl,
   testRejectsInvalidCaptureImage,
@@ -373,6 +385,7 @@ for (const test of [
   testSavePayloadCarriesFieldCaptureIdempotencyKey,
   testFieldCaptureDownstreamBuyAgainAndAcquisitionPayloads,
   testFieldCaptureDownstreamSkipsNonBuyAgainCaptures,
+  testFieldCaptureSaveRouteReplaysAndRepairsDownstreamSideEffects,
 ]) {
   test();
 }

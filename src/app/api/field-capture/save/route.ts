@@ -81,6 +81,102 @@ export async function POST(request: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = supabase as any;
 
+    async function ensureBuyAgainSideEffects({ wineId, inventoryId }: { wineId: string; inventoryId: string | null }) {
+      const buyAgainPayload = buildFieldCaptureBuyAgainQueuePayload(draft, { ownerId: userId, wineId });
+      if (!buyAgainPayload) return { buyAgainQueue: null, acquisitionTarget: null };
+
+      const { data: existingQueueRow, error: existingQueueError } = await client
+        .from("buy_again_queue")
+        .select("id")
+        .eq("owner_id", userId)
+        .eq("wine_id", wineId)
+        .maybeSingle();
+      if (existingQueueError) throw existingQueueError;
+
+      const queueUpdate = { ...(buyAgainPayload as Record<string, unknown>) };
+      delete queueUpdate.status;
+      let queueRow = existingQueueRow;
+      if (existingQueueRow?.id) {
+        const { data, error } = await client
+          .from("buy_again_queue")
+          .update(queueUpdate)
+          .eq("id", existingQueueRow.id)
+          .select("id")
+          .single();
+        if (error || !data) throw error ?? new Error("Buy Again queue save returned no row");
+        queueRow = data;
+      } else {
+        const { data, error } = await client
+          .from("buy_again_queue")
+          .insert(buyAgainPayload)
+          .select("id")
+          .single();
+        if (error) {
+          if ((error as { code?: string }).code === "23505") {
+            const { data: replayedQueue, error: replayedQueueError } = await client
+              .from("buy_again_queue")
+              .select("id")
+              .eq("owner_id", userId)
+              .eq("wine_id", wineId)
+              .maybeSingle();
+            if (replayedQueueError) throw replayedQueueError;
+            queueRow = replayedQueue;
+          } else {
+            throw error;
+          }
+        } else {
+          queueRow = data;
+        }
+        if (!queueRow) throw new Error("Buy Again queue save returned no row");
+      }
+
+      const buyAgainQueue = { id: String(queueRow.id) };
+      const acquisitionPayload = buildFieldCaptureAcquisitionTargetPayload(draft, {
+        userId,
+        sourceId: buyAgainQueue.id,
+        inventoryId,
+      });
+      if (!acquisitionPayload) return { buyAgainQueue, acquisitionTarget: null };
+
+      const { data: existingAcquisitionRow, error: existingAcquisitionError } = await client
+        .from("acquisition_watchlist")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("source_kind", acquisitionPayload.source_kind)
+        .eq("source_id", acquisitionPayload.source_id)
+        .maybeSingle();
+      if (existingAcquisitionError) throw existingAcquisitionError;
+
+      const acquisitionUpdate = { ...(acquisitionPayload as Record<string, unknown>) };
+      delete acquisitionUpdate.status;
+      const acquisitionWrite = existingAcquisitionRow?.id
+        ? client
+          .from("acquisition_watchlist")
+          .update(acquisitionUpdate)
+          .eq("id", existingAcquisitionRow.id)
+          .eq("user_id", userId)
+        : client
+          .from("acquisition_watchlist")
+          .insert(acquisitionPayload);
+      let { data: acquisitionRow, error: acquisitionError } = await acquisitionWrite
+        .select("id")
+        .single();
+      if (acquisitionError && (acquisitionError as { code?: string }).code === "23505") {
+        const replayed = await client
+          .from("acquisition_watchlist")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("source_kind", acquisitionPayload.source_kind)
+          .eq("source_id", acquisitionPayload.source_id)
+          .maybeSingle();
+        if (replayed.error) throw replayed.error;
+        acquisitionRow = replayed.data;
+        acquisitionError = null;
+      }
+      if (acquisitionError || !acquisitionRow) throw acquisitionError ?? new Error("Acquisition target save returned no row");
+      return { buyAgainQueue, acquisitionTarget: { id: String(acquisitionRow.id) } };
+    }
+
     async function replayExistingCapture() {
       if (!payload.idempotency_key) return null;
       const { data: existingTasting, error: existingTastingError } = await client
@@ -101,23 +197,10 @@ export async function POST(request: Request) {
       const extraction = (existingTasting.extraction ?? {}) as Record<string, unknown>;
       const inventoryId = typeof extraction.inventory_id === "string" ? extraction.inventory_id : null;
       const ratingId = typeof extraction.rating_id === "string" ? extraction.rating_id : null;
-      const { data: existingQueue } = await client
-        .from("buy_again_queue")
-        .select("id")
-        .eq("owner_id", userId)
-        .eq("wine_id", existingTasting.wine_id)
-        .maybeSingle();
-      let existingAcquisition: { id: string } | null = null;
-      if (existingQueue?.id) {
-        const { data: acquisitionRow } = await client
-          .from("acquisition_watchlist")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("source_kind", "buy_again")
-          .eq("source_id", String(existingQueue.id))
-          .maybeSingle();
-        existingAcquisition = acquisitionRow ? { id: String(acquisitionRow.id) } : null;
-      }
+      const repaired = await ensureBuyAgainSideEffects({
+        wineId: String(existingTasting.wine_id),
+        inventoryId,
+      });
       return NextResponse.json({
         success: true,
         replayed: true,
@@ -126,8 +209,8 @@ export async function POST(request: Request) {
         tasting: existingTasting,
         inventory: inventoryId ? { id: inventoryId } : null,
         rating: ratingId ? { id: ratingId } : null,
-        buy_again_queue: existingQueue?.id ? { id: String(existingQueue.id) } : null,
-        acquisition_target: existingAcquisition,
+        buy_again_queue: repaired.buyAgainQueue,
+        acquisition_target: repaired.acquisitionTarget,
         actions: {
           find_more: `/intelligence?wine_id=${existingTasting.wine_id}&action=find-more`,
           buy_again: `/intelligence?wine_id=${existingTasting.wine_id}#buy-again`,
@@ -343,67 +426,12 @@ export async function POST(request: Request) {
     }
     if (!tasting) throw new Error("Tasting save returned no row");
 
-    const buyAgainPayload = buildFieldCaptureBuyAgainQueuePayload(draft, { ownerId: userId, wineId: String(savedWine.id) });
-    if (buyAgainPayload) {
-      // Preserve user workflow state: a re-capture must never flip an
-      // acquired/dismissed queue item back to active.
-      const { data: existingQueueRow, error: existingQueueError } = await client
-        .from("buy_again_queue")
-        .select("id")
-        .eq("owner_id", userId)
-        .eq("wine_id", String(savedWine.id))
-        .maybeSingle();
-      if (existingQueueError) throw existingQueueError;
-      const queueUpdate = { ...(buyAgainPayload as Record<string, unknown>) };
-      delete queueUpdate.status;
-      const queueWrite = existingQueueRow?.id
-        ? client
-          .from("buy_again_queue")
-          .update(queueUpdate)
-          .eq("id", existingQueueRow.id)
-        : client
-          .from("buy_again_queue")
-          .insert(buyAgainPayload);
-      const { data: queueRow, error: queueError } = await queueWrite
-        .select("id")
-        .single();
-      if (queueError || !queueRow) throw queueError ?? new Error("Buy Again queue save returned no row");
-      buyAgainQueue = { id: String(queueRow.id) };
-
-      const acquisitionPayload = buildFieldCaptureAcquisitionTargetPayload(draft, {
-        userId,
-        sourceId: buyAgainQueue.id,
-        inventoryId: linkedInventory?.id ?? payload.inventory_id ?? null,
-      });
-      if (acquisitionPayload) {
-        const { data: existingAcquisitionRow, error: existingAcquisitionError } = await client
-          .from("acquisition_watchlist")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("source_kind", acquisitionPayload.source_kind)
-          .eq("source_id", acquisitionPayload.source_id)
-          .maybeSingle();
-        if (existingAcquisitionError) throw existingAcquisitionError;
-        // On update, never overwrite lifecycle state: re-tasting a wine that
-        // was already ordered/acquired must not reset it to "watching".
-        const acquisitionUpdate = { ...(acquisitionPayload as Record<string, unknown>) };
-        delete acquisitionUpdate.status;
-        const acquisitionQuery = existingAcquisitionRow?.id
-          ? client
-            .from("acquisition_watchlist")
-            .update(acquisitionUpdate)
-            .eq("id", existingAcquisitionRow.id)
-            .eq("user_id", userId)
-          : client
-            .from("acquisition_watchlist")
-            .insert(acquisitionPayload);
-        const { data: acquisitionRow, error: acquisitionError } = await acquisitionQuery
-          .select("id")
-          .single();
-        if (acquisitionError || !acquisitionRow) throw acquisitionError ?? new Error("Acquisition target save returned no row");
-        acquisitionTarget = { id: String(acquisitionRow.id) };
-      }
-    }
+    const downstream = await ensureBuyAgainSideEffects({
+      wineId: String(savedWine.id),
+      inventoryId: linkedInventory?.id ?? payload.inventory_id ?? null,
+    });
+    buyAgainQueue = downstream.buyAgainQueue;
+    acquisitionTarget = downstream.acquisitionTarget;
 
     return NextResponse.json({
       success: true,
